@@ -74,6 +74,37 @@ def open_folder(path):
         os.startfile(str(path))
 
 
+def clipboard_text(root):
+    """Read native Unicode text on Windows, with Tk as a compatible fallback."""
+    if IS_WINDOWS:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.WinDLL('user32', use_last_error=True)
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        user32.OpenClipboard.argtypes = [wintypes.HWND]
+        user32.OpenClipboard.restype = wintypes.BOOL
+        user32.GetClipboardData.argtypes = [wintypes.UINT]
+        user32.GetClipboardData.restype = wintypes.HANDLE
+        user32.CloseClipboard.argtypes = []
+        user32.CloseClipboard.restype = wintypes.BOOL
+        kernel32.GlobalLock.argtypes = [wintypes.HANDLE]
+        kernel32.GlobalLock.restype = ctypes.c_void_p
+        kernel32.GlobalUnlock.argtypes = [wintypes.HANDLE]
+        kernel32.GlobalUnlock.restype = wintypes.BOOL
+        if user32.OpenClipboard(None):
+            try:
+                handle = user32.GetClipboardData(13)  # CF_UNICODETEXT
+                pointer = kernel32.GlobalLock(handle) if handle else None
+                if pointer:
+                    try:
+                        return ctypes.wstring_at(pointer)
+                    finally:
+                        kernel32.GlobalUnlock(handle)
+            finally:
+                user32.CloseClipboard()
+    return root.clipboard_get()
+
+
 def protect_profile(data, decrypt=False):
     """Encrypt data with a key held in the user's macOS login Keychain."""
     if IS_WINDOWS:

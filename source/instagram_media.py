@@ -93,3 +93,19 @@ def save_description(info, media_paths, folder, file_format='TXT'):
                 temporary.unlink(missing_ok=True)
         written.append(str(target))
     return written
+
+
+def author_directory(info, entries=()):
+    """Use a genuine Instagram handle as one safe, cross-platform path segment."""
+    import re
+    from yt_dlp.utils import sanitize_filename
+    for item in (info, *entries):
+        handle = item.get('channel') or item.get('uploader_id')
+        if isinstance(handle, str) and re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.]{0,29}', handle) and not handle.isdigit():
+            # Windows device names are invalid directories even with a suffix.
+            name = sanitize_filename(handle, restricted=False).rstrip('. ')
+            if name.split('.')[0].upper() in {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))}:
+                name = '_' + name
+            return name
+    # Never invent an account nickname or use an unchecked path from metadata.
+    return 'Unknown author'

@@ -18,7 +18,7 @@ sys.path[:0] = [str(ROOT / 'source'), str(ROOT / 'source/_internal')]
 import yt_dlp
 from platform_support import binary_path
 from yt_dlp.extractor.getcourseru import GetCourseRuPlayerIE
-from instagram_media import ClipFlowInstagramIE, download_photo, is_instagram_url, media_title, save_description
+from instagram_media import ClipFlowInstagramIE, download_photo, is_instagram_url, media_title, save_description, author_directory
 from media_names import short_media_title
 
 # Compile application methods without initializing its Windows-only GUI dependencies.
@@ -62,11 +62,32 @@ class FakeDL:
         return response
 
 class DescriptionTests(unittest.TestCase):
-    def run_worker(self, folder, enabled=False, mode='Видео — MP4', file_format='TXT'):
+    def run_worker(self, folder, enabled=False, mode='Видео — MP4', file_format='TXT', author_folder=False):
         state = SimpleNamespace(active_run=None, events=queue.Queue(), cancel=threading.Event(), skip_current=threading.Event())
         with patch.object(yt_dlp, 'YoutubeDL', FakeDL):
-            worker(state, 'https://instagram.com/reel/Abc/', str(folder), mode, 'Лучшее доступное', lesson_scope='Всё', save_description_text=enabled, description_format=file_format)
+            worker(state, 'https://instagram.com/reel/Abc/', str(folder), mode, 'Лучшее доступное', lesson_scope='Всё', save_description_text=enabled, description_format=file_format, instagram_author_folder=author_folder)
         return [event[:2] for event in state.events.queue]
+
+    def test_author_folder_carousel(self):
+        original = FakeDL.extract_info
+        def metadata(instance, *args, **kwargs):
+            return dict(original(instance, *args, **kwargs), channel='clipflow.author')
+        with patch.object(FakeDL, 'carousel', True), patch.object(FakeDL, 'extract_info', metadata), TemporaryDirectory() as temp:
+            events = self.run_worker(temp, True, author_folder=True)
+            self.assertEqual(events[-1][0], 'done', events)
+            folder = Path(temp) / 'clipflow.author'
+            self.assertEqual(len(list(folder.glob('*.txt'))), 2)
+            self.assertEqual(len(list(folder.glob('*.mp4'))), 1)
+            self.assertEqual(len(list(folder.glob('*.jpg'))), 1)
+            self.assertFalse(list(Path(temp).glob('*.txt')))
+            self.assertIn(('folder', str(folder)), events)
+            self.assertTrue(any(kind == 'download_started' for kind, value in events))
+
+    def test_safe_author_names(self):
+        self.assertEqual(author_directory({'channel': '../../escape'}), 'Unknown author')
+        self.assertEqual(author_directory({'uploader_id': '123456'}), 'Unknown author')
+        self.assertEqual(author_directory({}, [{'channel': 'test_user'}]), 'test_user')
+        self.assertEqual(author_directory({'channel': 'CON'}), '_CON')
 
     def test_toggle_and_final_filename(self):
         for enabled in (False, True):
@@ -124,11 +145,12 @@ class DescriptionTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             CONFIG = Path(temp) / 'settings.json'
             state = SimpleNamespace(folder_history=[], language='ru', installation_language='', detailed_list=False, interface_scale='100%')
-            for name, value in [('folder', temp), ('quality', 'Лучшее доступное'), ('auto_download', True), ('save_instagram_description', True), ('instagram_description_format', 'MD')]:
+            for name, value in [('folder', temp), ('quality', 'Лучшее доступное'), ('auto_download', True), ('instagram_author_folder', True), ('save_instagram_description', True), ('instagram_description_format', 'MD')]:
                 setattr(state, name, SimpleNamespace(get=lambda value=value: value))
             save_settings(state)
             settings = json.loads(CONFIG.read_text(encoding='utf-8'))
             self.assertTrue(settings['save_instagram_description'])
+            self.assertTrue(settings['instagram_author_folder'])
             self.assertEqual(settings['instagram_description_format'], 'MD')
 
 if __name__ == '__main__': unittest.main()

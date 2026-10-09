@@ -1,5 +1,5 @@
 import sys
-from platform_support import RESOURCE_DIR, APP_DATA, AUTH_DIR, SETTINGS_DIR, platform_text, FONT_FAMILY, MODIFIER, CONTEXT_BUTTON, IS_MAC, binary_path, open_folder as reveal_folder, protect_profile, atomic_redraw
+from platform_support import RESOURCE_DIR, APP_DATA, AUTH_DIR, SETTINGS_DIR, platform_text, FONT_FAMILY, MODIFIER, CONTEXT_BUTTON, IS_MAC, binary_path, open_folder as reveal_folder, protect_profile, atomic_redraw, clipboard_text
 from download_events import coalesce_updates
 if __name__ == '__main__' and any(flag in sys.argv for flag in ('--youtube-login','--instagram-login','--auth-self-test','--instagram-auth-self-test')):
     from embedded_auth import main
@@ -20,7 +20,7 @@ from html.parser import HTMLParser
 from youtube_session import YouTubeSession
 from instagram_session import InstagramSession
 from media_names import short_media_title
-from instagram_media import ClipFlowInstagramIE, is_instagram_url, media_title, download_photo, save_description
+from instagram_media import ClipFlowInstagramIE, is_instagram_url, media_title, download_photo, save_description, author_directory
 from pathlib import Path
 from urllib.parse import urlparse
 import tkinter as tk
@@ -337,19 +337,35 @@ ctk.set_appearance_mode('dark')
 ctk.set_default_color_theme('dark-blue')
 
 
+def edit_key(event):
+    # Tk reports layout-dependent keysyms; preserve physical editing keys in RU.
+    key = event.keysym.lower()
+    if not IS_MAC:
+        key = {86: 'v', 67: 'c', 88: 'x', 65: 'a'}.get(event.keycode, key)
+    return {'cyrillic_em': 'v', 'м': 'v', 'cyrillic_es': 'c', 'с': 'c',
+            'cyrillic_che': 'x', 'ч': 'x', 'cyrillic_ef': 'a', 'ф': 'a'}.get(key, key)
+
+
 class MaterialEntry(ctk.CTkEntry):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bind(f'<{MODIFIER}-KeyPress>', self.edit_shortcut)
         self.bind('<Shift-Insert>', self.paste_text)
         self.bind('<<Paste>>', self.paste_text)
-        self.bind(f'<{CONTEXT_BUTTON}>', self.edit_menu)
+        self.paste_callback = None
+        self._edit_popup = None
+        for sequence in ('<Button-2>', '<Button-3>') if IS_MAC else ('<Button-3>',):
+            self.bind(sequence, self.edit_menu)
+        if IS_MAC:
+            self.bind('<Control-Button-1>', self.edit_menu)
 
     def paste_text(self, event=None):
+        if self.paste_callback is not None:
+            return self.paste_callback(event)
         if self.cget('state') == 'disabled':
             return 'break'
         try:
-            text = self.clipboard_get()
+            text = clipboard_text(self)
         except tk.TclError:
             return 'break'
         if self.select_present():
@@ -358,7 +374,7 @@ class MaterialEntry(ctk.CTkEntry):
         return 'break'
 
     def edit_shortcut(self, event):
-        key = event.keysym.lower() if IS_MAC else {86: 'v', 67: 'c', 88: 'x', 65: 'a'}.get(event.keycode, event.keysym.lower())
+        key = edit_key(event)
         if key == 'v':
             return self.paste_text()
         if key == 'a':
@@ -370,7 +386,9 @@ class MaterialEntry(ctk.CTkEntry):
 
     def edit_menu(self, event):
         self.focus_set()
-        menu = tk.Menu(self, tearoff=False)
+        if self._edit_popup is not None:
+            self._edit_popup.destroy()
+        menu = self._edit_popup = tk.Menu(self, tearoff=False)
         menu.add_command(label=ui_text('Вставить'), command=self.paste_text)
         menu.add_command(label=ui_text('Копировать'), command=lambda: self._entry.event_generate('<<Copy>>'))
         menu.add_command(label=ui_text('Вырезать'), command=lambda: self._entry.event_generate('<<Cut>>'))
@@ -379,7 +397,7 @@ class MaterialEntry(ctk.CTkEntry):
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
-            menu.destroy()
+        return 'break'
 
     def selection_range(self, start, end):
         self.select_range(start, end)
@@ -408,7 +426,7 @@ for palette in (COLORS, YOUTUBE_COLORS, GETCOURSE_COLORS):
 TRANSLATIONS.update({'Видео урока': 'Lesson videos', 'Показывать завершённые': 'Show completed', 'Все': 'All', 'Активные': 'Active', 'Завершённые': 'Completed', 'Ошибки': 'Errors', 'Добавить': 'Add', 'Формат': 'Format', 'Качество': 'Quality', 'Аккаунт': 'Account', 'Вид': 'View', 'Аккаунты': 'Accounts', 'Справка': 'Help', 'Добавить ссылку': 'Add link', 'Добавить несколько ссылок': 'Add multiple links', 'Одна ссылка на строку': 'One link per line', 'Приостановить все': 'Pause all', 'Продолжить все': 'Resume all', 'Очистить завершённые': 'Clear completed', 'Компактный список': 'Compact list', 'Подробный список': 'Detailed list', 'Масштаб интерфейса': 'Interface scale', 'Общие': 'General', 'Скачивание': 'Downloads', 'Как пользоваться': 'Getting started', 'Горячие клавиши': 'Keyboard shortcuts', 'Журнал ошибок': 'Error log', 'О ClipFlow': 'About ClipFlow', 'Ошибок нет': 'No errors', 'Копировать название': 'Copy title', 'Повторить': 'Retry', 'Подробности': 'Details', 'Убрать из списка': 'Remove from list', 'Видео и аудио — в вашей коллекции.': 'Video and audio — in your collection.', 'История изменений': 'Release notes', 'Скопировать информацию для поддержки': 'Copy support information', 'Лицензии компонентов': 'Component licenses'})
 
 INSTAGRAM_COLORS = dict(YOUTUBE_COLORS, primary='#E1306C', primary_action='#C13584', primary_hover='#A42A71', primary_container='#58203E', on_primary_container='#FFD9EB', secondary='#F4B4D4', secondary_container='#513049', secondary_hover='#6E3B60', tertiary='#F77737')
-TRANSLATIONS.update({'Видео и фото':'Video and photos', 'Содержимое':'Content','Всё':'All media','Только видео':'Videos only','Только фото':'Photos only','Ссылка на Reel или публикацию Instagram':'Instagram Reel or post link','Войти в Instagram':'Sign in to Instagram','Instagram: сессия сохранена':'Instagram: session saved','Instagram: вход не выполнен':'Instagram: not signed in','Открываю окно входа Instagram…':'Opening Instagram sign-in…'})
+TRANSLATIONS.update({'Папка с ником автора': 'Folder by account username', 'Видео и фото':'Video and photos', 'Содержимое':'Content','Всё':'All media','Только видео':'Videos only','Только фото':'Photos only','Ссылка на Reel или публикацию Instagram':'Instagram Reel or post link','Войти в Instagram':'Sign in to Instagram','Instagram: сессия сохранена':'Instagram: session saved','Instagram: вход не выполнен':'Instagram: not signed in','Открываю окно входа Instagram…':'Opening Instagram sign-in…'})
 
 
 TRANSLATIONS['Вставьте ссылку на Reel или публикацию.\nСохраняйте видео, фото или всю карусель.'] = 'Paste a Reel or post link.\nSave videos, photos or the entire carousel.'
@@ -468,6 +486,7 @@ class App:
         self.folder = tk.StringVar(value=default_download_folder())
         self.mode = tk.StringVar(value='Видео MP4')
         self.quality = tk.StringVar(value='Лучшее доступное')
+        self.instagram_author_folder = tk.BooleanVar(value=True)
         self.save_instagram_description = tk.BooleanVar(value=False)
         self.instagram_description_format = tk.StringVar(value='TXT')
         self.auto_download = tk.BooleanVar(value=True)
@@ -479,6 +498,7 @@ class App:
         try:
             settings = json.loads(CONFIG.read_text(encoding='utf-8'))
             self.auto_download.set(settings.get('auto_download', True))
+            self.instagram_author_folder.set(settings.get('instagram_author_folder', True))
             self.save_instagram_description.set(settings.get('save_instagram_description', False))
             description_format = settings.get('instagram_description_format', 'TXT')
             self.instagram_description_format.set(description_format if description_format in ('TXT', 'MD') else 'TXT')
@@ -546,15 +566,12 @@ class App:
             link_row = ctk.CTkFrame(panel, fg_color='transparent')
             link_row.grid(row=1, column=0, sticky='ew', padx=20, pady=(6, 10))
             link_row.grid_columnconfigure(1, weight=1)
-            self.paste_button = self.button(link_row, 'Вставить ссылку', lambda: self.paste_url(replace=True), width=190)
+            self.paste_button = self.button(link_row, 'Вставить ссылку', lambda service=service: self.paste_url(replace=True, service=service), width=190)
             self.paste_button.grid(row=0, column=0, padx=(0, 14))
             self.url_entry = self.entry(link_row, self.url, placeholder='https://youtube.com/watch…' if service == 'YouTube' else 'https://www.instagram.com/p/…' if service == 'Instagram' else 'https://…getcourse.ru/…')
             self.url_entry.grid(row=0, column=1, sticky='ew')
             self.url_entry.bind('<Return>', lambda event: self.start(prefer_queue=False))
-            self.url_entry.bind(f'<{MODIFIER}-KeyPress>', self.url_shortcut)
-            self.url_entry.bind('<Shift-Insert>', self.paste_url)
-            self.url_entry.bind('<<Paste>>', self.paste_url)
-            self.url_entry.bind(f'<{CONTEXT_BUTTON}>', self.show_url_menu)
+            self.url_entry.paste_callback = lambda event=None, service=service: self.paste_url(event, service=service)
             controls = ctk.CTkFrame(panel, fg_color='transparent')
             controls.grid(row=2, column=0, sticky='ew', padx=20)
             controls.grid_columnconfigure(3, weight=1)
@@ -588,6 +605,8 @@ class App:
                 self.instagram_description_switch.grid(row=0, column=0, sticky='w')
                 self.instagram_description_format_box = self.option(description_row, self.instagram_description_format, ['TXT', 'MD'], width=90, command=lambda value: self.save_settings())
                 self.instagram_description_format_box.grid(row=0, column=1, padx=(16, 0))
+                self.instagram_author_folder_switch = ctk.CTkSwitch(description_row, text='Папка с ником автора', variable=self.instagram_author_folder, command=self.save_settings, progress_color=COLORS['primary_action'], fg_color=COLORS['outline_variant'], button_color=COLORS['secondary'], button_hover_color=COLORS['text'], text_color=COLORS['text'], font=(FONT_FAMILY, 13), switch_width=42, switch_height=24)
+                self.instagram_author_folder_switch.grid(row=0, column=2, padx=(24, 0), sticky='w')
                 self.playlist_switch = None
             else:
                 self.label(controls, 'Видео урока', size=12, color=COLORS['muted']).grid(row=0, column=2, sticky='w', padx=(24, 0), pady=(0, 6))
@@ -1003,7 +1022,7 @@ class App:
         self.url_entry.icursor('end')
 
     def url_shortcut(self, event):
-        key = event.keysym.lower() if IS_MAC else {86: 'v', 67: 'c', 88: 'x', 65: 'a'}.get(event.keycode, event.keysym.lower())
+        key = edit_key(event)
         if key == 'v':
             return self.paste_url(event)
         if key == 'a':
@@ -1013,21 +1032,24 @@ class App:
             self.url_entry.event_generate('<<Copy>>' if key == 'c' else '<<Cut>>')
             return 'break'
 
-    def paste_url(self, event=None, replace=False):
+    def paste_url(self, event=None, replace=False, service=None):
+        service = service or self.tabs.get()
+        entry = self.contexts[service]['url_entry']
         try:
-            text = self.root.clipboard_get().strip()
+            text = clipboard_text(self.root).strip()
         except tk.TclError:
             self.status.set('В буфере обмена нет текста. Скопируйте ссылку.')
             return 'break'
         if not text:
             self.status.set('Буфер обмена пуст. Сначала скопируйте ссылку.')
             return 'break'
+        # Focus before editing also commits native focus/selection state on macOS.
+        entry.focus_set()
         if replace:
-            self.url_entry.delete(0, 'end')
-        elif self.url_entry.select_present():
-            self.url_entry.delete('sel.first', 'sel.last')
-        self.url_entry.insert('insert', text)
-        self.url_entry.focus_set()
+            entry.delete(0, 'end')
+        elif entry.select_present():
+            entry.delete('sel.first', 'sel.last')
+        entry.insert('insert', text)
         self.status.set('Ссылка вставлена. Выберите параметры и нажмите «Скачать».')
         return 'break'
 
@@ -1084,23 +1106,11 @@ class App:
         threading.Thread(target=inspect, daemon=True).start()
 
     def show_url_menu(self, event):
-        popup = ctk.CTkToplevel(self.root)
-        popup.overrideredirect(True)
-        popup.configure(fg_color=COLORS['surface_high'])
-        popup.geometry(f'190x175+{event.x_root}+{event.y_root}')
-        popup.attributes('-topmost', True)
-        def action(command):
-            popup.destroy()
-            command()
-        for title, command in [('Вставить', self.paste_url), ('Копировать', lambda: self.url_entry.event_generate('<<Copy>>')), ('Вырезать', lambda: self.url_entry.event_generate('<<Cut>>')), ('Выделить всё', self.select_url)]:
-            ctk.CTkButton(popup, text=title, command=lambda c=command: action(c), anchor='w', height=34, fg_color='transparent', hover_color=COLORS['secondary_container'], text_color=COLORS['text'], corner_radius=8, font=(FONT_FAMILY, 13)).pack(fill='x', padx=6, pady=3)
-        popup.bind('<Escape>', lambda _: popup.destroy())
-        popup.bind('<FocusOut>', lambda _: popup.destroy() if popup.winfo_exists() else None)
-        popup.focus_force()
+        return self.url_entry.edit_menu(event)
 
     def save_settings(self):
         CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG.write_text(json.dumps({'folder': self.folder.get(), 'quality': self.quality.get(), 'auto_download': self.auto_download.get(), 'save_instagram_description': self.save_instagram_description.get(), 'instagram_description_format': self.instagram_description_format.get(), 'folders': self.folder_history, 'language': self.language, 'installation_language': self.installation_language, 'detailed_list': self.detailed_list, 'interface_scale': self.interface_scale}, ensure_ascii=False), encoding='utf-8')
+        CONFIG.write_text(json.dumps({'folder': self.folder.get(), 'quality': self.quality.get(), 'auto_download': self.auto_download.get(), 'instagram_author_folder': self.instagram_author_folder.get(), 'save_instagram_description': self.save_instagram_description.get(), 'instagram_description_format': self.instagram_description_format.get(), 'folders': self.folder_history, 'language': self.language, 'installation_language': self.installation_language, 'detailed_list': self.detailed_list, 'interface_scale': self.interface_scale}, ensure_ascii=False), encoding='utf-8')
 
     def remember_folder(self, folder):
         self.folder_history = [folder] + [item for item in self.folder_history if os.path.normcase(item) != os.path.normcase(folder)]
@@ -1199,14 +1209,15 @@ class App:
             identity = (parsed.hostname, parsed.path, query.get('id') or parsed.query)
         save_description_text = is_instagram and self.save_instagram_description.get()
         description_format = self.instagram_description_format.get() if save_description_text else 'TXT'
-        key = repr((identity, os.path.normcase(folder), mode, self.quality.get(), whole_playlist, self.getcourse_scope.get() if self.tabs.get() == 'GetCourse' else self.instagram_scope.get() if is_instagram else '', save_description_text, description_format))
+        author_folder = is_instagram and self.instagram_author_folder.get()
+        key = repr((identity, os.path.normcase(folder), mode, self.quality.get(), whole_playlist, self.getcourse_scope.get() if self.tabs.get() == 'GetCourse' else self.instagram_scope.get() if is_instagram else '', save_description_text, description_format, author_folder))
         if key in self.jobs_by_key:
             self.retry_job(self.jobs_by_key[key], auto_start)
             return
         index = self.next_row_id
         service = self.tabs.get()
         self.display_queue([{'title': url, 'service': service}], append=True)
-        job = {'url': url, 'folder': folder, 'mode': mode, 'quality': self.quality.get(), 'access': access, 'playlist': whole_playlist, 'service': service, 'row': index, 'scope': self.getcourse_scope.get() if service == 'GetCourse' else self.instagram_scope.get() if service == 'Instagram' else 'Первое видео', 'rows': [index], 'save_description': save_description_text, 'description_format': description_format}
+        job = {'url': url, 'folder': folder, 'mode': mode, 'quality': self.quality.get(), 'access': access, 'playlist': whole_playlist, 'service': service, 'row': index, 'scope': self.getcourse_scope.get() if service == 'GetCourse' else self.instagram_scope.get() if service == 'Instagram' else 'Первое видео', 'rows': [index], 'save_description': save_description_text, 'description_format': description_format, 'author_folder': author_folder}
         self.jobs_by_key[key] = job
         self.jobs_by_row[index] = job
         self.pending_jobs.append(job)
@@ -1235,7 +1246,7 @@ class App:
             self.rows[job['row']][1].set('Получаю информацию…')
         self.refresh_row_controls()
         self.localize_ui()
-        threading.Thread(target=self.worker, args=(job['url'], job['folder'], job['mode'], job['quality'], job['access'], job['playlist'], job['scope'], job.get('save_description', False), job.get('description_format', 'TXT'), self.active_run), daemon=True).start()
+        threading.Thread(target=self.worker, args=(job['url'], job['folder'], job['mode'], job['quality'], job['access'], job['playlist'], job['scope'], job.get('save_description', False), job.get('description_format', 'TXT'), self.active_run, job.get('author_folder', False)), daemon=True).start()
 
     def request_cancel(self):
         self.cancel.set()
@@ -1364,7 +1375,7 @@ class App:
             self.row_cancel_controls[index] = self.button(card, 'Отменить', lambda row=index: self.cancel_video(row), kind='outline', width=82, height=26)
             self.button(card, '…', lambda row=index: self.row_menu(None, row), kind='outline', width=26, height=26).grid(row=0, column=8, padx=(0, 6), pady=5)
 
-    def worker(self, url, folder, mode, quality, access=None, whole_playlist=False, lesson_scope='Первое видео', save_description_text=False, description_format='TXT', run_id=None):
+    def worker(self, url, folder, mode, quality, access=None, whole_playlist=False, lesson_scope='Первое видео', save_description_text=False, description_format='TXT', run_id=None, instagram_author_folder=False):
         run_id = run_id if run_id is not None else getattr(self, 'active_run', None)
         def emit(event):
             self.events.put((*event, run_id))
@@ -1468,6 +1479,10 @@ class App:
                     if mode == 'Только звук — MP3' and photo:continue
                     item['title'] = media_title(item)
                     entries.append({'url': url, 'title': item['title'], 'media_info': item, 'media_number': number})
+                if instagram_author_folder:
+                    folder = str(Path(folder) / author_directory(info, [e['media_info'] for e in entries]))
+                    Path(folder).mkdir(parents=True, exist_ok=True)
+                    emit(('folder', folder))
                 if not entries:
                     raise yt_dlp.utils.DownloadError('В публикации нет выбранного типа файлов. Для фотографий выберите «Видео и фото» и «Всё» или «Только фото».')
             if whole_playlist:
@@ -1517,6 +1532,7 @@ class App:
                             title = info['title']
                             current_title = title
                             emit(('row', (current_index, title, 'Скачивание…', 'active')))
+                            emit(('download_started', url))
                             info = download_photo(ydl, info, folder, hook) if info.get('_clipflow_photo') else ydl.process_ie_result(info, download=True)
                         elif lesson_multiple:
                             info = ydl.extract_info(video_url, download=False)
@@ -1524,6 +1540,7 @@ class App:
                             current_title = info['title']
                             emit(('row', (current_index, current_title, 'Скачивание…', 'active')))
                             emit(('progress', (current_index, 0, 0, total_count)))
+                            emit(('download_started', url))
                             info = ydl.process_ie_result(info, download=True)
                         else:
                             info = ydl.extract_info(video_url, download=False)
@@ -1534,6 +1551,7 @@ class App:
                             current_title = title
                             emit(('row', (current_index, title, 'Скачивание…', 'active')))
                             emit(('progress', (current_index, 0, 0, total_count)))
+                            emit(('download_started', url))
                             info = ydl.process_ie_result(info, download=True)
                         if not info or (info.get('_type') == 'playlist' and not any(info.get('entries') or [])):
                             raise yt_dlp.utils.DownloadError('На странице нет доступного видео. Проверьте вход GetCourse.')
@@ -1682,8 +1700,15 @@ class App:
                     self.row_files[index] = paths
                     if paths:
                         self.delete_buttons[index].grid_remove()
+            elif kind == 'download_started':
+                if self.active_job:
+                    context = self.contexts[self.active_job['service']]
+                    if context['url'].get().strip() == value:
+                        context['url'].set('')
             elif kind == 'folder':
                 self.active_folder = value
+                if self.active_job:
+                    self.active_job['resolved_folder'] = value
             elif kind == 'row':
                 index, title, text, state = value
                 if self.active_job and index < len(self.active_rows):

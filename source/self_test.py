@@ -40,6 +40,9 @@ def run(App, ctk):
             app.save_instagram_description.set(True)
             app.instagram_description_format.set('MD')
             app.start(auto_start=False)
+            assert app.pending_jobs[-1]['author_folder']
+            app.instagram_author_folder.set(False)
+            assert app.pending_jobs[-1]['author_folder'], 'Queued folder choice must be immutable'
             assert app.pending_jobs[-1]['save_description']
             assert app.pending_jobs[-1]['description_format'] == 'MD'
             assert app.pending_jobs[-1]['service'] == 'Instagram'
