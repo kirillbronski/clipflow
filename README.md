@@ -32,13 +32,13 @@
 Скриншоты сделаны на macOS из общего кода приложения. На Windows используются системные шрифты, диалоги и сочетания клавиш Windows.
 
 ### YouTube
-![ClipFlow — YouTube на macOS](docs/screenshots/youtube-macos.png)
+![ClipFlow — YouTube на macOS](docs/screenshots/youtube-macos.jpg)
 
 ### Instagram
-![ClipFlow — Instagram на macOS](docs/screenshots/instagram-macos.png)
+![ClipFlow — Instagram на macOS](docs/screenshots/instagram-macos.jpg)
 
 ### GetCourse
-![ClipFlow — GetCourse на macOS](docs/screenshots/getcourse-macos.png)
+![ClipFlow — GetCourse на macOS](docs/screenshots/getcourse-macos.jpg)
 
 ## Установка
 
@@ -56,7 +56,7 @@
 clipflow/
 ├── source/                 # общий код и ресурсы приложения
 │   ├── clipflow.py         # интерфейс, очередь, скачивание
-│   ├── platform_support.py# системные пути, шифрование, сочетания клавиш
+│   ├── platform_support.py # системные пути, шифрование, сочетания клавиш
 │   └── _internal/          # CustomTkinter с локальным исправлением вкладок
 ├── assets/icons/           # значки установщиков
 ├── packaging/
