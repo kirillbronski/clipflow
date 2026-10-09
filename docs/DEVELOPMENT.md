@@ -5,11 +5,13 @@
 ## Получить код
 
 ```sh
-git clone git@github.com:kirillbronski/clipflow.git
+git clone --branch dev git@github.com:kirillbronski/clipflow.git
 cd clipflow
 ```
 
 Без SSH можно клонировать `https://github.com/kirillbronski/clipflow.git`.
+
+Рабочая ветка на обеих ОС — `dev`; `main` содержит проверенные изменения. Перед работой на чистой `dev` выполните `git pull --ff-only`. Правки отправляйте в `origin/dev`; слияние в `main` — только после проверок по CONTRIBUTING.md.
 
 ## Windows
 

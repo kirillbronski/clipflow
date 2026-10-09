@@ -5,7 +5,8 @@ This repository is the authoritative shared source for Windows and macOS. Edit `
 For initial Windows setup after the unification, also read `docs/WINDOWS-CODEX-HANDOFF.md`; it records the migration state, local setup steps and remaining native-build checks. Fetch current repository instructions rather than assuming its historical verification commit is the latest source.
 
 - Start each session with `git status`, inspect the branch/upstream and read these instructions. Never overwrite unrelated user changes.
-- On a clean checkout, fetch/pull before new work; use a focused feature/fix branch for changes after initial migration.
+- Development branch is `dev`; stable branch is `main`. Before edits, fetch, switch to `dev` on a clean checkout and pull with `--ff-only`. Make all ongoing changes in `dev`, never directly in `main`. Do not overwrite or discard local work to switch branches.
+- Push development commits to `origin/dev`. Merge `dev` into `main` only after local checks and GitHub Checks for BOTH Windows and macOS pass for the exact proposed commit; run relevant native/package/manual checks when the change requires them. A pending, failed or unavailable check is not success. Prefer a `dev` → `main` pull request; attach created PRs to the Codex chat. Never bypass a failed check. Return the working checkout to `dev` after merging.
 - Validate with the checkout's Python 3.12 environment: `python scripts/check.py`. Build with `python scripts/build.py` on the target OS.
 - Preserve historical storage: Windows settings/GetCourse in LocalAppData/YouTubeDownloader, Windows sessions in LocalAppData/ClipFlow; macOS data in Library/Application Support/ClipFlow.
 - Keep user credentials, cookie stores, keys and machine paths out of Git. Use `CLIPFLOW_DATA_DIR` for all tests.
