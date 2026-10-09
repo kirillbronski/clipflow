@@ -14,6 +14,6 @@ For initial Windows setup after the unification, also read `docs/WINDOWS-CODEX-H
 - GUI/network mock tests do not replace packaged checks. Verify embedded auth and installer integrity before a release. Clearly report which OS was actually tested.
 - Keep one installed macOS app. After verified packaging/install, unregister and remove temporary app copies, preserving the DMG/ZIP.
 - The legacy Google Drive `Windows` project is a read-only baseline during migration. Do not edit, rename or delete it. Drive holds release archives/backups; do not sync `.git` or `.venv` through Drive.
-- The installed 1.8.4 apps predate this refactor. Do not present them as builds of the unified source until rebuilt and tested.
+- Legacy 1.8.4 installers predate the refactor. New 1.8.5 builds use the unified source; always record the source commit and actual native/package verification instead of inferring a build's contents from its version number.
 
 The owner does not want an open-source license for ClipFlow's own code. Do not add MIT/GPL/Apache or change this policy without explicit owner authorization. Keep third-party licenses intact.
