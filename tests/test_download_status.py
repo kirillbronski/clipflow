@@ -1,6 +1,6 @@
 import sys, queue, threading
 sys.path[:0] = ['source', 'source/_internal']
-from downloader import App, ctk
+from clipflow import App, ctk
 from download_events import coalesce_updates
 
 root = ctk.CTk()

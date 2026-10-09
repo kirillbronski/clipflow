@@ -1,6 +1,6 @@
 import sys, pathlib, threading
 sys.path[:0] = ['source', 'source/_internal']
-import downloader as app
+import clipflow as app
 from tempfile import TemporaryDirectory
 with TemporaryDirectory() as directory:
     base=pathlib.Path(directory).resolve();app.CONFIG=base/'settings.json';app.PROFILE_FILE=base/'profile.dat'

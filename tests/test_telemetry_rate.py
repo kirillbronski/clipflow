@@ -3,7 +3,7 @@ import sys, queue, threading
 from types import SimpleNamespace
 from unittest.mock import patch
 sys.path[:0] = ['source', 'source/_internal']
-import downloader
+import clipflow as downloader
 
 clock = [0.0]
 class FakeDownloader:

@@ -1,7 +1,0 @@
-Recovered from ClipFlow-Setup-1.7.0.exe without executing the installer.
-This is the original Windows source, not a macOS build.
-Three application Python files parse successfully.
-Bundled dependency versions: Python 3.12, CustomTkinter 6.0.0, yt-dlp 2026.8.19, yt-dlp-ejs 0.8.0.
-README.txt is older than the application source (README 1.3.0, source 1.7.0).
-Extraction utility warned that multipart output checksums could not be read back; installer listing reports zero hashes for these files.
-macOS port requires replacing DPAPI, platform paths and utilities, folder opening, shortcuts, fonts, and application packaging.

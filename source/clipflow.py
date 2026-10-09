@@ -1,5 +1,5 @@
 import sys
-from platform_support import RESOURCE_DIR, APP_DATA, AUTH_DIR, FONT_FAMILY, MODIFIER, CONTEXT_BUTTON, IS_MAC, binary_path, open_folder as reveal_folder, protect_profile, atomic_redraw
+from platform_support import RESOURCE_DIR, APP_DATA, AUTH_DIR, SETTINGS_DIR, platform_text, FONT_FAMILY, MODIFIER, CONTEXT_BUTTON, IS_MAC, binary_path, open_folder as reveal_folder, protect_profile, atomic_redraw
 from download_events import coalesce_updates
 if __name__ == '__main__' and any(flag in sys.argv for flag in ('--youtube-login','--instagram-login','--auth-self-test','--instagram-auth-self-test')):
     from embedded_auth import main
@@ -61,6 +61,8 @@ UI_LANGUAGE = 'ru'
 def ui_text(text):
     return TRANSLATIONS.get(text, text) if UI_LANGUAGE == 'en' else text
 
+
+TRANSLATIONS = {platform_text(k): platform_text(v) for k, v in TRANSLATIONS.items()}
 
 from yt_dlp.extractor.getcourseru import GetCourseRuPlayerIE, GetCourseRuIE
 from yt_dlp.utils import ExtractorError, urlencode_postdata
@@ -211,7 +213,7 @@ QUALITY = {
 }
 TRANSLATIONS.update({'Скачать': 'Download', 'Добавить в очередь': 'Add to queue', 'Автоскачивание': 'Auto-download'})
 BASE = RESOURCE_DIR
-CONFIG = APP_DATA / 'settings.json'
+CONFIG = SETTINGS_DIR / 'settings.json'
 PROFILE_FILE = CONFIG.with_name('getcourse-profile.dat')
 
 
@@ -490,7 +492,7 @@ class App:
         except (OSError, ValueError):
             pass
         try:
-            installed = (BASE / 'language.txt').read_text(encoding='utf-8').strip()
+            installed = ((Path(sys.executable).parent if getattr(sys, 'frozen', False) and os.name == 'nt' else BASE) / 'language.txt').read_text(encoding='utf-8').strip()
             if installed != self.installation_language:
                 self.installation_language = installed
                 self.language = 'en' if installed.endswith(':en') else 'ru'
@@ -920,7 +922,7 @@ class App:
             if selected in BROWSERS:
                 help_text.set(f'Откройте урок в {selected} и войдите в аккаунт школы.\nЗатем полностью закройте браузер, нажмите «Применить» и скачайте урок.\nПрограмма прочитает сохранённый вход из профиля браузера.\nЕсли чтение не удаётся, выберите email и пароль или файл cookies.')
             elif selected == 'Email и пароль':
-                help_text.set('Введите email и пароль от аккаунта вашей школы GetCourse.\nПрограмма войдёт в школу из ссылки на урок.\nВставка: ⌘+V, Shift+Insert или правая кнопка мыши.\nДанные сохраняются с защитой macOS Keychain.')
+                help_text.set(platform_text('Введите email и пароль от аккаунта вашей школы GetCourse.\nПрограмма войдёт в школу из ссылки на урок.\nВставка: ⌘+V, Shift+Insert или правая кнопка мыши.\nДанные сохраняются с защитой macOS Keychain.'))
             elif selected == 'Файл cookies':
                 help_text.set('Выберите экспорт cookies в формате Netscape из браузера,\nв котором вы вошли в школу и открыли урок.\nПрограмма использует сохранённый вход из этого файла.\nИсходный файл не изменяется.')
             else:
@@ -933,7 +935,7 @@ class App:
             file_button.configure(state=state)
         selector.configure(command=update_fields)
         update_fields()
-        self.label(panel, 'Профиль сохраняется с защитой macOS Keychain для этого пользователя.\nКнопка «Выйти» удаляет сохранённые данные из программы.', size=12, color=COLORS['muted'], justify='left').grid(row=9, column=0, columnspan=2, sticky='w', padx=20, pady=(8, 18))
+        self.label(panel, platform_text('Профиль сохраняется с защитой macOS Keychain для этого пользователя.\nКнопка «Выйти» удаляет сохранённые данные из программы.'), size=12, color=COLORS['muted'], justify='left').grid(row=9, column=0, columnspan=2, sticky='w', padx=20, pady=(8, 18))
         def save():
             if method.get() == 'Email и пароль' and not (email.get().strip() and password.get()):
                 self.status.set('Введите email и пароль GetCourse.')
@@ -2199,9 +2201,9 @@ class App:
         self.localize_ui()
 
     def show_help(self):
-        text = 'Вставьте ссылку — загрузка начнётся автоматически или попадёт в очередь. Формат, качество и папка применяются к новым задачам. Пауза и отмена находятся в строке видео. Меню строки открывается правой кнопкой мыши или кнопкой … .\n\nEnter — добавить введённую ссылку\n⌘+N — добавить несколько ссылок\n⌘+, — настройки\nF1 — справка\n\nОчистка списка сохраняет файлы. Удаление файлов требует подтверждения.'
+        text = platform_text('Вставьте ссылку — загрузка начнётся автоматически или попадёт в очередь. Формат, качество и папка применяются к новым задачам. Пауза и отмена находятся в строке видео. Меню строки открывается правой кнопкой мыши или кнопкой … .\n\nEnter — добавить введённую ссылку\n⌘+N — добавить несколько ссылок\n⌘+, — настройки\nF1 — справка\n\nОчистка списка сохраняет файлы. Удаление файлов требует подтверждения.')
         if self.language == 'en':
-            text = 'Paste a link to download or queue it. Format, quality and folder apply to new tasks. Pause and cancel are on each active row. Right-click or use … for row actions.\n\nEnter — add entered link\n⌘+N — add multiple links\n⌘+, — settings\nF1 — help\n\nClearing the list keeps files. Deleting files requires confirmation.'
+            text = platform_text('Paste a link to download or queue it. Format, quality and folder apply to new tasks. Pause and cancel are on each active row. Right-click or use … for row actions.\n\nEnter — add entered link\n⌘+N — add multiple links\n⌘+, — settings\nF1 — help\n\nClearing the list keeps files. Deleting files requires confirmation.')
         self.notice(self.translate('Как пользоваться'), text)
 
     def show_errors(self):

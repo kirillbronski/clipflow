@@ -22,7 +22,7 @@ from instagram_media import ClipFlowInstagramIE, download_photo, is_instagram_ur
 from media_names import short_media_title
 
 # Compile application methods without initializing its Windows-only GUI dependencies.
-tree = ast.parse((ROOT / 'source/downloader.py').read_text(encoding='utf-8-sig'))
+tree = ast.parse((ROOT / 'source/clipflow.py').read_text(encoding='utf-8-sig'))
 app = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == 'App')
 names = {'completed_media_paths', 'clean_download_sidecars', 'download_options'}
 selected = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in names]
@@ -30,7 +30,7 @@ selected += [node for node in app.body if isinstance(node, ast.FunctionDef) and 
 BASE = ROOT / 'assets'
 QUALITY = {'Лучшее доступное': None}
 access_error_message = lambda error, access: str(error)
-exec(compile(ast.Module(body=selected, type_ignores=[]), str(ROOT / 'source/downloader.py'), 'exec'))
+exec(compile(ast.Module(body=selected, type_ignores=[]), str(ROOT / 'source/clipflow.py'), 'exec'))
 
 CAPTION = 'Полное описание 🎬\n\n' + 'Длинный текст ' * 60 + '\n#рилс #пост'
 class FakeDL:

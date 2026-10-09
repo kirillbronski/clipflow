@@ -1,4 +1,4 @@
-"""macOS integration shared by the downloader and sign-in process."""
+"""Platform integration shared by the downloader and sign-in process."""
 import os
 from pathlib import Path
 import shutil
@@ -8,13 +8,20 @@ import threading
 from contextlib import contextmanager
 
 IS_MAC = sys.platform == 'darwin'
+IS_WINDOWS = sys.platform == 'win32'
 RESOURCE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 APP_DATA = (Path.home() / 'Library/Application Support/ClipFlow' if IS_MAC
             else Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'ClipFlow')
+# Keep Windows settings/GetCourse credentials at their historical location.
+SETTINGS_DIR = (Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'YouTubeDownloader'
+                if IS_WINDOWS else APP_DATA)
 AUTH_DIR = APP_DATA / 'YouTubeAuth'
 if os.environ.get('CLIPFLOW_DATA_DIR'):
     APP_DATA = Path(os.environ['CLIPFLOW_DATA_DIR']).expanduser().resolve()
     AUTH_DIR = APP_DATA / 'YouTubeAuth'
+    SETTINGS_DIR = APP_DATA
+PROTECTION_NAME = 'macOS Keychain' if IS_MAC else 'Windows DPAPI'
+SHORTCUT_LABEL = '⌘' if IS_MAC else 'Ctrl'
 FONT_FAMILY = 'Helvetica Neue' if IS_MAC else 'Segoe UI'
 MODIFIER = 'Command' if IS_MAC else 'Control'
 CONTEXT_BUTTON = 'Button-2' if IS_MAC else 'Button-3'
@@ -47,14 +54,19 @@ def atomic_redraw(root):
 
 
 def binary_path(name):
-    candidate = RESOURCE_DIR / 'bin' / name
-    if candidate.is_file():
-        return str(candidate)
-    for directory in ('/opt/homebrew/bin', '/usr/local/bin'):
-        candidate = Path(directory) / name
+    executable = name + ('.exe' if IS_WINDOWS else '')
+    project = Path(__file__).resolve().parents[1]
+    directories = [RESOURCE_DIR / 'bin', Path(sys.executable).parent,
+                   project / '.runtime' / ('windows' if IS_WINDOWS else 'macos') / 'bin']
+    if os.environ.get('CLIPFLOW_BIN_DIR'):
+        directories.insert(0, Path(os.environ['CLIPFLOW_BIN_DIR']).expanduser())
+    if IS_MAC:
+        directories.extend([Path('/opt/homebrew/bin'), Path('/usr/local/bin')])
+    for directory in directories:
+        candidate = directory / executable
         if candidate.is_file():
             return str(candidate)
-    return shutil.which(name)
+    return shutil.which(executable)
 
 
 def open_folder(path):
@@ -66,6 +78,10 @@ def open_folder(path):
 
 def protect_profile(data, decrypt=False):
     """Encrypt data with a key held in the user's macOS login Keychain."""
+    if IS_WINDOWS:
+        return _protect_windows(data, decrypt)
+    if not IS_MAC:
+        raise OSError('Saved sessions are supported on Windows and macOS.')
     from cryptography.fernet import Fernet, InvalidToken
     from keyring.backends.macOS import Keyring
     service, account = 'ClipFlow', 'profile-encryption-key-v1'
@@ -91,3 +107,33 @@ def protect_profile(data, decrypt=False):
             raise
         except Exception as error:
             raise OSError('Не удалось получить доступ к Связке ключей macOS.') from error
+
+
+def _protect_windows(data, decrypt=False):
+    """Use the same user-scoped DPAPI format as previous Windows releases."""
+    import ctypes
+    from ctypes import wintypes
+    class Blob(ctypes.Structure):
+        _fields_ = [('size', wintypes.DWORD), ('data', ctypes.POINTER(ctypes.c_byte))]
+    buffer = ctypes.create_string_buffer(data)
+    source = Blob(len(data), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_byte)))
+    target = Blob()
+    crypt32 = ctypes.WinDLL('crypt32', use_last_error=True)
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    api = crypt32.CryptUnprotectData if decrypt else crypt32.CryptProtectData
+    api.argtypes = [ctypes.POINTER(Blob), ctypes.c_void_p, ctypes.c_void_p,
+                    ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(Blob)]
+    api.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    if not api(ctypes.byref(source), None, None, None, None, 1, ctypes.byref(target)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return ctypes.string_at(target.data, target.size)
+    finally:
+        kernel32.LocalFree(ctypes.cast(target.data, ctypes.c_void_p))
+
+
+def platform_text(text):
+    """Display native shortcut and credential-protection names in shared UI."""
+    return text.replace('macOS Keychain', PROTECTION_NAME).replace('⌘', SHORTCUT_LABEL)

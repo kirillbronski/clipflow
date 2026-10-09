@@ -1,4 +1,4 @@
-"""Exercise the macOS UI without signing in or downloading user content."""
+"""Exercise the cross-platform UI without signing in or downloading user content."""
 import traceback
 
 
@@ -68,7 +68,7 @@ def run(App, ctk):
             root.update_idletasks()
             if errors:
                 raise AssertionError('\n'.join(errors))
-            print('PASS macOS UI: three services, Instagram description snapshots, tabs, icons, queue, duplicate prevention, filters, language, dialogs, Command clipboard, clearing', flush=True)
+            print('PASS cross-platform UI: three services, Instagram description snapshots, tabs, icons, queue, duplicate prevention, filters, language, dialogs, native clipboard, clearing', flush=True)
         except Exception:
             errors.append(traceback.format_exc())
             print('FAIL', errors[-1], flush=True)

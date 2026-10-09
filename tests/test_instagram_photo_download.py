@@ -1,6 +1,6 @@
 import sys, pathlib, threading
 sys.path[:0] = ['source', 'source/_internal']
-import downloader as app
+import clipflow as app
 from tempfile import TemporaryDirectory
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from instagram_media import download_photo

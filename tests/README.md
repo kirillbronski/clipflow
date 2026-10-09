@@ -1,7 +1,7 @@
-# Проверка статусов загрузки
+# Regression checks
 
-Из корня проекта: `CLIPFLOW_DATA_DIR=/tmp/clipflow-status-test .venv/bin/python tests/test_download_status.py`.
+Run `python scripts/check.py` from the repository root using the configured Python 3.12 environment. Checks run in isolated temporary profiles without real account login.
 
-Тест моделирует отказ доступа к первому видео и 4000 событий прогресса/ETA второго; проверяет ошибку, пришедшую от прежнего задания, сохранение ошибки в первой строке, актуальные подписи Tk, обработку файла и успешное завершение.
+Coverage: queue state and stale run events; stable row geometry; progress throttling; Instagram photo downloads and description TXT/MD; file deletion; three service tabs, quality probes and auto-download; native paths and Windows DPAPI round-trip on Windows.
 
-Проверка 1.7.2 на реальном видео https://www.youtube.com/watch?v=1FIDsfe7XPo&t=575s: загрузка с ограничением 1080p и объединение видео/аудио успешны (MP4 1920×960). В реальном интерфейсе со смоделированной ошибкой доступа первого задания получено 81 обновление второго задания, 0 ложных статусов ошибки, финал «Скачано». Smoke-test исходного и собранного приложения пройден, подпись и контрольная сумма DMG проверены.
+GitHub Actions runs the same suite on Windows and macOS. Embedded Qt login tests are also run by the packaging script. Actual service access requires separate network checks and, for private content, a user account.

@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 sys.path[:0] = ['source', 'source/_internal']
-import downloader as app
+import clipflow as app
 from instagram_media import ClipFlowInstagramIE, is_instagram_url, download_photo
 from instagram_session import InstagramSession
 from media_names import short_media_title

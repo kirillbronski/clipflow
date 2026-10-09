@@ -1,5 +1,5 @@
 """Embedded YouTube sign-in window for ClipFlow."""
-from platform_support import AUTH_DIR, APP_DATA, RESOURCE_DIR, protect_profile as protect
+from platform_support import AUTH_DIR, APP_DATA, RESOURCE_DIR, protect_profile as protect, platform_text
 import json
 import os
 from pathlib import Path
@@ -53,6 +53,7 @@ TEXTS = {
  'Войдите на странице Google, затем откройте YouTube и нажмите «Сохранить сессию».\nСохранённый вход используется для скачивания в ClipFlow.':'Sign in on the Google page, then open YouTube and click Save session.\nClipFlow uses this session for downloads.',
 }
 def tr(text):
+    text = text.replace(platform_text('macOS Keychain'), 'macOS Keychain')
     if SERVICE == 'Instagram':
         if text.startswith('Войдите на странице Google'):
             return 'Войдите на странице Instagram. Сессия сохраняется автоматически и используется для скачивания в ClipFlow.' if LANGUAGE != 'en' else 'Sign in on the Instagram page. Your session is saved automatically for ClipFlow downloads.'
@@ -61,6 +62,10 @@ def tr(text):
         return text.replace('Вход в Instagram · ClipFlow ','Instagram sign-in · ClipFlow ').replace('ClipFlow — вход в Instagram · ','ClipFlow — Instagram sign-in · ')
     if LANGUAGE!='en':return text
     return TEXTS.get(text,text.replace('Вход в YouTube · ClipFlow ','YouTube sign-in · ClipFlow ').replace('ClipFlow — вход в YouTube · ','ClipFlow — YouTube sign-in · '))
+_platform_tr = tr
+def tr(text):
+    return platform_text(_platform_tr(text))
+
 _BaseLabel=QLabel
 class QLabel(_BaseLabel):
     def __init__(self,text='',*args,**kwargs):super().__init__(tr(text),*args,**kwargs)
