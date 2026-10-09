@@ -66,7 +66,7 @@ try:
         assert event==('quality_result',('YouTube',100,[1080,720],None)),event
     with tempfile.TemporaryDirectory() as temp:
         window.folder.set(temp);window.save_instagram_description.set(True);window.instagram_description_format.set('MD');window.save_settings()
-        assert json.loads(app.CONFIG.read_text())['instagram_description_format']=='MD'
+        assert json.loads(app.CONFIG.read_text(encoding='utf-8'))['instagram_description_format']=='MD'
         second = app.App.__new__(app.App)  # Session isolation is independent of UI.
         from cryptography.fernet import Fernet
         cipher=Fernet(Fernet.generate_key())

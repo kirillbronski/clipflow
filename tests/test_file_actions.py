@@ -7,7 +7,7 @@ with TemporaryDirectory() as directory:
     root=app.ctk.CTk();w=app.App(root)
     w.display_queue([{'title':'File','service':'YouTube'}],append=True)
     media=base/'Video.mp4';media.write_bytes(b'completed media')
-    description=base/'Video.txt';description.write_text('Description 🎬')
+    description=base/'Video.txt';description.write_text('Description 🎬', encoding='utf-8')
     w.row_files[0]=[str(media),str(description)]
     w.confirm_delete_files([0]);root.update()
     dialog=next(c for c in root.winfo_children() if isinstance(c,app.ctk.CTkToplevel))

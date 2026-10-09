@@ -42,7 +42,7 @@
 
 ## Установка
 
-Готовые установщики публикуются в [GitHub Releases](https://github.com/kirillbronski/clipflow/releases): Windows — EXE, macOS — DMG. Для готового приложения отдельно устанавливать Python, FFmpeg и Node.js не требуется.
+Готовые установщики будут публиковаться в [GitHub Releases](https://github.com/kirillbronski/clipflow/releases): Windows — EXE, macOS — DMG. Для готового приложения отдельно устанавливать Python, FFmpeg и Node.js не требуется.
 
 Текущие проверенные сборки 1.8.4 были выпущены до объединения исходников. Общая кодовая база проходит отдельные проверки Windows/macOS; статус виден в значке Checks. Новые установщики нужно собирать из нужного коммита на соответствующей системе.
 
