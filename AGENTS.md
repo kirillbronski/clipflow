@@ -2,6 +2,8 @@
 
 This repository is the authoritative shared source for Windows and macOS. Edit `source/clipflow.py` and common modules once; keep platform behavior in `source/platform_support.py` and packaging files in `packaging/`.
 
+For initial Windows setup after the unification, also read `docs/WINDOWS-CODEX-HANDOFF.md`; it records the migration state, local setup steps and remaining native-build checks. Fetch current repository instructions rather than assuming its historical verification commit is the latest source.
+
 - Start each session with `git status`, inspect the branch/upstream and read these instructions. Never overwrite unrelated user changes.
 - On a clean checkout, fetch/pull before new work; use a focused feature/fix branch for changes after initial migration.
 - Validate with the checkout's Python 3.12 environment: `python scripts/check.py`. Build with `python scripts/build.py` on the target OS.
