@@ -1,4 +1,4 @@
-"""Verify native paths, preserved Windows settings and platform dispatch."""
+"""Verify native ClipFlow paths and platform dispatch."""
 from pathlib import Path
 from unittest.mock import patch
 import os
@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory() as temp:
     with patch.dict(os.environ, {'LOCALAPPDATA':temp,'USERPROFILE':home,'HOME':home}, clear=True), patch.object(sys,'platform','win32'):
         windows=runpy.run_path('source/platform_support.py')
         assert windows['APP_DATA']==Path(temp)/'ClipFlow'
-        assert windows['SETTINGS_DIR']==Path(temp)/'YouTubeDownloader'
+        assert windows['SETTINGS_DIR']==Path(temp)/'ClipFlow'
         assert windows['AUTH_DIR']==Path(temp)/'ClipFlow/YouTubeAuth'
         assert windows['MODIFIER']=='Control'
         assert windows['platform_text']('⌘+N · macOS Keychain')=='Ctrl+N · Windows DPAPI'
@@ -30,4 +30,4 @@ if support.IS_WINDOWS:
     encrypted=support.protect_profile(plain)
     assert encrypted!=plain
     assert support.protect_profile(encrypted,decrypt=True)==plain
-print('PASS native paths, legacy Windows settings, platform labels, binary lookup and native encryption dispatch')
+print('PASS native ClipFlow paths, platform labels, binary lookup and native encryption dispatch')

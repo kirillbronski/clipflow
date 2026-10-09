@@ -23,7 +23,9 @@ py -3.12 -m venv .venv
 .venv\Scripts\python.exe run.py
 ```
 
-PowerShell activation не требуется. Настройки и GetCourse-профиль сохраняются в `%LOCALAPPDATA%\YouTubeDownloader`, как в предыдущей Windows-версии. YouTube/Instagram — в `%LOCALAPPDATA%\ClipFlow`.
+PowerShell activation не требуется. Все настройки, GetCourse-профиль и сессии теперь сохраняются в `%LOCALAPPDATA%\ClipFlow`.
+
+Перед первым запуском новой версии на компьютере с прежней установкой найдите прежнюю папку данных приложения и сохраните её резервную копию. Затем выполните `.\.venv\Scripts\python.exe scripts/migrate_windows_data.py --source "ПОЛНЫЙ_ПУТЬ_К_ПРЕЖНЕЙ_ПАПКЕ_ДАННЫХ"`. Укажите именно папку с `settings.json` и/или `getcourse-profile.dat`, а не папку исходников или установленного EXE. Команда копирует только эти файлы, не перезаписывает существующие данные ClipFlow и сохраняет оригиналы. Закройте приложение на время переноса. Защищённый профиль переносится на том же Windows-компьютере под тем же пользователем; перенос DPAPI-данных с другого компьютера не поддерживается.
 
 ## macOS
 

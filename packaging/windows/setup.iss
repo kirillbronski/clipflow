@@ -49,9 +49,6 @@ Type: files; Name: "{app}\youtube_session.py"
 Type: files; Name: "{app}\__pycache__\downloader.*.pyc"
 Type: files; Name: "{app}\__pycache__\embedded_auth.*.pyc"
 Type: files; Name: "{app}\__pycache__\youtube_session.*.pyc"
-Type: files; Name: "{app}\YouTubeDownloader.exe"
-Type: files; Name: "{userprograms}\YouTube Downloader.lnk"
-Type: files; Name: "{userdesktop}\YouTube Downloader.lnk"
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\ClipFlow.exe"; WorkingDir: "{app}"; IconFilename: "{app}\ClipFlow.exe"

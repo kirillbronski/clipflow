@@ -12,9 +12,7 @@ IS_WINDOWS = sys.platform == 'win32'
 RESOURCE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 APP_DATA = (Path.home() / 'Library/Application Support/ClipFlow' if IS_MAC
             else Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'ClipFlow')
-# Keep Windows settings/GetCourse credentials at their historical location.
-SETTINGS_DIR = (Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'YouTubeDownloader'
-                if IS_WINDOWS else APP_DATA)
+SETTINGS_DIR = APP_DATA
 AUTH_DIR = APP_DATA / 'YouTubeAuth'
 if os.environ.get('CLIPFLOW_DATA_DIR'):
     APP_DATA = Path(os.environ['CLIPFLOW_DATA_DIR']).expanduser().resolve()
