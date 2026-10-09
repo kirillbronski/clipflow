@@ -12,3 +12,5 @@ This repository is the authoritative shared source for Windows and macOS. Edit `
 - Keep one installed macOS app. After verified packaging/install, unregister and remove temporary app copies, preserving the DMG/ZIP.
 - The legacy Google Drive `Windows` project is a read-only baseline during migration. Do not edit, rename or delete it. Drive holds release archives/backups; do not sync `.git` or `.venv` through Drive.
 - The installed 1.8.4 apps predate this refactor. Do not present them as builds of the unified source until rebuilt and tested.
+
+The owner does not want an open-source license for ClipFlow's own code. Do not add MIT/GPL/Apache or change this policy without explicit owner authorization. Keep third-party licenses intact.

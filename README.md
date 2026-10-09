@@ -84,4 +84,4 @@ python scripts/build.py
 
 ## Компоненты и лицензирование
 
-ClipFlow использует yt-dlp, CustomTkinter, PySide6/Qt, FFmpeg, Node.js и другие компоненты. Их лицензии перечислены в [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Лицензия на собственный код ClipFlow пока не выбрана; публичность репозитория сама по себе не предоставляет отдельной лицензии на его использование и распространение.
+ClipFlow использует yt-dlp, CustomTkinter, PySide6/Qt, FFmpeg, Node.js и другие компоненты. Их лицензии перечислены в [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Собственный код ClipFlow опубликован без открытой лицензии: все права сохраняются за автором. MIT на код ClipFlow не распространяется. Подробнее — [COPYRIGHT.md](COPYRIGHT.md); лицензии сторонних компонентов сохраняют силу.

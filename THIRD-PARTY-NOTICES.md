@@ -14,4 +14,4 @@ Dependencies retain their own licenses. Check the exact versions used for each d
 
 FFmpeg/Node runtimes are not stored in this source repository. Packaging includes the binaries available on the build machine; their exact build configuration and corresponding redistribution obligations must be checked for each public binary release. This dependency list is not a replacement for their full license texts.
 
-No license has yet been selected for ClipFlow's own code.
+ClipFlow's own code is published without an open-source license. See COPYRIGHT.md. This does not change the licenses of third-party components.
