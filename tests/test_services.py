@@ -18,7 +18,7 @@ try:
     assert short_media_title('A — B\n C ' * 20) == ('A - B C ' * 20)[:56].rstrip()
     assert app.supported_url('https://www.instagram.com/reel/abc/?igsh=xyz')
     assert not app.supported_url('https://instagram.com.evil.example/p/abc/')
-    assert not app.supported_url('https://instagram.com/profile/')
+    assert app.supported_url('https://instagram.com/profile/')
     for service in ('YouTube', 'Instagram', 'GetCourse'):
         window.tabs.set(service); window.activate_tab(); root.update()
         assert window.contexts[service]['start_button'].winfo_ismapped(), (service, window.tabs.get(), window.tabs.tab(service).winfo_manager(), window.contexts[service]['start_button'].winfo_manager())
@@ -26,7 +26,7 @@ try:
         values = window.contexts[service]['mode_box'].cget('values')
         assert 'Видео MKV' in values and 'Видео WebM' in values, (service, values)
     window.tabs.set('Instagram'); window.activate_tab()
-    assert window.mode.get() == 'Видео и фото'
+    assert window.mode.get() == 'Видео и фото (MP4)'
     assert app.COLORS['primary_action'] == '#C13584'
     # Match the Windows design: sign-in remains available through Accounts.
     assert not window.instagram_auth_row.winfo_manager()

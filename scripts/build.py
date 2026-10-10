@@ -61,6 +61,7 @@ def windows(portable_only=False):
             '--paths', str(ROOT/'source/_internal')]
     for name in ['clipflow.png', 'clipflow-getcourse.png', 'clipflow-instagram.png']:
         args += ['--add-data', str(ROOT/'source'/name)+os.pathsep+'.']
+    args += ['--add-data', str(ROOT/'assets/licenses/Instaloader-LICENSE.txt')+os.pathsep+'licenses']
     for package in ['yt_dlp', 'yt_dlp_ejs']:
         args += ['--collect-submodules', package, '--collect-data', package]
     args += ['--collect-data', 'customtkinter', '--hidden-import', 'PySide6.QtWebEngineCore',

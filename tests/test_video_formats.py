@@ -1,5 +1,6 @@
 """Exercise actual FFmpeg postprocessing of single-stream downloads in each container."""
 import ast
+import gc
 import json
 from pathlib import Path
 import subprocess
@@ -39,6 +40,7 @@ class VideoFormats(unittest.TestCase):
                         if repeat:
                             self.assertEqual(final.stat().st_mtime_ns, modified)
                         modified = final.stat().st_mtime_ns
+                    gc.collect()  # Release urllib file handlers before Windows temporary-directory cleanup.
                     probe = json.loads(subprocess.check_output([ffprobe, '-v', 'error', '-show_format', '-show_streams', '-of', 'json', str(final)], text=True))
                     self.assertIn({'mp4': 'mp4', 'mkv': 'matroska', 'webm': 'webm'}[container], probe['format']['format_name'])
                     self.assertEqual({s['codec_type'] for s in probe['streams']}, {'video', 'audio'})

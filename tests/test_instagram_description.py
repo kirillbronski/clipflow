@@ -18,6 +18,7 @@ sys.path[:0] = [str(ROOT / 'source'), str(ROOT / 'source/_internal')]
 import yt_dlp
 from platform_support import binary_path
 from yt_dlp.extractor.getcourseru import GetCourseRuPlayerIE
+from instagram_profile import profile_username, profile_posts
 from instagram_media import ClipFlowInstagramIE, download_photo, is_instagram_url, media_title, save_description, author_directory, post_directory
 from media_names import short_media_title
 
@@ -173,7 +174,7 @@ class DescriptionTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             CONFIG = Path(temp) / 'settings.json'
             state = SimpleNamespace(folder_history=[], language='ru', installation_language='', detailed_list=False, interface_scale='100%')
-            for name, value in [('folder', temp), ('quality', 'Лучшее доступное'), ('auto_download', True), ('instagram_author_folder', True), ('instagram_post_folder', True), ('save_instagram_description', True), ('instagram_description_format', 'MD')]:
+            for name, value in [('folder', temp), ('quality', 'Лучшее доступное'), ('auto_download', True), ('instagram_author_folder', True), ('instagram_post_folder', True), ('instagram_profile_limit', 'До 10 публикаций'), ('save_instagram_description', True), ('instagram_description_format', 'MD')]:
                 setattr(state, name, SimpleNamespace(get=lambda value=value: value))
             save_settings(state)
             settings = json.loads(CONFIG.read_text(encoding='utf-8'))

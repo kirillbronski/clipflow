@@ -6,3 +6,4 @@ Pillow>=12,<13
 darkdetect==0.8.0
 packaging>=24
 pyinstaller>=6.20,<7
+instaloader==4.15.3

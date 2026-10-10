@@ -8,6 +8,7 @@ version = runpy.run_path(str(src / 'version.py'))['APP_VERSION']
 data = [(str(src / name), '.') for name in ('clipflow.png', 'clipflow-getcourse.png', 'clipflow-instagram.png')]
 data += [(str(src / '_internal/customtkinter/assets'), 'customtkinter/assets')]
 data += collect_data_files('yt_dlp_ejs')
+data += [(str(root / 'assets/licenses/Instaloader-LICENSE.txt'), 'licenses')]
 hidden = collect_submodules('yt_dlp') + collect_submodules('yt_dlp_ejs')
 hidden += ['keyring.backends.macOS', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets']
 tools = [(str(Path('/opt/homebrew/bin') / name), 'bin') for name in ('ffmpeg', 'ffprobe', 'node')]

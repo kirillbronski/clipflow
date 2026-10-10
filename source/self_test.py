@@ -3,6 +3,8 @@ import traceback
 
 
 def run(App, ctk):
+    import instaloader  # Verify the profile dependency is present in packaged builds too.
+    assert hasattr(instaloader.Profile, "get_reels")
     root = ctk.CTk()
     errors = []
     root.report_callback_exception = lambda *args: errors.append(''.join(traceback.format_exception(*args)))
@@ -34,7 +36,7 @@ def run(App, ctk):
             app.localize_ui()
             app.tabs.set('Instagram')
             app.activate_tab()
-            assert app.mode.get() == 'Видео и фото'
+            assert app.mode.get() == 'Видео и фото (MP4)'
             assert app.instagram_description_switch.winfo_manager() == 'grid'
             app.url.set('https://instagram.com/reel/ClipFlowTest/')
             app.save_instagram_description.set(True)

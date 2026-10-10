@@ -19,6 +19,7 @@ from contextlib import contextmanager
 from html.parser import HTMLParser
 from youtube_session import YouTubeSession
 from instagram_session import InstagramSession
+from instagram_profile import profile_username, profile_posts
 from media_names import short_media_title
 from instagram_media import ClipFlowInstagramIE, is_instagram_url, media_title, download_photo, save_description, author_directory, post_directory
 from pathlib import Path
@@ -195,7 +196,7 @@ def supported_url(url):
     host = (parsed.hostname or '').lower()
     if parsed.scheme not in ('https', 'http') or parsed.username or parsed.password:
         return False
-    return is_instagram_url(url) or host == 'youtu.be' or host == 'youtube.com' or host.endswith('.youtube.com') or host.endswith(('.getcourse.ru', '.getcourse.io')) or bool(re.match(GETCOURSE_PLAYER, url))
+    return is_instagram_url(url) or bool(profile_username(url)) or host == 'youtu.be' or host == 'youtube.com' or host.endswith('.youtube.com') or host.endswith(('.getcourse.ru', '.getcourse.io')) or bool(re.match(GETCOURSE_PLAYER, url))
 
 
 def needs_getcourse_login(url):
@@ -431,10 +432,10 @@ def youtube_playlist_url(url):
 for palette in (COLORS, YOUTUBE_COLORS, GETCOURSE_COLORS):
     palette.update(background='#141416', surface='#1D1D20', surface_high='#28282D', outline_variant='#414149', outline='#85858F', text='#F2F2F5', muted='#B8B8C1')
 
-TRANSLATIONS.update({'Видео MKV': 'MKV video', 'Видео WebM': 'WebM video', 'Папка для каждого поста': 'Folder for each post', 'Видео урока': 'Lesson videos', 'Показывать завершённые': 'Show completed', 'Все': 'All', 'Активные': 'Active', 'Завершённые': 'Completed', 'Ошибки': 'Errors', 'Добавить': 'Add', 'Формат': 'Format', 'Качество': 'Quality', 'Аккаунт': 'Account', 'Вид': 'View', 'Аккаунты': 'Accounts', 'Справка': 'Help', 'Добавить ссылку': 'Add link', 'Добавить несколько ссылок': 'Add multiple links', 'Одна ссылка на строку': 'One link per line', 'Приостановить все': 'Pause all', 'Продолжить все': 'Resume all', 'Очистить завершённые': 'Clear completed', 'Компактный список': 'Compact list', 'Подробный список': 'Detailed list', 'Масштаб интерфейса': 'Interface scale', 'Общие': 'General', 'Скачивание': 'Downloads', 'Как пользоваться': 'Getting started', 'Горячие клавиши': 'Keyboard shortcuts', 'Журнал ошибок': 'Error log', 'О ClipFlow': 'About ClipFlow', 'Ошибок нет': 'No errors', 'Копировать название': 'Copy title', 'Повторить': 'Retry', 'Подробности': 'Details', 'Убрать из списка': 'Remove from list', 'Видео и аудио — в вашей коллекции.': 'Video and audio — in your collection.', 'История изменений': 'Release notes', 'Скопировать информацию для поддержки': 'Copy support information', 'Лицензии компонентов': 'Component licenses'})
+TRANSLATIONS.update({'До 10 публикаций': 'Up to 10 posts', 'До 50 публикаций': 'Up to 50 posts', 'До 100 публикаций': 'Up to 100 posts', 'Все публикации': 'All posts', 'Получаю список публикаций…': 'Fetching posts…', 'Добавлено в очередь': 'Added to queue', 'Видео MKV': 'MKV video', 'Видео WebM': 'WebM video', 'Папка для каждого поста': 'Folder for each post', 'Видео урока': 'Lesson videos', 'Показывать завершённые': 'Show completed', 'Все': 'All', 'Активные': 'Active', 'Завершённые': 'Completed', 'Ошибки': 'Errors', 'Добавить': 'Add', 'Формат': 'Format', 'Качество': 'Quality', 'Аккаунт': 'Account', 'Вид': 'View', 'Аккаунты': 'Accounts', 'Справка': 'Help', 'Добавить ссылку': 'Add link', 'Добавить несколько ссылок': 'Add multiple links', 'Одна ссылка на строку': 'One link per line', 'Приостановить все': 'Pause all', 'Продолжить все': 'Resume all', 'Очистить завершённые': 'Clear completed', 'Компактный список': 'Compact list', 'Подробный список': 'Detailed list', 'Масштаб интерфейса': 'Interface scale', 'Общие': 'General', 'Скачивание': 'Downloads', 'Как пользоваться': 'Getting started', 'Горячие клавиши': 'Keyboard shortcuts', 'Журнал ошибок': 'Error log', 'О ClipFlow': 'About ClipFlow', 'Ошибок нет': 'No errors', 'Копировать название': 'Copy title', 'Повторить': 'Retry', 'Подробности': 'Details', 'Убрать из списка': 'Remove from list', 'Видео и аудио — в вашей коллекции.': 'Video and audio — in your collection.', 'История изменений': 'Release notes', 'Скопировать информацию для поддержки': 'Copy support information', 'Лицензии компонентов': 'Component licenses'})
 
 INSTAGRAM_COLORS = dict(YOUTUBE_COLORS, primary='#E1306C', primary_action='#C13584', primary_hover='#A42A71', primary_container='#58203E', on_primary_container='#FFD9EB', secondary='#F4B4D4', secondary_container='#513049', secondary_hover='#6E3B60', tertiary='#F77737')
-TRANSLATIONS.update({'Папка с ником автора': 'Folder by account username', 'Видео и фото':'Video and photos', 'Содержимое':'Content','Всё':'All media','Только видео':'Videos only','Только фото':'Photos only','Ссылка на Reel или публикацию Instagram':'Instagram Reel or post link','Войти в Instagram':'Sign in to Instagram','Instagram: сессия сохранена':'Instagram: session saved','Instagram: вход не выполнен':'Instagram: not signed in','Открываю окно входа Instagram…':'Opening Instagram sign-in…'})
+TRANSLATIONS.update({'Папка с ником автора': 'Folder by account username', 'Видео и фото (MP4)':'Video and photos (MP4)', 'Содержимое':'Content','Всё':'All media','Только видео':'Videos only','Только фото':'Photos only','Ссылка на публикацию или профиль Instagram':'Instagram post or profile link','Войти в Instagram':'Sign in to Instagram','Instagram: сессия сохранена':'Instagram: session saved','Instagram: вход не выполнен':'Instagram: not signed in','Открываю окно входа Instagram…':'Opening Instagram sign-in…'})
 
 
 TRANSLATIONS['Вставьте ссылку на Reel или публикацию.\nСохраняйте видео, фото или всю карусель.'] = 'Paste a Reel or post link.\nSave videos, photos or the entire carousel.'
@@ -496,6 +497,7 @@ class App:
         self.quality = tk.StringVar(value='Лучшее доступное')
         self.instagram_author_folder = tk.BooleanVar(value=True)
         self.instagram_post_folder = tk.BooleanVar(value=True)
+        self.instagram_profile_limit = tk.StringVar(value='До 10 публикаций')
         self.save_instagram_description = tk.BooleanVar(value=False)
         self.instagram_description_format = tk.StringVar(value='TXT')
         self.auto_download = tk.BooleanVar(value=True)
@@ -509,6 +511,8 @@ class App:
             self.auto_download.set(settings.get('auto_download', True))
             self.instagram_author_folder.set(settings.get('instagram_author_folder', True))
             self.instagram_post_folder.set(settings.get('instagram_post_folder', True))
+            profile_limit = settings.get('instagram_profile_limit', 'До 10 публикаций')
+            self.instagram_profile_limit.set(profile_limit if profile_limit in ('Все публикации', 'До 10 публикаций', 'До 50 публикаций', 'До 100 публикаций') else 'До 10 публикаций')
             self.save_instagram_description.set(settings.get('save_instagram_description', False))
             description_format = settings.get('instagram_description_format', 'TXT')
             self.instagram_description_format.set(description_format if description_format in ('TXT', 'MD') else 'TXT')
@@ -543,7 +547,7 @@ class App:
             'YouTube': {'url': self.url, 'folder': self.folder, 'mode': self.mode, 'quality': self.quality, 'playlist': self.playlist, 'scope_hint': self.scope_hint},
             'GetCourse': {'url': tk.StringVar(), 'folder': tk.StringVar(value=self.folder.get()), 'mode': tk.StringVar(value='Видео MP4'), 'quality': tk.StringVar(value=self.quality.get()), 'playlist': tk.BooleanVar(value=False), 'scope_hint': tk.StringVar(value='Доступ: ' + self.access['method'])},
         }
-        self.contexts['Instagram'] = {'url': tk.StringVar(), 'folder': tk.StringVar(value=self.folder.get()), 'mode': tk.StringVar(value='Видео и фото'), 'quality': tk.StringVar(value='Лучшее доступное'), 'playlist': tk.BooleanVar(value=False), 'scope_hint': tk.StringVar()}
+        self.contexts['Instagram'] = {'url': tk.StringVar(), 'folder': tk.StringVar(value=self.folder.get()), 'mode': tk.StringVar(value='Видео и фото (MP4)'), 'quality': tk.StringVar(value='Лучшее доступное'), 'playlist': tk.BooleanVar(value=False), 'scope_hint': tk.StringVar()}
         icon_path = BASE / 'clipflow.png'
         self._brand_images = {}
         for service, suffix in [('YouTube', ''), ('GetCourse', '-getcourse'), ('Instagram', '-instagram')]:
@@ -572,7 +576,7 @@ class App:
             context = self.contexts[service]
             for name in ('url', 'folder', 'mode', 'quality', 'playlist', 'scope_hint'):
                 setattr(self, name, context[name])
-            self.label(panel, 'Ссылка на видео или плейлист YouTube' if service == 'YouTube' else 'Ссылка на Reel или публикацию Instagram' if service == 'Instagram' else 'Ссылка на урок или плеер GetCourse', size=12, color=COLORS['secondary']).grid(row=0, column=0, sticky='w', padx=20, pady=(8, 0))
+            self.label(panel, 'Ссылка на видео или плейлист YouTube' if service == 'YouTube' else 'Ссылка на публикацию или профиль Instagram' if service == 'Instagram' else 'Ссылка на урок или плеер GetCourse', size=12, color=COLORS['secondary']).grid(row=0, column=0, sticky='w', padx=20, pady=(8, 0))
             link_row = ctk.CTkFrame(panel, fg_color='transparent')
             link_row.grid(row=1, column=0, sticky='ew', padx=20, pady=(6, 10))
             link_row.grid_columnconfigure(1, weight=1)
@@ -588,7 +592,7 @@ class App:
             self.layout_panels.append(controls)
             controls.bind('<Configure>', lambda event, panel=controls: self.reflow_controls(panel, event.width))
             self.label(controls, 'Формат', size=12, color=COLORS['muted']).grid(row=0, column=0, sticky='w', pady=(0, 6))
-            self.mode_box = self.option(controls, self.mode, ['Видео и фото', 'Видео MKV', 'Видео WebM', 'Звук MP3'] if service == 'Instagram' else ['Видео MP4', 'Видео MKV', 'Видео WebM', 'Звук MP3'], width=175, command=self.mode_changed)
+            self.mode_box = self.option(controls, self.mode, ['Видео и фото (MP4)', 'Видео MKV', 'Видео WebM', 'Звук MP3'] if service == 'Instagram' else ['Видео MP4', 'Видео MKV', 'Видео WebM', 'Звук MP3'], width=175, command=self.mode_changed)
             self.mode_box.grid(row=1, column=0, sticky='w')
             self.label(controls, 'Качество', size=12, color=COLORS['muted']).grid(row=0, column=1, sticky='w', padx=(24, 0), pady=(0, 6))
             self.quality_box = self.option(controls, self.quality, ['Лучшее доступное'], width=170)
@@ -618,7 +622,9 @@ class App:
                 self.instagram_author_folder_switch = ctk.CTkSwitch(description_row, text='Папка с ником автора', variable=self.instagram_author_folder, command=self.save_settings, progress_color=COLORS['primary_action'], fg_color=COLORS['outline_variant'], button_color=COLORS['secondary'], button_hover_color=COLORS['text'], text_color=COLORS['text'], font=(FONT_FAMILY, 13), switch_width=42, switch_height=24)
                 self.instagram_author_folder_switch.grid(row=0, column=2, padx=(24, 0), sticky='w')
                 self.instagram_post_folder_switch = ctk.CTkSwitch(description_row, text='Папка для каждого поста', variable=self.instagram_post_folder, command=self.save_settings, progress_color=COLORS['primary_action'], fg_color=COLORS['outline_variant'], button_color=COLORS['secondary'], button_hover_color=COLORS['text'], text_color=COLORS['text'], font=(FONT_FAMILY, 13), switch_width=42, switch_height=24)
-                self.instagram_post_folder_switch.grid(row=1, column=0, columnspan=3, sticky='w', pady=(8, 0))
+                self.instagram_post_folder_switch.grid(row=1, column=0, columnspan=2, sticky='w', pady=(8, 0))
+                self.instagram_profile_limit_box = self.option(description_row, self.instagram_profile_limit, ['До 10 публикаций', 'До 50 публикаций', 'До 100 публикаций', 'Все публикации'], width=190, command=lambda _: self.save_settings())
+                self.instagram_profile_limit_box.grid(row=1, column=2, sticky='w', padx=(24, 0), pady=(8, 0))
                 self.playlist_switch = None
             else:
                 self.label(controls, 'Видео урока', size=12, color=COLORS['muted']).grid(row=0, column=2, sticky='w', padx=(24, 0), pady=(0, 6))
@@ -1087,6 +1093,10 @@ class App:
             self.refresh_download_buttons()
             context['quality_status'].set('')
             return
+        if service == 'Instagram' and profile_username(url):
+            # A profile has no single quality list; avoid traversing it during a URL probe.
+            self.events.put(('quality_result', (service, request, [], None)))
+            return
         context['quality_status'].set('Проверяю качество…')
         access = dict(self.access) if service == 'GetCourse' else {'method': service + ' session'} if getattr(self, service.lower() + '_connected', False) else None
         def inspect():
@@ -1122,7 +1132,7 @@ class App:
 
     def save_settings(self):
         CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG.write_text(json.dumps({'folder': self.folder.get(), 'quality': self.quality.get(), 'auto_download': self.auto_download.get(), 'instagram_author_folder': self.instagram_author_folder.get(), 'instagram_post_folder': self.instagram_post_folder.get(), 'save_instagram_description': self.save_instagram_description.get(), 'instagram_description_format': self.instagram_description_format.get(), 'folders': self.folder_history, 'language': self.language, 'installation_language': self.installation_language, 'detailed_list': self.detailed_list, 'interface_scale': self.interface_scale}, ensure_ascii=False), encoding='utf-8')
+        CONFIG.write_text(json.dumps({'folder': self.folder.get(), 'quality': self.quality.get(), 'auto_download': self.auto_download.get(), 'instagram_author_folder': self.instagram_author_folder.get(), 'instagram_post_folder': self.instagram_post_folder.get(), 'instagram_profile_limit': self.instagram_profile_limit.get(), 'save_instagram_description': self.save_instagram_description.get(), 'instagram_description_format': self.instagram_description_format.get(), 'folders': self.folder_history, 'language': self.language, 'installation_language': self.installation_language, 'detailed_list': self.detailed_list, 'interface_scale': self.interface_scale}, ensure_ascii=False), encoding='utf-8')
 
     def remember_folder(self, folder):
         self.folder_history = [folder] + [item for item in self.folder_history if os.path.normcase(item) != os.path.normcase(folder)]
@@ -1182,7 +1192,7 @@ class App:
             return
         host = (urlparse(url).hostname or '').lower()
         is_youtube = host == 'youtu.be' or host == 'youtube.com' or host.endswith('.youtube.com')
-        is_instagram = is_instagram_url(url)
+        is_instagram = is_instagram_url(url) or bool(profile_username(url))
         detected_service = 'Instagram' if is_instagram else 'YouTube' if is_youtube else 'GetCourse'
         if self.tabs.get() != detected_service:
             self.notice('Выберите вкладку', 'Выберите вкладку платформы из ссылки: YouTube, GetCourse или Instagram.')
@@ -1222,15 +1232,16 @@ class App:
         save_description_text = is_instagram and self.save_instagram_description.get()
         description_format = self.instagram_description_format.get() if save_description_text else 'TXT'
         author_folder = is_instagram and self.instagram_author_folder.get()
-        post_folder = is_instagram and self.instagram_post_folder.get()
-        key = repr((identity, os.path.normcase(folder), mode, self.quality.get(), whole_playlist, self.getcourse_scope.get() if self.tabs.get() == 'GetCourse' else self.instagram_scope.get() if is_instagram else '', save_description_text, description_format, author_folder, post_folder))
+        post_folder = is_instagram and (self.instagram_post_folder.get() or bool(profile_username(url)))
+        profile_limit = {'Все публикации': 0, 'До 10 публикаций': 10, 'До 50 публикаций': 50, 'До 100 публикаций': 100}[self.instagram_profile_limit.get()] if is_instagram else 0
+        key = repr((identity, os.path.normcase(folder), mode, self.quality.get(), whole_playlist, self.getcourse_scope.get() if self.tabs.get() == 'GetCourse' else self.instagram_scope.get() if is_instagram else '', save_description_text, description_format, author_folder, post_folder, profile_limit if profile_username(url) else None))
         if key in self.jobs_by_key:
             self.retry_job(self.jobs_by_key[key], auto_start)
             return
         index = self.next_row_id
         service = self.tabs.get()
         self.display_queue([{'title': url, 'service': service}], append=True)
-        job = {'url': url, 'folder': folder, 'mode': mode, 'quality': self.quality.get(), 'access': access, 'playlist': whole_playlist, 'service': service, 'row': index, 'scope': self.getcourse_scope.get() if service == 'GetCourse' else self.instagram_scope.get() if service == 'Instagram' else 'Первое видео', 'rows': [index], 'save_description': save_description_text, 'description_format': description_format, 'author_folder': author_folder, 'post_folder': post_folder}
+        job = {'url': url, 'folder': folder, 'mode': mode, 'quality': self.quality.get(), 'access': access, 'playlist': whole_playlist, 'service': service, 'row': index, 'scope': self.getcourse_scope.get() if service == 'GetCourse' else self.instagram_scope.get() if service == 'Instagram' else 'Первое видео', 'rows': [index], 'save_description': save_description_text, 'description_format': description_format, 'author_folder': author_folder, 'post_folder': post_folder, 'profile_limit': profile_limit}
         self.jobs_by_key[key] = job
         self.jobs_by_row[index] = job
         self.pending_jobs.append(job)
@@ -1259,7 +1270,7 @@ class App:
             self.rows[job['row']][1].set('Получаю информацию…')
         self.refresh_row_controls()
         self.localize_ui()
-        threading.Thread(target=self.worker, args=(job['url'], job['folder'], job['mode'], job['quality'], job['access'], job['playlist'], job['scope'], job.get('save_description', False), job.get('description_format', 'TXT'), self.active_run, job.get('author_folder', False), job.get('post_folder', False)), daemon=True).start()
+        threading.Thread(target=self.worker, args=(job['url'], job['folder'], job['mode'], job['quality'], job['access'], job['playlist'], job['scope'], job.get('save_description', False), job.get('description_format', 'TXT'), self.active_run, job.get('author_folder', False), job.get('post_folder', False), job.get('profile_limit', 10)), daemon=True).start()
 
     def request_cancel(self):
         self.cancel.set()
@@ -1388,7 +1399,7 @@ class App:
             self.row_cancel_controls[index] = self.button(card, 'Отменить', lambda row=index: self.cancel_video(row), kind='outline', width=82, height=26)
             self.button(card, '…', lambda row=index: self.row_menu(None, row), kind='outline', width=26, height=26).grid(row=0, column=8, padx=(0, 6), pady=5)
 
-    def worker(self, url, folder, mode, quality, access=None, whole_playlist=False, lesson_scope='Первое видео', save_description_text=False, description_format='TXT', run_id=None, instagram_author_folder=False, instagram_post_folder=False):
+    def worker(self, url, folder, mode, quality, access=None, whole_playlist=False, lesson_scope='Первое видео', save_description_text=False, description_format='TXT', run_id=None, instagram_author_folder=False, instagram_post_folder=False, instagram_profile_limit=10):
         run_id = run_id if run_id is not None else getattr(self, 'active_run', None)
         def emit(event):
             self.events.put((*event, run_id))
@@ -1448,6 +1459,22 @@ class App:
                 instance.cookiejar.load(cookie_source, ignore_discard=True, ignore_expires=True)
             return instance
         try:
+            if profile_username(url):
+                import http.cookiejar
+                jar = http.cookiejar.CookieJar()
+                if (access or {}).get('method') == 'Instagram session':
+                    self.instagram_session.apply(jar)
+                emit(('row', (0, 'Instagram / ' + profile_username(url), 'Получаю список публикаций…', 'active')))
+                posts = profile_posts(url, instagram_profile_limit, jar, self.cancel)
+                if self.cancel.is_set():
+                    raise yt_dlp.utils.DownloadError('Скачивание отменено')
+                if not posts:
+                    raise yt_dlp.utils.DownloadError('В профиле нет доступных публикаций.')
+                emit(('profile_posts', posts))
+                emit(('download_started', url))
+                emit(('row', (0, None, 'Добавлено в очередь', 'done')))
+                emit(('done', f'{len(posts)} публикаций добавлено в очередь'))
+                return
             entries = [{'url': url, 'title': 'Получаю название видео…'}]
             playlist_title = ''
             instagram = is_instagram_url(url)
@@ -1504,7 +1531,7 @@ class App:
                     Path(folder).mkdir(parents=True, exist_ok=True)
                     emit(('folder', folder))
                 if not entries:
-                    raise yt_dlp.utils.DownloadError('В публикации нет выбранного типа файлов. Для фотографий выберите «Видео и фото» и «Всё» или «Только фото».')
+                    raise yt_dlp.utils.DownloadError('В публикации нет выбранного типа файлов. Для фотографий выберите «Видео и фото (MP4)» и «Всё» или «Только фото».')
             if whole_playlist:
                 meta_options = download_options(folder, mode, quality, hook, access)
                 meta_options.update(noplaylist=False, extract_flat='in_playlist', skip_download=True)
@@ -1693,6 +1720,19 @@ class App:
                     self.notice('Вход YouTube', result)
             elif kind == 'select_videos':
                 self.select_lesson_videos(*value)
+            elif kind == 'profile_posts':
+                if self.active_job:
+                    for post_url in value:
+                        key = ('profile-post', post_url, self.active_job['folder'], self.active_job['mode'], self.active_job['quality'], self.active_job['scope'], self.active_job.get('save_description'), self.active_job.get('description_format'), self.active_job.get('author_folder'))
+                        if key in self.jobs_by_key:
+                            continue
+                        index = self.next_row_id
+                        self.display_queue([{'title': post_url, 'service': 'Instagram'}], append=True)
+                        job = dict(self.active_job, url=post_url, row=index, rows=[index], post_folder=True)
+                        job.pop('resolved_folder', None)
+                        self.jobs_by_key[key] = job
+                        self.jobs_by_row[index] = job
+                        self.pending_jobs.append(job)
             elif kind == 'queue':
                 if self.active_job:
                     first = self.active_job['row']
@@ -1995,7 +2035,7 @@ class App:
 
     def instagram_scope_changed(self, value):
         if value == 'Только фото':
-            self.contexts['Instagram']['mode'].set('Видео и фото')
+            self.contexts['Instagram']['mode'].set('Видео и фото (MP4)')
         self.contexts['Instagram']['mode_box'].configure(state='disabled' if value == 'Только фото' else 'normal')
         self.contexts['Instagram']['quality_box'].configure(state='disabled' if value == 'Только фото' or self.contexts['Instagram']['mode'].get() == 'Звук MP3' else 'normal')
 
@@ -2267,7 +2307,7 @@ class App:
         self.label(dialog, description, wraplength=490, justify='left').pack(anchor='w', padx=24)
         self.button(dialog, 'История изменений', lambda: self.notice(self.translate('История изменений'), '1.7.0 — Compact interface, menus, queue filters, batch links, row progress and account controls.\n1.6.1 — Row pause/cancel, paste-to-download.\n1.6.0 — Embedded YouTube sign-in.')).pack(anchor='w', padx=24, pady=(20, 8))
         self.button(dialog, 'Скопировать информацию для поддержки', lambda: self.copy_text(f'ClipFlow {APP_VERSION}\nWindows\nLanguage: {self.language}\nyt-dlp: {yt_dlp.version.__version__}'), kind='outline', width=360).pack(anchor='w', padx=24)
-        self.button(dialog, 'Лицензии компонентов', lambda: self.notice(self.translate('Лицензии компонентов'), 'yt-dlp — Unlicense\nCustomTkinter — MIT\nPython — PSF License\nQt / PySide6 — LGPLv3\nFFmpeg — LGPL/GPL (see bundled build)\nNode.js — MIT\nPillow — HPND')).pack(anchor='w', padx=24, pady=8)
+        self.button(dialog, 'Лицензии компонентов', lambda: self.notice(self.translate('Лицензии компонентов'), 'yt-dlp — Unlicense\nCustomTkinter — MIT\nPython — PSF License\nQt / PySide6 — LGPLv3\nFFmpeg — LGPL/GPL (see bundled build)\nNode.js — MIT\nInstaloader — MIT\nPillow — HPND')).pack(anchor='w', padx=24, pady=8)
         self.localize_ui()
 
     def show_settings(self):
