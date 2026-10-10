@@ -18,7 +18,7 @@ sys.path[:0] = [str(ROOT / 'source'), str(ROOT / 'source/_internal')]
 import yt_dlp
 from platform_support import binary_path
 from yt_dlp.extractor.getcourseru import GetCourseRuPlayerIE
-from instagram_media import ClipFlowInstagramIE, download_photo, is_instagram_url, media_title, save_description, author_directory
+from instagram_media import ClipFlowInstagramIE, download_photo, is_instagram_url, media_title, save_description, author_directory, post_directory
 from media_names import short_media_title
 
 # Compile application methods without initializing its Windows-only GUI dependencies.
@@ -48,12 +48,15 @@ class FakeDL:
         return info
     def prepare_filename(self, info):
         template = self.params['outtmpl']
+        if template[0].isdigit() and ' - ' not in template:
+            return str(Path(self.params['paths']['home']) / template.replace('%(ext)s', info['ext']))
         prefix = template.split(' - ')[0] + ' - ' if ' - ' in template else ''
         return str(Path(self.params['paths']['home']) / (prefix + info['title'] + '.' + info['ext']))
     def process_ie_result(self, info, download=True):
         if self.fail: raise OSError('simulated interrupted download')
         # Simulate the final filename changing after MP4 merge / MP3 conversion.
-        info['ext'] = 'mp3' if self.params.get('postprocessors') else 'mp4'
+        processor = self.params['postprocessors'][0]
+        info['ext'] = processor.get('preferedformat', 'mp3')
         path = Path(self.prepare_filename(info)); path.write_bytes(b'media')
         info['filepath'] = str(path)
         return info
@@ -62,10 +65,10 @@ class FakeDL:
         return response
 
 class DescriptionTests(unittest.TestCase):
-    def run_worker(self, folder, enabled=False, mode='Видео — MP4', file_format='TXT', author_folder=False):
+    def run_worker(self, folder, enabled=False, mode='Видео — MP4', file_format='TXT', author_folder=False, post_folder=False, scope='Всё'):
         state = SimpleNamespace(active_run=None, events=queue.Queue(), cancel=threading.Event(), skip_current=threading.Event())
         with patch.object(yt_dlp, 'YoutubeDL', FakeDL):
-            worker(state, 'https://instagram.com/reel/Abc/', str(folder), mode, 'Лучшее доступное', lesson_scope='Всё', save_description_text=enabled, description_format=file_format, instagram_author_folder=author_folder)
+            worker(state, 'https://instagram.com/reel/Abc/', str(folder), mode, 'Лучшее доступное', lesson_scope=scope, save_description_text=enabled, description_format=file_format, instagram_author_folder=author_folder, instagram_post_folder=post_folder)
         return [event[:2] for event in state.events.queue]
 
     def test_author_folder_carousel(self):
@@ -120,8 +123,33 @@ class DescriptionTests(unittest.TestCase):
             self.assertEqual(events[-1][0], 'done', events)
             texts = list(Path(temp).glob('*.txt'))
             self.assertEqual(len(texts), 2)
-            self.assertEqual({p.name[:3] for p in texts}, {'001', '002'})
+            self.assertEqual({p.name[:3] for p in texts}, {'01 ', '02 '})
             for path in texts: self.assertEqual(path.read_text(encoding='utf-8-sig'), CAPTION)
+
+    def test_post_folders_and_original_numbers(self):
+        for mode, ext in [('Видео — MP4', 'mp4'), ('Видео — MKV', 'mkv'), ('Видео — WebM', 'webm')]:
+            for scope in ('Всё', 'Только фото', 'Только видео'):
+                with self.subTest(mode=mode, scope=scope), patch.object(FakeDL, 'carousel', True), TemporaryDirectory() as temp:
+                    events = self.run_worker(temp, True, mode, post_folder=True, scope=scope)
+                    self.assertEqual(events[-1][0], 'done', events)
+                    folder = next(Path(temp).iterdir())
+                    self.assertTrue(folder.name.endswith('Abc'))
+                    expected = set()
+                    if scope != 'Только фото': expected.update({'01.' + ext, '01.txt'})
+                    if scope != 'Только видео': expected.update({'02.jpg', '02.txt'})
+                    self.assertEqual({p.name for p in folder.iterdir()}, expected)
+                    # Same URL uses the same directory on repeat, never an incremented suffix.
+                    again = self.run_worker(temp, True, mode, post_folder=True, scope=scope)
+                    self.assertEqual(again[-1][0], 'done', again)
+                    self.assertEqual(len(list(Path(temp).iterdir())), 1)
+
+    def test_untitled_post_identity_and_safe_paths(self):
+        a = post_directory({}, 'https://instagram.com/p/ABC/', [{}, {}])
+        b = post_directory({}, 'https://instagram.com/p/XYZ/', [{}, {}])
+        self.assertNotEqual(a, b)
+        self.assertEqual(a, 'Карусель — ABC')
+        self.assertEqual(post_directory({'upload_date': '20261010', 'description': '../bad:caption/hello'}, 'https://instagram.com/p/ABC/').split(' — ')[0], '2026-10-10')
+        self.assertNotIn('/', post_directory({'description': '../../escape'}, 'https://instagram.com/p/ABC/'))
 
     def test_failed_download(self):
         with patch.object(FakeDL, 'fail', True), TemporaryDirectory() as temp:
@@ -145,12 +173,13 @@ class DescriptionTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             CONFIG = Path(temp) / 'settings.json'
             state = SimpleNamespace(folder_history=[], language='ru', installation_language='', detailed_list=False, interface_scale='100%')
-            for name, value in [('folder', temp), ('quality', 'Лучшее доступное'), ('auto_download', True), ('instagram_author_folder', True), ('save_instagram_description', True), ('instagram_description_format', 'MD')]:
+            for name, value in [('folder', temp), ('quality', 'Лучшее доступное'), ('auto_download', True), ('instagram_author_folder', True), ('instagram_post_folder', True), ('save_instagram_description', True), ('instagram_description_format', 'MD')]:
                 setattr(state, name, SimpleNamespace(get=lambda value=value: value))
             save_settings(state)
             settings = json.loads(CONFIG.read_text(encoding='utf-8'))
             self.assertTrue(settings['save_instagram_description'])
             self.assertTrue(settings['instagram_author_folder'])
+            self.assertTrue(settings['instagram_post_folder'])
             self.assertEqual(settings['instagram_description_format'], 'MD')
 
 if __name__ == '__main__': unittest.main()

@@ -109,3 +109,34 @@ def author_directory(info, entries=()):
             return name
     # Never invent an account nickname or use an unchecked path from metadata.
     return 'Unknown author'
+
+
+def post_directory(info, url, entries=()):
+    """Stable post identity prevents untitled posts from sharing a directory."""
+    import re
+    from datetime import datetime, timezone
+    from yt_dlp.utils import sanitize_filename
+    match = re.match(r'^/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)(?:/|$)', urlparse(url).path)
+    if not match:
+        raise DownloadError('Invalid Instagram post identifier')
+    code = match.group(1)
+    items = (info, *[item for item in entries if item])
+    caption = next((item.get('description') for item in items if isinstance(item.get('description'), str) and item['description'].strip()), '')
+    title = sanitize_filename(short_media_title(caption, 48), restricted=False).strip('. ') if caption else 'Карусель' if len(entries) > 1 else 'Пост'
+    date = ''
+    for item in items:
+        value = item.get('upload_date')
+        if isinstance(value, str) and re.fullmatch(r'\d{8}', value):
+            try:
+                date = datetime.strptime(value, '%Y%m%d').strftime('%Y-%m-%d')
+                break
+            except ValueError:
+                pass
+        stamp = item.get('timestamp')
+        if isinstance(stamp, (int, float)):
+            try:
+                date = datetime.fromtimestamp(stamp, timezone.utc).strftime('%Y-%m-%d')
+                break
+            except (ValueError, OverflowError, OSError):
+                pass
+    return ' — '.join(part for part in (date, title or 'Пост', code) if part)

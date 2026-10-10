@@ -1,4 +1,4 @@
-"""Exercise Windows 1.8.4 features with macOS storage and a deterministic probe."""
+"""Exercise shared service controls with isolated storage and deterministic metadata."""
 import sys, json, http.cookiejar, threading, tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +23,8 @@ try:
         window.tabs.set(service); window.activate_tab(); root.update()
         assert window.contexts[service]['start_button'].winfo_ismapped(), (service, window.tabs.get(), window.tabs.tab(service).winfo_manager(), window.contexts[service]['start_button'].winfo_manager())
         assert window.contexts[service]['start_button'].cget('text') == ''
+        values = window.contexts[service]['mode_box'].cget('values')
+        assert 'Видео MKV' in values and 'Видео WebM' in values, (service, values)
     window.tabs.set('Instagram'); window.activate_tab()
     assert window.mode.get() == 'Видео и фото'
     assert app.COLORS['primary_action'] == '#C13584'
@@ -33,7 +35,7 @@ try:
     assert window.instagram_scope_box._text_label.cget('text') == 'All media'
     for size in ('1080x780', '880x680'):
         root.geometry(size); root.update()
-        for widget in (window.instagram_description_switch,window.instagram_description_format_box,window.start_button):
+        for widget in (window.instagram_description_switch,window.instagram_description_format_box,window.instagram_author_folder_switch,window.instagram_post_folder_switch,window.start_button):
             assert widget.winfo_rootx() >= root.winfo_rootx()
             assert widget.winfo_rootx()+widget.winfo_width() <= root.winfo_rootx()+root.winfo_width(), (size,widget)
     window.language = 'ru'; window.localize_ui()
@@ -67,6 +69,13 @@ try:
     with tempfile.TemporaryDirectory() as temp:
         window.folder.set(temp);window.save_instagram_description.set(True);window.instagram_description_format.set('MD');window.save_settings()
         assert json.loads(app.CONFIG.read_text(encoding='utf-8'))['instagram_description_format']=='MD'
+        for service, url in [('YouTube', 'https://youtu.be/testformat'), ('Instagram', 'https://instagram.com/p/FormatTest/'), ('GetCourse', 'https://school.getcourse.ru/pl/teach/control/lesson/view?id=123')]:
+            window.tabs.set(service); window.activate_tab()
+            window.folder.set(temp); window.url.set(url)
+            for value, expected in [('Видео MKV', 'Видео — MKV'), ('Видео WebM', 'Видео — WebM')]:
+                window.mode.set(value); window.start(auto_start=False)
+                assert window.pending_jobs[-1]['mode'] == expected, service
+                assert window.pending_jobs[-1]['post_folder'] == (service == 'Instagram')
         second = app.App.__new__(app.App)  # Session isolation is independent of UI.
         from cryptography.fernet import Fernet
         cipher=Fernet(Fernet.generate_key())

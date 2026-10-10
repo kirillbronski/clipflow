@@ -20,7 +20,7 @@ from html.parser import HTMLParser
 from youtube_session import YouTubeSession
 from instagram_session import InstagramSession
 from media_names import short_media_title
-from instagram_media import ClipFlowInstagramIE, is_instagram_url, media_title, download_photo, save_description, author_directory
+from instagram_media import ClipFlowInstagramIE, is_instagram_url, media_title, download_photo, save_description, author_directory, post_directory
 from pathlib import Path
 from urllib.parse import urlparse
 import tkinter as tk
@@ -307,7 +307,15 @@ def download_options(folder, mode, quality, hook, access=None):
         height = QUALITY[quality]
         limit = f'[height<={height}]' if height else ''
         options['format'] = f'bestvideo{limit}+bestaudio/best{limit}'
-        options['merge_output_format'] = 'mp4'
+        container = {'Видео — MKV': 'mkv', 'Видео — WebM': 'webm'}.get(mode, 'mp4')
+        options['merge_output_format'] = 'mkv' if container == 'webm' else container
+        options['final_ext'] = container
+        # Also convert single-stream downloads; merging alone does not set their container.
+        options['postprocessors'] = [{'key': 'FFmpegVideoConvertor', 'preferedformat': container}]
+        if container == 'webm':
+            # Instagram/GetCourse may only offer H.264/AAC, which WebM cannot contain.
+            options['postprocessor_args'] = {'videoconvertor+ffmpeg_o':
+                ['-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-c:a', 'libopus']}
     return options
 
 
@@ -423,7 +431,7 @@ def youtube_playlist_url(url):
 for palette in (COLORS, YOUTUBE_COLORS, GETCOURSE_COLORS):
     palette.update(background='#141416', surface='#1D1D20', surface_high='#28282D', outline_variant='#414149', outline='#85858F', text='#F2F2F5', muted='#B8B8C1')
 
-TRANSLATIONS.update({'Видео урока': 'Lesson videos', 'Показывать завершённые': 'Show completed', 'Все': 'All', 'Активные': 'Active', 'Завершённые': 'Completed', 'Ошибки': 'Errors', 'Добавить': 'Add', 'Формат': 'Format', 'Качество': 'Quality', 'Аккаунт': 'Account', 'Вид': 'View', 'Аккаунты': 'Accounts', 'Справка': 'Help', 'Добавить ссылку': 'Add link', 'Добавить несколько ссылок': 'Add multiple links', 'Одна ссылка на строку': 'One link per line', 'Приостановить все': 'Pause all', 'Продолжить все': 'Resume all', 'Очистить завершённые': 'Clear completed', 'Компактный список': 'Compact list', 'Подробный список': 'Detailed list', 'Масштаб интерфейса': 'Interface scale', 'Общие': 'General', 'Скачивание': 'Downloads', 'Как пользоваться': 'Getting started', 'Горячие клавиши': 'Keyboard shortcuts', 'Журнал ошибок': 'Error log', 'О ClipFlow': 'About ClipFlow', 'Ошибок нет': 'No errors', 'Копировать название': 'Copy title', 'Повторить': 'Retry', 'Подробности': 'Details', 'Убрать из списка': 'Remove from list', 'Видео и аудио — в вашей коллекции.': 'Video and audio — in your collection.', 'История изменений': 'Release notes', 'Скопировать информацию для поддержки': 'Copy support information', 'Лицензии компонентов': 'Component licenses'})
+TRANSLATIONS.update({'Видео MKV': 'MKV video', 'Видео WebM': 'WebM video', 'Папка для каждого поста': 'Folder for each post', 'Видео урока': 'Lesson videos', 'Показывать завершённые': 'Show completed', 'Все': 'All', 'Активные': 'Active', 'Завершённые': 'Completed', 'Ошибки': 'Errors', 'Добавить': 'Add', 'Формат': 'Format', 'Качество': 'Quality', 'Аккаунт': 'Account', 'Вид': 'View', 'Аккаунты': 'Accounts', 'Справка': 'Help', 'Добавить ссылку': 'Add link', 'Добавить несколько ссылок': 'Add multiple links', 'Одна ссылка на строку': 'One link per line', 'Приостановить все': 'Pause all', 'Продолжить все': 'Resume all', 'Очистить завершённые': 'Clear completed', 'Компактный список': 'Compact list', 'Подробный список': 'Detailed list', 'Масштаб интерфейса': 'Interface scale', 'Общие': 'General', 'Скачивание': 'Downloads', 'Как пользоваться': 'Getting started', 'Горячие клавиши': 'Keyboard shortcuts', 'Журнал ошибок': 'Error log', 'О ClipFlow': 'About ClipFlow', 'Ошибок нет': 'No errors', 'Копировать название': 'Copy title', 'Повторить': 'Retry', 'Подробности': 'Details', 'Убрать из списка': 'Remove from list', 'Видео и аудио — в вашей коллекции.': 'Video and audio — in your collection.', 'История изменений': 'Release notes', 'Скопировать информацию для поддержки': 'Copy support information', 'Лицензии компонентов': 'Component licenses'})
 
 INSTAGRAM_COLORS = dict(YOUTUBE_COLORS, primary='#E1306C', primary_action='#C13584', primary_hover='#A42A71', primary_container='#58203E', on_primary_container='#FFD9EB', secondary='#F4B4D4', secondary_container='#513049', secondary_hover='#6E3B60', tertiary='#F77737')
 TRANSLATIONS.update({'Папка с ником автора': 'Folder by account username', 'Видео и фото':'Video and photos', 'Содержимое':'Content','Всё':'All media','Только видео':'Videos only','Только фото':'Photos only','Ссылка на Reel или публикацию Instagram':'Instagram Reel or post link','Войти в Instagram':'Sign in to Instagram','Instagram: сессия сохранена':'Instagram: session saved','Instagram: вход не выполнен':'Instagram: not signed in','Открываю окно входа Instagram…':'Opening Instagram sign-in…'})
@@ -487,6 +495,7 @@ class App:
         self.mode = tk.StringVar(value='Видео MP4')
         self.quality = tk.StringVar(value='Лучшее доступное')
         self.instagram_author_folder = tk.BooleanVar(value=True)
+        self.instagram_post_folder = tk.BooleanVar(value=True)
         self.save_instagram_description = tk.BooleanVar(value=False)
         self.instagram_description_format = tk.StringVar(value='TXT')
         self.auto_download = tk.BooleanVar(value=True)
@@ -499,6 +508,7 @@ class App:
             settings = json.loads(CONFIG.read_text(encoding='utf-8'))
             self.auto_download.set(settings.get('auto_download', True))
             self.instagram_author_folder.set(settings.get('instagram_author_folder', True))
+            self.instagram_post_folder.set(settings.get('instagram_post_folder', True))
             self.save_instagram_description.set(settings.get('save_instagram_description', False))
             description_format = settings.get('instagram_description_format', 'TXT')
             self.instagram_description_format.set(description_format if description_format in ('TXT', 'MD') else 'TXT')
@@ -578,7 +588,7 @@ class App:
             self.layout_panels.append(controls)
             controls.bind('<Configure>', lambda event, panel=controls: self.reflow_controls(panel, event.width))
             self.label(controls, 'Формат', size=12, color=COLORS['muted']).grid(row=0, column=0, sticky='w', pady=(0, 6))
-            self.mode_box = ctk.CTkSegmentedButton(controls, values=['Видео и фото', 'Звук MP3'] if service == 'Instagram' else ['Видео MP4', 'Звук MP3'], variable=self.mode, command=self.mode_changed, height=36, corner_radius=10, fg_color=COLORS['surface_high'], selected_color=COLORS['secondary_container'], selected_hover_color=COLORS['secondary_hover'], unselected_color=COLORS['surface_high'], unselected_hover_color=COLORS['outline_variant'], text_color=COLORS['text'], font=(FONT_FAMILY, 13))
+            self.mode_box = self.option(controls, self.mode, ['Видео и фото', 'Видео MKV', 'Видео WebM', 'Звук MP3'] if service == 'Instagram' else ['Видео MP4', 'Видео MKV', 'Видео WebM', 'Звук MP3'], width=175, command=self.mode_changed)
             self.mode_box.grid(row=1, column=0, sticky='w')
             self.label(controls, 'Качество', size=12, color=COLORS['muted']).grid(row=0, column=1, sticky='w', padx=(24, 0), pady=(0, 6))
             self.quality_box = self.option(controls, self.quality, ['Лучшее доступное'], width=170)
@@ -607,6 +617,8 @@ class App:
                 self.instagram_description_format_box.grid(row=0, column=1, padx=(16, 0))
                 self.instagram_author_folder_switch = ctk.CTkSwitch(description_row, text='Папка с ником автора', variable=self.instagram_author_folder, command=self.save_settings, progress_color=COLORS['primary_action'], fg_color=COLORS['outline_variant'], button_color=COLORS['secondary'], button_hover_color=COLORS['text'], text_color=COLORS['text'], font=(FONT_FAMILY, 13), switch_width=42, switch_height=24)
                 self.instagram_author_folder_switch.grid(row=0, column=2, padx=(24, 0), sticky='w')
+                self.instagram_post_folder_switch = ctk.CTkSwitch(description_row, text='Папка для каждого поста', variable=self.instagram_post_folder, command=self.save_settings, progress_color=COLORS['primary_action'], fg_color=COLORS['outline_variant'], button_color=COLORS['secondary'], button_hover_color=COLORS['text'], text_color=COLORS['text'], font=(FONT_FAMILY, 13), switch_width=42, switch_height=24)
+                self.instagram_post_folder_switch.grid(row=1, column=0, columnspan=3, sticky='w', pady=(8, 0))
                 self.playlist_switch = None
             else:
                 self.label(controls, 'Видео урока', size=12, color=COLORS['muted']).grid(row=0, column=2, sticky='w', padx=(24, 0), pady=(0, 6))
@@ -1110,7 +1122,7 @@ class App:
 
     def save_settings(self):
         CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG.write_text(json.dumps({'folder': self.folder.get(), 'quality': self.quality.get(), 'auto_download': self.auto_download.get(), 'instagram_author_folder': self.instagram_author_folder.get(), 'save_instagram_description': self.save_instagram_description.get(), 'instagram_description_format': self.instagram_description_format.get(), 'folders': self.folder_history, 'language': self.language, 'installation_language': self.installation_language, 'detailed_list': self.detailed_list, 'interface_scale': self.interface_scale}, ensure_ascii=False), encoding='utf-8')
+        CONFIG.write_text(json.dumps({'folder': self.folder.get(), 'quality': self.quality.get(), 'auto_download': self.auto_download.get(), 'instagram_author_folder': self.instagram_author_folder.get(), 'instagram_post_folder': self.instagram_post_folder.get(), 'save_instagram_description': self.save_instagram_description.get(), 'instagram_description_format': self.instagram_description_format.get(), 'folders': self.folder_history, 'language': self.language, 'installation_language': self.installation_language, 'detailed_list': self.detailed_list, 'interface_scale': self.interface_scale}, ensure_ascii=False), encoding='utf-8')
 
     def remember_folder(self, folder):
         self.folder_history = [folder] + [item for item in self.folder_history if os.path.normcase(item) != os.path.normcase(folder)]
@@ -1196,7 +1208,7 @@ class App:
         access = dict(self.access) if needs_getcourse_login(url) else ({'method': 'YouTube session'} if is_youtube and self.youtube_connected else None)
         if is_instagram:
             access = {'method': 'Instagram session'} if self.instagram_connected else None
-        mode = 'Только звук — MP3' if self.mode.get() == 'Звук MP3' else 'Видео — MP4'
+        mode = {'Звук MP3': 'Только звук — MP3', 'Видео MKV': 'Видео — MKV', 'Видео WebM': 'Видео — WebM'}.get(self.mode.get(), 'Видео — MP4')
         from urllib.parse import parse_qs
         parsed = urlparse(url)
         query = parse_qs(parsed.query)
@@ -1210,14 +1222,15 @@ class App:
         save_description_text = is_instagram and self.save_instagram_description.get()
         description_format = self.instagram_description_format.get() if save_description_text else 'TXT'
         author_folder = is_instagram and self.instagram_author_folder.get()
-        key = repr((identity, os.path.normcase(folder), mode, self.quality.get(), whole_playlist, self.getcourse_scope.get() if self.tabs.get() == 'GetCourse' else self.instagram_scope.get() if is_instagram else '', save_description_text, description_format, author_folder))
+        post_folder = is_instagram and self.instagram_post_folder.get()
+        key = repr((identity, os.path.normcase(folder), mode, self.quality.get(), whole_playlist, self.getcourse_scope.get() if self.tabs.get() == 'GetCourse' else self.instagram_scope.get() if is_instagram else '', save_description_text, description_format, author_folder, post_folder))
         if key in self.jobs_by_key:
             self.retry_job(self.jobs_by_key[key], auto_start)
             return
         index = self.next_row_id
         service = self.tabs.get()
         self.display_queue([{'title': url, 'service': service}], append=True)
-        job = {'url': url, 'folder': folder, 'mode': mode, 'quality': self.quality.get(), 'access': access, 'playlist': whole_playlist, 'service': service, 'row': index, 'scope': self.getcourse_scope.get() if service == 'GetCourse' else self.instagram_scope.get() if service == 'Instagram' else 'Первое видео', 'rows': [index], 'save_description': save_description_text, 'description_format': description_format, 'author_folder': author_folder}
+        job = {'url': url, 'folder': folder, 'mode': mode, 'quality': self.quality.get(), 'access': access, 'playlist': whole_playlist, 'service': service, 'row': index, 'scope': self.getcourse_scope.get() if service == 'GetCourse' else self.instagram_scope.get() if service == 'Instagram' else 'Первое видео', 'rows': [index], 'save_description': save_description_text, 'description_format': description_format, 'author_folder': author_folder, 'post_folder': post_folder}
         self.jobs_by_key[key] = job
         self.jobs_by_row[index] = job
         self.pending_jobs.append(job)
@@ -1246,7 +1259,7 @@ class App:
             self.rows[job['row']][1].set('Получаю информацию…')
         self.refresh_row_controls()
         self.localize_ui()
-        threading.Thread(target=self.worker, args=(job['url'], job['folder'], job['mode'], job['quality'], job['access'], job['playlist'], job['scope'], job.get('save_description', False), job.get('description_format', 'TXT'), self.active_run, job.get('author_folder', False)), daemon=True).start()
+        threading.Thread(target=self.worker, args=(job['url'], job['folder'], job['mode'], job['quality'], job['access'], job['playlist'], job['scope'], job.get('save_description', False), job.get('description_format', 'TXT'), self.active_run, job.get('author_folder', False), job.get('post_folder', False)), daemon=True).start()
 
     def request_cancel(self):
         self.cancel.set()
@@ -1375,7 +1388,7 @@ class App:
             self.row_cancel_controls[index] = self.button(card, 'Отменить', lambda row=index: self.cancel_video(row), kind='outline', width=82, height=26)
             self.button(card, '…', lambda row=index: self.row_menu(None, row), kind='outline', width=26, height=26).grid(row=0, column=8, padx=(0, 6), pady=5)
 
-    def worker(self, url, folder, mode, quality, access=None, whole_playlist=False, lesson_scope='Первое видео', save_description_text=False, description_format='TXT', run_id=None, instagram_author_folder=False):
+    def worker(self, url, folder, mode, quality, access=None, whole_playlist=False, lesson_scope='Первое видео', save_description_text=False, description_format='TXT', run_id=None, instagram_author_folder=False, instagram_post_folder=False):
         run_id = run_id if run_id is not None else getattr(self, 'active_run', None)
         def emit(event):
             self.events.put((*event, run_id))
@@ -1473,6 +1486,9 @@ class App:
                 entries = []
                 for number, item in enumerate(raw_entries, 1):
                     if not item:continue
+                    item = dict(item)
+                    if not item.get('description') and info.get('description'):
+                        item['description'] = info['description']
                     photo = item.get('_clipflow_photo', False)
                     if lesson_scope == 'Только фото' and not photo:continue
                     if lesson_scope == 'Только видео' and photo:continue
@@ -1481,6 +1497,10 @@ class App:
                     entries.append({'url': url, 'title': item['title'], 'media_info': item, 'media_number': number})
                 if instagram_author_folder:
                     folder = str(Path(folder) / author_directory(info, [e['media_info'] for e in entries]))
+                    Path(folder).mkdir(parents=True, exist_ok=True)
+                    emit(('folder', folder))
+                if instagram_post_folder and entries:
+                    folder = str(Path(folder) / post_directory(info, url, raw_entries))
                     Path(folder).mkdir(parents=True, exist_ok=True)
                     emit(('folder', folder))
                 if not entries:
@@ -1524,8 +1544,9 @@ class App:
                         options['outtmpl'] = f'{current_index+1:03d} - %(title).50s.%(ext)s'
                     elif lesson_multiple and len(entries) > 1:
                         options['outtmpl'] = f'{entry["lesson_number"]:03d} - %(title).50s.%(ext)s'
-                    if instagram and len(entries) > 1:
-                        options['outtmpl'] = f'{entry["media_number"]:03d} - %(title).50s.%(ext)s'
+                    if instagram:
+                        options['outtmpl'] = (f'{entry["media_number"]:02d}.%(ext)s' if instagram_post_folder
+                                              else f'{entry["media_number"]:02d} - %(title).50s.%(ext)s')
                     with downloader(options) as ydl:
                         if instagram:
                             info = dict(entry['media_info'])
