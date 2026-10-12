@@ -31,3 +31,16 @@ if support.IS_WINDOWS:
     assert encrypted!=plain
     assert support.protect_profile(encrypted,decrypt=True)==plain
 print('PASS native ClipFlow paths, platform labels, binary lookup and native encryption dispatch')
+
+from unittest.mock import MagicMock
+root, image, native_icon = MagicMock(), object(), object()
+with patch.object(support, 'IS_WINDOWS', True), patch('PIL.ImageTk.PhotoImage', return_value=native_icon) as photo:
+    support.set_window_icon(root, image)
+    photo.assert_called_once_with(image, master=root)
+    root.iconphoto.assert_called_once_with(True, native_icon)
+    root.iconbitmap.assert_called_once_with('')
+    assert root._clipflow_window_icon is native_icon
+with patch.object(support, 'IS_WINDOWS', False), patch('PIL.ImageTk.PhotoImage') as photo:
+    support.set_window_icon(root, image)
+    photo.assert_not_called()
+print('PASS Windows native window icon, retained image reference, macOS unchanged')
