@@ -67,6 +67,17 @@ def binary_path(name):
     return shutil.which(executable)
 
 
+def set_window_icon(root, image):
+    """Keep native Windows title/taskbar icons in sync with the active service."""
+    if not IS_WINDOWS:
+        return
+    from PIL import ImageTk
+    icon = ImageTk.PhotoImage(image, master=root)
+    root.iconphoto(True, icon)
+    # Tk does not retain the Python wrapper for its native icon image.
+    root._clipflow_window_icon = icon
+
+
 def open_folder(path):
     if IS_MAC:
         subprocess.Popen(['/usr/bin/open', str(path)])

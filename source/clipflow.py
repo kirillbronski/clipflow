@@ -1,5 +1,6 @@
 import sys
 from platform_support import RESOURCE_DIR, APP_DATA, AUTH_DIR, SETTINGS_DIR, platform_text, FONT_FAMILY, MODIFIER, CONTEXT_BUTTON, IS_MAC, binary_path, open_folder as reveal_folder, protect_profile, atomic_redraw, clipboard_text
+from platform_support import set_window_icon
 from download_events import coalesce_updates
 if __name__ == '__main__' and any(flag in sys.argv for flag in ('--youtube-login','--instagram-login','--auth-self-test','--instagram-auth-self-test')):
     from embedded_auth import main
@@ -780,6 +781,7 @@ class App:
     def update_brand_icon(self):
         service = self.tabs.get()
         self.brand_image = self._brand_images[service]
+        set_window_icon(self.root, self.brand_image.cget('light_image'))
         self.update_widget(self.brand_label, image=self.brand_image)
         if hasattr(self, 'empty_icon'):
             self.update_widget(self.empty_icon, image=self.brand_image)
