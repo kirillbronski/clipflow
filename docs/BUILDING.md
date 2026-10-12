@@ -6,6 +6,8 @@
 
 Установите Inno Setup 6. Компилятор ищется в PATH и стандартной папке установки; альтернативный путь задаётся переменной `INNO_SETUP_COMPILER`. FFmpeg и FFprobe должны быть настоящими бинарниками, а не ярлыками или Chocolatey shim-файлами.
 
+Сборка Windows ограничивает PATH каталогами Python, Windows и выбранных бинарников: DLL сторонних инструментов из окружения не должны подменять системные зависимости Qt.
+
 ```powershell
 .venv\Scripts\python.exe scripts/build.py
 ```
