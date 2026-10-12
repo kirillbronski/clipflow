@@ -66,17 +66,26 @@ def windows(portable_only=False):
         args += ['--collect-submodules', package, '--collect-data', package]
     args += ['--collect-data', 'customtkinter', '--hidden-import', 'PySide6.QtWebEngineCore',
              '--hidden-import', 'PySide6.QtWebEngineWidgets']
+    binary_directories = []
     for name in ['ffmpeg','ffprobe','node']:
         binary = binary_path(name)
         if not binary:
             raise SystemExit(f'{name} missing. Add it to PATH or set CLIPFLOW_BIN_DIR.')
         args += ['--add-binary', binary+os.pathsep+'bin']
+        binary_directories.append(str(Path(binary).parent))
     args += [str(ROOT/'source/clipflow.py')]
     # PyInstaller builds into a new directory; existing installers remain untouched.
     distribution = ROOT/'outputs/ClipFlow'
     if distribution.exists():
         shutil.rmtree(distribution)
-    run(*args)
+    # Unrelated tools on the caller's PATH can supply incompatible DLLs (for
+    # example Poppler's ICU instead of Windows ICU required by QtCore).
+    windows_dir = Path(os.environ['SystemRoot'])
+    build_path = [Path(sys.executable).parent, Path(sys.base_prefix),
+                  Path(sys.base_prefix)/'DLLs', windows_dir/'System32', windows_dir,
+                  *binary_directories]
+    build_env = dict(os.environ, PATH=os.pathsep.join(dict.fromkeys(map(str, build_path))))
+    run(*args, env=build_env)
     check_auth(distribution/'ClipFlow.exe')
     archive = shutil.make_archive(str(ROOT/'outputs'/f'ClipFlow-{VERSION}-Windows-x64-portable'), 'zip',
                                   ROOT/'outputs', 'ClipFlow')
