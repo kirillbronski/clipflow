@@ -38,6 +38,7 @@ with patch.object(support, 'IS_WINDOWS', True), patch('PIL.ImageTk.PhotoImage', 
     support.set_window_icon(root, image)
     photo.assert_called_once_with(image, master=root)
     root.iconphoto.assert_called_once_with(True, native_icon)
+    root.iconbitmap.assert_called_once_with('')
     assert root._clipflow_window_icon is native_icon
 with patch.object(support, 'IS_WINDOWS', False), patch('PIL.ImageTk.PhotoImage') as photo:
     support.set_window_icon(root, image)

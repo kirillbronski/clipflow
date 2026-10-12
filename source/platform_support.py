@@ -72,6 +72,9 @@ def set_window_icon(root, image):
     if not IS_WINDOWS:
         return
     from PIL import ImageTk
+    # Clear any bitmap icon and stop CTk's delayed default-icon callback.
+    # On Windows a bitmap takes precedence over Tk's photo icon.
+    root.iconbitmap('')
     icon = ImageTk.PhotoImage(image, master=root)
     root.iconphoto(True, icon)
     # Tk does not retain the Python wrapper for its native icon image.

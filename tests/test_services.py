@@ -12,6 +12,10 @@ from media_names import short_media_title
 root = app.ctk.CTk(); window = app.App(root)
 window.auto_download.set(False)
 root.update()
+if app.sys.platform == 'win32':
+    root._windows_set_titlebar_icon()
+    assert root.tk.call('wm', 'iconbitmap', root._w) == '', 'CTk must not override the app photo icon'
+    assert root._clipflow_window_icon is not None
 window.schedule_quality_check = lambda *args: None
 try:
     assert app.default_download_folder() == str(Path.home()/'Downloads/ClipFlow')
