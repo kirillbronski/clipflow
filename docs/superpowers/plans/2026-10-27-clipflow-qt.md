@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T2 завершён, T3 не реализован.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T3 завершён; пауза перед T4.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -50,7 +50,7 @@
 - `DownloadRequest(link: ParsedLink, options: DownloadOptions, selection: tuple[str,...]|None=None, profile_limit: int|None=None)` — frozen. Лимит профиля `10/50/None`, где None означает все; только explicit profile mode/batch preview может создавать profile request.
 - `Job(id: str, request: DownloadRequest, state: JobState, attempt_id: str|None, parent_id: str|None=None, result_files: tuple[Path,...]=(), error: str|None=None, pause_reason: str|None=None, next_allowed_at: datetime|None=None)` — изменения через replacement, request не мутирует из UI.
 - `BatchPreview(requests: tuple[DownloadRequest,...], invalid: tuple[LineError,...], duplicate_lines: tuple[int,...])`, `SubmissionResult(added: tuple[str,...], existing: tuple[str,...])`; LineError содержит номер строки, безопасный ввод и сообщение.
-- `JobState`: queued/probing/downloading/processing/completed/paused/cancelled/failed. `JobEvent(job_id, attempt_id, payload)`; payload — одна из frozen структур `StageChanged`, `ProgressChanged`, `FilesSaved`, `RequestsDiscovered`, `SelectionRequired`, `RateLimitDeferred`, `WorkFinished`, `WorkFailed`. RateLimitDeferred содержит next_allowed_at/automatic_retry/reason по политике Instagram.
+- `JobState`: queued/probing/downloading/processing/completed/paused/cancelled/failed. `JobEvent(job_id, attempt_id, payload)`; payload — одна из frozen структур `StageChanged`, `ProgressChanged`, `FilesSaved`, `RequestsDiscovered`, `SelectionRequired`, `RateLimitDeferred`, `WorkFinished`, `WorkFailed`, `WorkStopped`. WorkStopped подтверждает освобождение ресурсов после stop/deferral; терминальные worker-события доставляются только после teardown. RateLimitDeferred содержит next_allowed_at/automatic_retry/reason по политике Instagram.
 - `CancellationToken.cancel(reason: Literal['pause','cancel','shutdown'])->None`, `raise_if_cancelled()->None`, `wait(timeout: float)->bool`.
 - `ExecutionContext(cancel: CancellationToken, emit: Callable[[ProviderEvent],None], auth: AuthGateway, instagram_rate: InstagramRatePolicy|None=None)`. ProviderEvent не содержит UI-объектов; executor добавляет job/attempt IDs. После T8 всем Instagram путям передаётся один policy; None допустим только другим сервисам/ранним unit fixtures.
 - `ProbeResult(items: tuple[MediaItem,...], available_heights: tuple[int,...], selection_required: bool=False)`, `MediaItem(id: str, index: int, kind: Literal['photo','video'], title: str, info: Mapping[str,object])`. Raw info/CDN URL живут в памяти, не в истории.
@@ -88,11 +88,11 @@
 
 **Interfaces:** Consumes JobRepository; produces `Executor.start(job: Job, on_event: Callable[[JobEvent],None])->None`, `.stop(job_id: str, reason: str)->None`; `Scheduler(repository, executor)` methods `start()`, `pause(job_id)`, `resume(job_id)`, `cancel(job_id, include_children=True)`, `retry(job_id)`, `select_items(job_id, ids: tuple[str,...])`, `handle(event)`, `subscribe(callback)->unsubscribe`. Defines CancellationToken/typed events above.
 
-- [ ] Red: `test_one_running_job`, `test_old_attempt_cannot_fail_new_attempt`, `test_download_100_is_not_completed_before_processing`, `test_pause_preserves_partial_then_resumes_new_attempt`, `test_profile_cancel_cancels_unstarted_children`, `test_failure_advances_queue`, `test_shutdown_does_not_start_next`.
-- [ ] `python -m pytest tests/unit/test_scheduler.py -q`: FAIL before implementation.
-- [ ] Реализовать допустимые переходы, single concurrency, новый attempt ID на retry/resume, дедуп discovered children по request key. SelectionRequired переводит задание в paused с понятной причиной; select_items создаёт новый снимок request с selection и новую попытку. Отмена родителя не удаляет результаты завершённых детей.
-- [ ] Unit suite: PASS; deterministic fake executor не исполняет реальную сеть и позволяет произвольный порядок поздних событий.
-- [ ] Commit `feat: add attempt-safe queue state machine`.
+- [x] Red: `test_one_running_job`, `test_old_attempt_cannot_fail_new_attempt`, `test_download_100_is_not_completed_before_processing`, `test_pause_preserves_partial_then_resumes_new_attempt`, `test_profile_cancel_cancels_unstarted_children`, `test_failure_advances_queue`, `test_shutdown_does_not_start_next`.
+- [x] `python -m pytest tests/unit/test_scheduler.py -q`: FAIL before implementation.
+- [x] Реализовать допустимые переходы, single concurrency, новый attempt ID на retry/resume, дедуп discovered children по request key. SelectionRequired переводит задание в paused с понятной причиной; select_items создаёт новый снимок request с selection и новую попытку. Отмена родителя не удаляет результаты завершённых детей.
+- [x] Unit suite: PASS; deterministic fake executor не исполняет реальную сеть и позволяет произвольный порядок поздних событий.
+- [x] Commit `feat: add attempt-safe queue state machine`.
 
 ### Task 4: Медиаконвейер, пути и атомарные описания
 
