@@ -6,6 +6,8 @@ For initial Windows setup after the unification, also read `docs/WINDOWS-CODEX-H
 
 Read `docs/PROJECT-MEMORY.md` for the current Qt migration state, approved spec and implementation plan. Keep milestone notes and copies of specs/plans in the owner's `Agents/ClipFlow` folder when it is available locally; resolve its path on each computer. That folder is a portable continuation pack, not a checkout or a credentials store. Do not apply another project's instructions merely because it shares the parent Agents directory.
 
+Owner execution preference (27 October 2026): pause after every completed plan task. Record its commit/tests and sync the continuation pack, then stop before starting the next task until the owner resumes. This overrides a skill's default continuous execution. Current pause: after T2; T3 has no implementation yet.
+
 - Start each session with `git status`, inspect the branch/upstream and read these instructions. Never overwrite unrelated user changes.
 - Development branch is `dev`; stable branch is `main`. Before edits, fetch, switch to `dev` on a clean checkout and pull with `--ff-only`. Make all ongoing changes in `dev`, never directly in `main`. Do not overwrite or discard local work to switch branches.
 - Push development commits to `origin/dev`. Merge `dev` into `main` only after local checks and GitHub Checks for BOTH Windows and macOS pass for the exact proposed commit; run relevant native/package/manual checks when the change requires them. A pending, failed or unavailable check is not success. Prefer a `dev` → `main` pull request; attach created PRs to the Codex chat. Never bypass a failed check. Return the working checkout to `dev` after merging.
