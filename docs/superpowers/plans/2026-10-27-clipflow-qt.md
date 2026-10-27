@@ -57,7 +57,7 @@
 
 ---
 
-### T1. Импортируемые модели и единое распознавание URL
+### Task 1: Импортируемые модели и единое распознавание URL
 
 **Files:** Create `pyproject.toml`, `requirements-dev.txt`, `src/clipflow/__init__.py`, `src/clipflow/domain/{models,urls}.py`, `tests/conftest.py`, `tests/unit/test_urls.py`; modify `scripts/check.py` для запуска новых тестов после legacy и `.github/workflows/check.yml` для установки test dependencies с первого этапа.
 
@@ -69,7 +69,7 @@
 - [ ] `python -m pip install -e '.[dev]'` и `python -m pytest tests/unit/test_urls.py -q`: PASS; `python -c "import clipflow.domain.models; import sys; assert 'PySide6' not in sys.modules"`: exit 0. Старый `scripts/check.py` продолжает проходить в изолированных subprocesses.
 - [ ] Commit `refactor: introduce typed requests and canonical URL routing` с файлами T1.
 
-### T2. Одна команда одиночного и пакетного добавления
+### Task 2: Одна команда одиночного и пакетного добавления
 
 **Files:** Create `application/{ports,submission}.py`, `tests/unit/test_submission.py`, `tests/helpers.py`.
 
@@ -81,7 +81,7 @@
 - [ ] Тот же pytest: PASS; добавить проверки отсутствия Qt-импорта и неизменности исходных presets.
 - [ ] Commit `feat: add unified single and batch submission commands`.
 
-### T3. Машина состояний и планировщик без виджетов
+### Task 3: Машина состояний и планировщик без виджетов
 
 **Files:** Create `domain/events.py`, `application/scheduler.py`, `tests/unit/test_scheduler.py`.
 
@@ -93,7 +93,7 @@
 - [ ] Unit suite: PASS; deterministic fake executor не исполняет реальную сеть и позволяет произвольный порядок поздних событий.
 - [ ] Commit `feat: add attempt-safe queue state machine`.
 
-### T4. Медиаконвейер, пути и атомарные описания
+### Task 4: Медиаконвейер, пути и атомарные описания
 
 **Files:** Create `domain/paths.py`, `providers/{base,media}.py`, `tests/unit/test_media_paths.py`, `tests/integration/test_media_pipeline.py`; перенос полезных частей `source/{media_names,instagram_media}.py` и `download_options/completed_media_paths/clean_download_sidecars` без App.
 
@@ -105,7 +105,7 @@
 - [ ] Тот же pytest с настоящим FFmpeg/FFprobe и локальным HTTP-сервером: PASS; ошибки инструмента/записи дают typed failure, не completed.
 - [ ] Commit `refactor: extract safe media pipeline and output layout`.
 
-### T5. YouTube и YouTube Music через общий провайдер
+### Task 5: YouTube и YouTube Music через общий провайдер
 
 **Files:** Create `providers/youtube.py`, `tests/unit/test_youtube_provider.py`, `tests/integration/test_youtube_worker.py`.
 
@@ -117,7 +117,7 @@
 - [ ] Tests: PASS with local media URLs; живые YouTube/Music проверки отложены в T16 и не подменяются этими тестами.
 - [ ] Commit `feat: port YouTube and Music provider to shared pipeline`.
 
-### T6. GetCourse: урок, плеер, выбор материалов
+### Task 6: GetCourse: урок, плеер, выбор материалов
 
 **Files:** Create `providers/getcourse.py`, `tests/unit/test_getcourse_provider.py`, `tests/fixtures/getcourse/`.
 
@@ -129,7 +129,7 @@
 - [ ] Tests: PASS; скрытые credentials редактируются в диагностике, ошибка одного материала не удаляет остальные.
 - [ ] Commit `feat: preserve GetCourse access and lesson selection`.
 
-### T7. Instagram: отдельный пост, Reel и карусель
+### Task 7: Instagram: отдельный пост, Reel и карусель
 
 **Files:** Create `providers/instagram_post.py`, `tests/unit/test_instagram_post.py`, `tests/integration/test_instagram_files.py`.
 
@@ -141,7 +141,7 @@
 - [ ] Tests: PASS with actual local image/video downloads; нет лишних TXT для caption=None, нет перезаписи соседнего поста при выключенной папке поста.
 - [ ] Commit `feat: port individual Instagram posts and carousels`.
 
-### T8. Instagram-профили: точный лимит, частичные результаты и отмена
+### Task 8: Instagram-профили: точный лимит, частичные результаты и отмена
 
 **Files:** Create `providers/instagram_profile.py`, `tests/unit/test_profile_discovery.py`, `tests/integration/test_profile_queue.py`.
 
@@ -156,7 +156,7 @@
 - [ ] Дополнительный red/green cycle policy: `test_shared_budget_across_instaloader_ytdlp_probe`, `test_metadata_minimum_3_seconds`, `test_page_post_gap_10_to_20`, `test_retry_after_seconds_and_http_date`, `test_invalid_retry_after_falls_back`, `test_library_wait_wins`, `test_429_backoff_900_1800_3600_then_manual`, `test_cooldown_survives_restart_and_clock_rollback`, `test_cross_process_reservation`, `test_cancel_interrupts_wait`, `test_instagram_cooldown_releases_youtube_worker`, `test_cdn_not_throttled_per_chunk`. Сначала увидеть FAIL; реализовать policy/deadline событие и paused reason в scheduler из T3, затем `python -m pytest tests/unit/test_instagram_rate_policy.py tests/integration/test_rate_limit_store.py -q`: PASS. Profile cursor/checkpoint и completed IDs сохраняются безопасно, expired cursor вызывает dedup re-enumeration без ложной полноты.
 - [ ] Commit `feat: add cancellable profile discovery with explicit completeness`.
 
-### T9. Постоянная очередь, история и настройки с миграцией
+### Task 9: Постоянная очередь, история и настройки с миграцией
 
 **Files:** Create `infrastructure/{repository,settings}.py`, `tests/integration/test_repository.py`, `tests/unit/test_settings_migration.py`.
 
@@ -168,7 +168,7 @@
 - [ ] Tests: PASS with temporary disk DB, simulated power-loss point после готового файла и до commit. Recover не создаёт сетевой запрос сам и согласует найденный файл через pipeline при явном resume.
 - [ ] Commit `feat: persist queue and history with safe settings migration`.
 
-### T10. Qt-оболочка с настоящим вертикальным сценарием
+### Task 10: Qt-оболочка с настоящим вертикальным сценарием
 
 **Files:** Create `infrastructure/executor.py`, `ui/{bootstrap,window,presenter,queue_model,queue_delegate}.py`, `__main__.py`, `tests/ui/test_workbench.py`; modify `run.py` для временного `--qt-preview` без изменения legacy default до T16.
 
@@ -180,7 +180,7 @@
 - [ ] Tests: PASS including local media provider → saved file → persisted history; никакого hidden legacy App и fake completed timer. `python run.py --qt-preview` открывает новый workbench только явно.
 - [ ] Commit `feat: add Qt workbench with real asynchronous download flow`.
 
-### T11. Одиночная/пакетная форма и явные режимы сервисов
+### Task 11: Одиночная/пакетная форма и явные режимы сервисов
 
 **Files:** Create `ui/{composer,batch_dialog}.py`, `tests/ui/test_submission_dialogs.py`; modify `ui/window.py`, `ui/presenter.py`.
 
@@ -192,7 +192,7 @@
 - [ ] Qt suite: PASS; проверять клик/Enter на настоящих виджетах до JobRepository, а не только прямой вызов presenter.
 - [ ] Commit `feat: expose reliable single batch and Instagram profile modes`.
 
-### T12. Полные темы, RU/EN и системная клавиатура
+### Task 12: Полные темы, RU/EN и системная клавиатура
 
 **Files:** Create `ui/{themes,i18n}.py`, `tests/ui/test_themes.py`, `tests/platform/test_qt_clipboard.py`; modify все Qt формы для общих tokens/translations.
 
@@ -204,7 +204,7 @@
 - [ ] Tests: PASS for light/dark/system, RU/EN, 100/150/200% отдельными GUI-процессами; native clipboard тест сохраняет и восстанавливает прежний clipboard. Не заменять native результат offscreen-проходом.
 - [ ] Commit `feat: add persistent dark light system themes and native input`.
 
-### T13. Аккаунты, защита и перенос авторизационных процессов
+### Task 13: Аккаунты, защита и перенос авторизационных процессов
 
 **Files:** Create `infrastructure/{platform,auth}.py`, `infrastructure/auth_process/{__main__,window,sessions}.py`, `ui/{accounts,settings_page}.py`, `tests/platform/test_auth_compatibility.py`, `tests/ui/test_accounts.py`; источник поведения — прежние platform/session/embedded_auth модули.
 
@@ -216,7 +216,7 @@
 - [ ] Tests: PASS in isolated profiles. На каждой реальной ОС DPAPI/Keychain round-trip и запуски auth self-test; не читать/печать реальные secrets. Отсутствующий доступ пользователя фиксируется отдельно.
 - [ ] Commit `refactor: preserve native security and authentication in Qt`.
 
-### T14. История, операции с файлами и безопасный жизненный цикл
+### Task 14: История, операции с файлами и безопасный жизненный цикл
 
 **Files:** Create `ui/history.py`, `tests/ui/test_history_actions.py`, `tests/integration/test_shutdown_recovery.py`; modify `ui/presenter.py`, `ui/window.py`, repository/executor по их контрактам.
 
@@ -228,7 +228,7 @@
 - [ ] Tests: PASS with actual temp files/processes. Активный FFmpeg не остаётся сиротой после закрытия; teardown не вызывает Qt slots после уничтожения окна.
 - [ ] Commit `feat: add history file actions and safe queue recovery`.
 
-### T15. Покрытие, CI и нативные пакеты обеих ОС
+### Task 15: Покрытие, CI и нативные пакеты обеих ОС
 
 **Files:** Create `scripts/{check_coverage,package_smoke}.py`, `src/clipflow/ui/self_test.py`, `packaging/windows/ClipFlow.spec`; modify `pyproject.toml`, `scripts/{check,build}.py`, `packaging/macos/ClipFlow.spec`, `.github/workflows/{check,build}.yml`, `tests/integration/test_packaging_config.py`.
 
@@ -240,7 +240,7 @@
 - [ ] `python scripts/check.py --qt`, `python scripts/check_coverage.py`: PASS с coverage JSON по каждому порогу. После `.venv`-free запуска собранного приложения package smoke: PASS. macOS runner, который старше minimum 27, может собирать/проверять Python, но не доказывает поддержку запуска App через Launch Services: этот шаг обязателен на имеющемся Mac 27.0.1 либо совместимом runner. Windows GUI smoke — в native session. Точный OS/CPU записать в отчёт.
 - [ ] Commit `build: verify Qt coverage and native Windows macOS packages`.
 
-### T16. Паритет, удаление legacy, документация и выпуск
+### Task 16: Паритет, удаление legacy, документация и выпуск
 
 **Files:** Modify `run.py`, `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `docs/{DEVELOPMENT,BUILDING,MIGRATION,WINDOWS-CODEX-HANDOFF,CHANGELOG}.md`, `THIRD-PARTY-NOTICES.md`; create `docs/{ARCHITECTURE,TESTING,ROADMAP}.md`, обновить реальные screenshots; удалить superseded legacy runtime/tests только после соответствующего parity test.
 
@@ -265,8 +265,8 @@
 
 ## Исполнение и отметки
 
-- План составлен после утверждения спецификации. Перед реализацией требуется review плана и выбор метода исполнения по writing-plans.
+- План составлен после утверждения спецификации; 27 октября владелец выполнил review и выбрал Native: исполнитель проходит этапы сам, независимый whole-branch review в конце.
 - Рекомендуется Native: один исполнитель проходит тесно связанные интерфейсы по порядку в этой сессии, затем независимый whole-branch review; это уменьшает расходы на повторную передачу большого контекста.
 - Альтернатива — свежий исполнитель и reviewer на каждую task; дороже по контексту, проверки независимы на каждом этапе.
 - Текущий baseline на Mac: `python scripts/check.py`, macOS 27.0.1 arm64, успешно 27 октября; лог `work/qt-migration-baseline-macos.log`. Существующие third-party ResourceWarning о file handler фиксируются как известное наблюдение, не маскируются. Это не новый тест Windows и не проверка новой Qt-версии.
-- Статус T1–T16: не начаты. На момент составления плана продуктовый код не изменён.
+- На момент составления плана T1–T16 не были начаты. После утверждения начат T1; текущий статус и команды проверок хранятся в журнале исполнения и копируются в Agents/ClipFlow.

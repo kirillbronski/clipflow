@@ -13,4 +13,7 @@ with tempfile.TemporaryDirectory(prefix='clipflow-check-') as temp:
         env = dict(os.environ, CLIPFLOW_DATA_DIR=str(Path(temp)/str(index)))
         print('CHECK', Path(command[1]).name, flush=True)
         subprocess.run([str(arg) for arg in command], cwd=ROOT, env=env, check=True, timeout=90)
+    if (ROOT/'tests/unit').is_dir():
+        subprocess.run([sys.executable, '-m', 'pytest'], cwd=ROOT,
+                       env=dict(os.environ, CLIPFLOW_DATA_DIR=str(Path(temp)/'pytest')), check=True, timeout=300)
 print('All offline checks passed.', flush=True)
