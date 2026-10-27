@@ -1,0 +1,16 @@
+"""Interfaces implemented by persistence and protected credential adapters."""
+from collections.abc import Mapping
+from typing import Protocol
+
+from clipflow.domain.models import Job
+
+
+class JobRepository(Protocol):
+    def add(self, job: Job) -> None: ...
+    def get(self, job_id: str) -> Job: ...
+    def list(self) -> tuple[Job, ...]: ...
+    def update(self, job: Job) -> None: ...
+
+
+class AuthGateway(Protocol):
+    def options_for(self, auth_profile: str | None, url: str) -> Mapping[str, object]: ...

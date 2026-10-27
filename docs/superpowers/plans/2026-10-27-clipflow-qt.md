@@ -63,11 +63,11 @@
 
 **Interfaces:** Produces `parse_url(text: str)->ParsedLink`, `request_key(request: DownloadRequest)->str`, контракты моделей выше; ошибки — `InvalidLink(ValueError)`. Core не импортирует Qt. Editable package должен устанавливаться Python 3.12 без запуска UI.
 
-- [ ] Написать параметризованные red-тесты: music.youtube.com — YouTube; Instagram /p/ABC?img_index=2 и /p/ABC имеют один ID; /username — profile; youtube.com.evil.test, instagram.com.evil.test, user:pass@host, javascript:, пустой ID отклоняются. Разные форматы/папки/auth references дают разные request keys, tracking-параметры — нет.
-- [ ] `python -m pytest tests/unit/test_urls.py -q`: получить ожидаемый import/behavior failure до реализации; записать причину.
-- [ ] Реализовать контракты; optional dev dependencies в pyproject включают pytest/pytest-qt/pytest-cov, requirements-dev ссылается на `-e .[dev]` без второго списка версий. В CI обеих ОС установить эти зависимости перед scripts/check.py уже в T1. Проверить доступность совместимых версий перед pin в lock; существующие runtime pins не обновлять попутно.
-- [ ] `python -m pip install -e '.[dev]'` и `python -m pytest tests/unit/test_urls.py -q`: PASS; `python -c "import clipflow.domain.models; import sys; assert 'PySide6' not in sys.modules"`: exit 0. Старый `scripts/check.py` продолжает проходить в изолированных subprocesses.
-- [ ] Commit `refactor: introduce typed requests and canonical URL routing` с файлами T1.
+- [x] Написать параметризованные red-тесты: music.youtube.com — YouTube; Instagram /p/ABC?img_index=2 и /p/ABC имеют один ID; /username — profile; youtube.com.evil.test, instagram.com.evil.test, user:pass@host, javascript:, пустой ID отклоняются. Разные форматы/папки/auth references дают разные request keys, tracking-параметры — нет.
+- [x] `python -m pytest tests/unit/test_urls.py -q`: получить ожидаемый import/behavior failure до реализации; записать причину.
+- [x] Реализовать контракты; optional dev dependencies в pyproject включают pytest/pytest-qt/pytest-cov, requirements-dev ссылается на `-e .[dev]` без второго списка версий. В CI обеих ОС установить эти зависимости перед scripts/check.py уже в T1. Проверить доступность совместимых версий перед pin в lock; существующие runtime pins не обновлять попутно.
+- [x] `python -m pip install -e '.[dev]'` и `python -m pytest tests/unit/test_urls.py -q`: PASS; `python -c "import clipflow.domain.models; import sys; assert 'PySide6' not in sys.modules"`: exit 0. Старый `scripts/check.py` продолжает проходить в изолированных subprocesses.
+- [x] Commit `refactor: introduce typed requests and canonical URL routing` с файлами T1.
 
 ### Task 2: Одна команда одиночного и пакетного добавления
 
@@ -75,11 +75,11 @@
 
 **Interfaces:** Produces `JobRepository` Protocol `add(job)->None`, `get(job_id)->Job`, `list()->tuple[Job,...]`, `update(job)->None`; `AuthGateway.options_for(auth_profile: str|None, url: str)->Mapping[str,object]`. `SubmissionService(repository).preview(text: str, presets: Mapping[Service,DownloadOptions], mode: str='batch', profile_limit: int|None=10)->BatchPreview`; `.submit(preview)->SubmissionResult`; `.repeat(job_id)->str`. Modes `single/batch/profile/playlist/lesson`.
 
-- [ ] Red-тест `test_mixed_batch_ignores_bad_lines_and_preserves_per_service_snapshot`: Instagram пост + профиль + YouTube + плохая строка + повтор дают 3 requests, 1 invalid, 1 duplicate; presets каждого сервиса сохраняются после изменения исходной mapping. `test_single_mode_rejects_profile`, `test_profile_limit_is_explicit`, `test_quality_probe_cannot_block_submission`, `test_completed_job_requires_explicit_repeat`.
-- [ ] `python -m pytest tests/unit/test_submission.py -q`: ожидаемый FAIL.
-- [ ] Реализовать preview без сети/создания файлов и submit с дедупликацией queued/active; completed не возобновляется молча, repeat создаёт новую попытку явно. Request с profile всегда имеет post_folder=True. Profile в mixed preview явно показывает выбранный/default 10 лимит.
-- [ ] Тот же pytest: PASS; добавить проверки отсутствия Qt-импорта и неизменности исходных presets.
-- [ ] Commit `feat: add unified single and batch submission commands`.
+- [x] Red-тест `test_mixed_batch_ignores_bad_lines_and_preserves_per_service_snapshot`: Instagram пост + профиль + YouTube + плохая строка + повтор дают 3 requests, 1 invalid, 1 duplicate; presets каждого сервиса сохраняются после изменения исходной mapping. `test_single_mode_rejects_profile`, `test_profile_limit_is_explicit`, `test_quality_probe_cannot_block_submission`, `test_completed_job_requires_explicit_repeat`.
+- [x] `python -m pytest tests/unit/test_submission.py -q`: ожидаемый FAIL.
+- [x] Реализовать preview без сети/создания файлов и submit с дедупликацией queued/active; completed не возобновляется молча, repeat создаёт новую попытку явно. Request с profile всегда имеет post_folder=True. Profile в mixed preview явно показывает выбранный/default 10 лимит.
+- [x] Тот же pytest: PASS; добавить проверки отсутствия Qt-импорта и неизменности исходных presets.
+- [x] Commit `feat: add unified single and batch submission commands`.
 
 ### Task 3: Машина состояний и планировщик без виджетов
 

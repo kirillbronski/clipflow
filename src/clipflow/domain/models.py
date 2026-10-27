@@ -1,5 +1,6 @@
 """Immutable content identities and download parameter snapshots."""
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -64,3 +65,30 @@ class DownloadRequest:
             if not all(isinstance(item, str) and item for item in self.selection):
                 raise ValueError('Selection contains an invalid media ID')
             object.__setattr__(self, 'selection', tuple(self.selection))
+
+
+class JobState(StrEnum):
+    QUEUED = 'queued'
+    PROBING = 'probing'
+    DOWNLOADING = 'downloading'
+    PROCESSING = 'processing'
+    COMPLETED = 'completed'
+    PAUSED = 'paused'
+    CANCELLED = 'cancelled'
+    FAILED = 'failed'
+
+
+TERMINAL_STATES = frozenset({JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED})
+
+
+@dataclass(frozen=True)
+class Job:
+    id: str
+    request: DownloadRequest
+    state: JobState = JobState.QUEUED
+    attempt_id: str | None = None
+    parent_id: str | None = None
+    result_files: tuple[Path, ...] = ()
+    error: str | None = None
+    pause_reason: str | None = None
+    next_allowed_at: datetime | None = None
