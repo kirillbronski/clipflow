@@ -46,6 +46,11 @@ class StageChanged:
 
 
 @dataclass(frozen=True)
+class TitleChanged:
+    title: str
+
+
+@dataclass(frozen=True)
 class ProgressChanged:
     downloaded_bytes: int
     total_bytes: int | None = None
@@ -66,6 +71,7 @@ class RequestsDiscovered:
 @dataclass(frozen=True)
 class SelectionRequired:
     ids: tuple[str, ...]
+    titles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -90,7 +96,7 @@ class WorkStopped:
     """Executor acknowledges resource teardown after cancellation or deferral."""
 
 
-ProviderEvent = (StageChanged | ProgressChanged | FilesSaved | RequestsDiscovered
+ProviderEvent = (StageChanged | TitleChanged | ProgressChanged | FilesSaved | RequestsDiscovered
                  | SelectionRequired | RateLimitDeferred | WorkFinished | WorkFailed
                  | WorkStopped)
 

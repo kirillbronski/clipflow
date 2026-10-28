@@ -14,7 +14,7 @@ from yt_dlp import YoutubeDL
 from yt_dlp.networking import Request
 from yt_dlp.networking.exceptions import HTTPError
 
-from clipflow.domain.events import FilesSaved, ProgressChanged, StageChanged, WorkCancelled
+from clipflow.domain.events import FilesSaved, ProgressChanged, StageChanged, WorkCancelled,TitleChanged
 from clipflow.domain.models import DownloadRequest, JobState, Service
 from clipflow.domain.paths import PostIdentity, UnsafePath, output_path
 from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
@@ -37,6 +37,7 @@ class MediaPipeline:
     def save(self, item: MediaItem, request: DownloadRequest,
              context: ExecutionContext) -> tuple[Path, ...]:
         context.cancel.raise_if_cancelled()
+        context.emit(TitleChanged(item.title))
         try:
             post = None
             if request.link.service == Service.INSTAGRAM:

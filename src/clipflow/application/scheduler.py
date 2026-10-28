@@ -16,7 +16,7 @@ from clipflow.application.ports import JobRepository
 from clipflow.domain.events import (
     JobEvent, StageChanged, ProgressChanged, FilesSaved, RequestsDiscovered,
     SelectionRequired, RateLimitDeferred, WorkFinished, WorkFailed, WorkStopped,
-    StopReason,
+    StopReason, TitleChanged,
 )
 from clipflow.domain.models import Job, JobState, ParsedLink, Service, TERMINAL_STATES
 from clipflow.domain.urls import request_key,source_reference
@@ -37,6 +37,7 @@ class Scheduler:
         self.executor = executor
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._instagram_deferred: RateLimitDeferred | None = None
+        self._preferred_job: str | None = None
         self._running = False
         self._closed = False
         self._pumping = False
@@ -63,9 +64,14 @@ class Scheduler:
         self.repository.update(job)
         self._publish(JobEvent(job.id, job.attempt_id or '', StageChanged(job.state)))
 
-    def start(self) -> None:
+    def start(self, job_id: str | None = None) -> None:
         if self._closed:
             raise ValueError('Scheduler is shut down')
+        if job_id is not None:
+            selected=self.repository.get(job_id)
+            if selected.state!=JobState.QUEUED or selected.source_required:
+                raise ValueError('Job cannot be started')
+            self._preferred_job=job_id
         self._running = True
         self._pump()
 
@@ -77,9 +83,11 @@ class Scheduler:
         try:
             while self._running and self._active is None:
                 self._defer_waiting_instagram()
-                job = next((j for j in self.repository.list() if j.state == JobState.QUEUED and not j.source_required), None)
-                if job is None:
+                queued=[j for j in self.repository.list() if j.state==JobState.QUEUED and not j.source_required]
+                if not queued:
                     break
+                job=next((j for j in queued if j.id==self._preferred_job),queued[0])
+                self._preferred_job=None
                 job = replace(job, state=JobState.PROBING, attempt_id=uuid4().hex,
                               error=None, pause_reason=None, next_allowed_at=None, automatic_retry=False)
                 self._active = (job.id, job.attempt_id)
@@ -198,6 +206,14 @@ class Scheduler:
         self._save(replace(job, request=updated, state=JobState.QUEUED, pause_reason=None))
         self._pump()
 
+    def refresh_selection(self, job_id: str) -> None:
+        """Explicitly refresh non-persisted material choices after a restart."""
+        job=self.repository.get(job_id)
+        if job.source_required or job.state!=JobState.PAUSED or job.pause_reason!='selection_required':
+            raise ValueError('Job is not waiting for selection')
+        self._save(replace(job,state=JobState.QUEUED,pause_reason=None))
+        self._pump()
+
     def shutdown(self) -> None:
         self._closed = True
         self._running = False  # Must precede stop(): synchronous ack cannot start next.
@@ -253,7 +269,7 @@ class Scheduler:
             else:
                 updated = replace(job, state=JobState.PAUSED, pause_reason='worker_stopped')
             self._save(updated)
-        elif not isinstance(payload, ProgressChanged):
+        elif not isinstance(payload, (ProgressChanged,TitleChanged)):
             return
         self._publish(event)
         self._pump()

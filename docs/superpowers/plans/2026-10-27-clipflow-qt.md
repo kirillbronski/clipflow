@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T9 завершён; пауза перед T10.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T10 завершён; пауза перед T11.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -189,11 +189,13 @@ T9: 34 new cases; 291 total pytest + full scripts/check.py PASS on Windows/Pytho
 
 **Interfaces:** Produces `ThreadExecutor(provider_registry, auth_gateway)` implementing Executor; `WorkbenchPresenter(submission, scheduler, settings, repository)` Qt signals `jobs_changed`, `input_accepted`, `error_raised`; `MainWindow(presenter)`; `create_application(argv: list[str], data_dir: Path|None=None)->tuple[QApplication,MainWindow]`; `JobListModel(QAbstractListModel)` roles job_id/title/state/progress/files/source. GUI обновляется только queued signals.
 
-- [ ] Red qtbot: `test_real_url_command_creates_model_row`, `test_worker_events_update_correct_attempt`, `test_local_media_download_reaches_real_completed_file`, `test_window_minimum_880x680`, `test_large_queue_uses_model_not_child_widgets`, `test_blocking_provider_does_not_block_gui_timer`.
-- [ ] `python -m pytest tests/ui/test_workbench.py -q`: FAIL.
-- [ ] Создать базовый workbench по макету: sidebar, composer placeholder подключённый к SubmissionService, очередь model/delegate, настоящие действия. Подключить registry T5–T8 и T9, базовую dark palette с первого запуска. Темп UI progress ≤2 Hz; critical state/errors проходят сразу.
-- [ ] Tests: PASS including local media provider → saved file → persisted history; никакого hidden legacy App и fake completed timer. `python run.py --qt-preview` открывает новый workbench только явно.
-- [ ] Commit `feat: add Qt workbench with real asynchronous download flow`.
+- [x] Red qtbot: `test_real_url_command_creates_model_row`, `test_worker_events_update_correct_attempt`, `test_local_media_download_reaches_real_completed_file`, `test_window_minimum_880x680`, `test_large_queue_uses_model_not_child_widgets`, `test_blocking_provider_does_not_block_gui_timer`.
+- [x] `python -m pytest tests/ui/test_workbench.py -q`: FAIL.
+- [x] Создать базовый workbench по макету: sidebar, composer placeholder подключённый к SubmissionService, очередь model/delegate, настоящие действия. Подключить registry T5–T8 и T9, базовую dark palette с первого запуска. Темп UI progress ≤2 Hz; critical state/errors проходят сразу.
+- [x] Tests: PASS including local media provider → saved file → persisted history; никакого hidden legacy App и fake completed timer. `python run.py --qt-preview` открывает новый workbench только явно.
+- [x] Commit `feat: add Qt workbench with real asynchronous download flow`.
+
+T10: 21 GUI cases; 312 total pytest + full scripts/check.py PASS. Native Windows run.py --qt-preview captured at 1180/880, no tkinter import, isolated profile, queued synthetic link only, clean shutdown. ThreadExecutor uses QThread queued owner-thread events and finished ACK after provider teardown; progress <=2Hz, stale attempts ignored. Real local HTTP + YouTubeProvider/MediaPipeline + FFmpeg reaches a saved MP4 and SQLite history. Registry covers T5–T8 and uses one persistent IG policy/source lifetime. Bootstrap recovers T9 stores without network, basic dark sidebar/composer/model-view queue and per-row actions; source re-entry and refreshed lesson choices are real commands. New transient TitleChanged event, SelectionRequired.titles default backward-compatible; Scheduler.start optional job_id prioritizes one explicitly chosen queued job, refresh_selection re-probes restored choices. CI Qt uses offscreen; this does not replace native Mac/clipboard/DPI/package/live checks. Preview auth gateway is deliberately public-only until T13; legacy default launch remains unchanged through T16. Full composer/batch T11, themes/RU-EN T12, protected auth T13, full lifecycle/file actions T14.
 
 ### Task 11: Одиночная/пакетная форма и явные режимы сервисов
 

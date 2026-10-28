@@ -28,3 +28,5 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ffmpeg
       - run: python scripts/check.py
+        env:
+          QT_QPA_PLATFORM: offscreen

@@ -239,7 +239,7 @@ class GetCourseProvider:
             items = self._inspect(ydl,request,context)
             if len(items)>1:
                 if request.selection is None:
-                    context.emit(SelectionRequired(tuple(item.id for item in items)))
+                    context.emit(SelectionRequired(tuple(item.id for item in items),tuple(item.title for item in items)))
                     context.cancel.raise_if_cancelled()
                     return DownloadResult(())
                 for offset in range(0,len(items),25):
