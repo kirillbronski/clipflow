@@ -48,6 +48,13 @@ def safe_name(value: str, limit: int = 56) -> str:
     return _clip(text, limit)
 
 
+def _portable_identity(code: str) -> str:
+    if any(c.islower() for c in code):
+        case_bits = sum(1 << i for i, c in enumerate(code) if c.isupper())
+        return code + f'~{case_bits:x}'
+    return code
+
+
 def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
                 post: PostIdentity | None) -> Path:
     if type(item.index) is not int or item.index < 1:
@@ -69,10 +76,7 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
         # Instagram codes are case-sensitive, common Windows/macOS volumes are
         # not. Encode uppercase positions for codes containing lowercase so
         # case variants remain distinct without relying on a truncated hash.
-        code = post.code
-        if any(c.islower() for c in code):
-            case_bits = sum(1 << i for i, c in enumerate(code) if c.isupper())
-            code += f'~{case_bits:x}'
+        code = _portable_identity(post.code)
         if request.options.author_folder:
             directory /= safe_name(author or 'Unknown author', 30)
         if request.options.post_folder or request.link.kind == ContentKind.PROFILE:
@@ -82,7 +86,10 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
         else:
             stem = f'{code} - {item.index:02d}'
     else:
-        prefix = f'{item.index:03d} - ' if request.link.kind == ContentKind.PLAYLIST else ''
+        if request.playlist:
+            directory /= safe_name(_portable_identity(request.playlist.playlist_id), 128)
+        position = request.playlist.index if request.playlist else item.index
+        prefix = f'{position:03d} - ' if request.link.kind == ContentKind.PLAYLIST or request.playlist else ''
         stem = prefix + safe_name(item.title, 56 - len(prefix))
     # Reserve 40 UTF-16 units for downloader/FFmpeg temporary suffixes. Root
     # folders are never shortened or redirected to make an overlong path fit.

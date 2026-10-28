@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T4 завершён; пауза перед T5.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T5 завершён; пауза перед T6.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -47,7 +47,7 @@
 - `Service`: `youtube`, `instagram`, `getcourse`; `ContentKind`: `video`, `playlist`, `post`, `profile`, `lesson`, `player`.
 - `ParsedLink(service, kind, canonical_id: str, canonical_url: str)` — frozen dataclass.
 - `DownloadOptions(folder: Path, format: str='mp4', max_height: int|None=None, media_filter: str='all', author_folder: bool=True, post_folder: bool=True, description: str|None=None, auth_profile: str|None=None)` — frozen. Форматы `mp4/mkv/webm/mp3`, description `None/txt/md`, media_filter `all/video/photo`; auth_profile — безопасная ссылка на защищённый профиль, не секрет.
-- `DownloadRequest(link: ParsedLink, options: DownloadOptions, selection: tuple[str,...]|None=None, profile_limit: int|None=None)` — frozen. Лимит профиля `10/50/None`, где None означает все; только explicit profile mode/batch preview может создавать profile request.
+- `DownloadRequest(link: ParsedLink, options: DownloadOptions, selection: tuple[str,...]|None=None, profile_limit: int|None=None, playlist: PlaylistPosition|None=None)` — frozen. Лимит профиля `10/50/None`, где None означает все; только explicit profile mode/batch preview может создавать profile request. T5 добавил frozen `PlaylistPosition(playlist_id: str, index: int)` для дочернего YouTube video; snapshot участвует в request_key и должен сериализоваться в T9. Исходный номер не выводится из порядка очереди и не теряется после restart/retry.
 - `Job(id: str, request: DownloadRequest, state: JobState, attempt_id: str|None, parent_id: str|None=None, result_files: tuple[Path,...]=(), error: str|None=None, pause_reason: str|None=None, next_allowed_at: datetime|None=None)` — изменения через replacement, request не мутирует из UI.
 - `BatchPreview(requests: tuple[DownloadRequest,...], invalid: tuple[LineError,...], duplicate_lines: tuple[int,...])`, `SubmissionResult(added: tuple[str,...], existing: tuple[str,...])`; LineError содержит номер строки, безопасный ввод и сообщение.
 - `JobState`: queued/probing/downloading/processing/completed/paused/cancelled/failed. `JobEvent(job_id, attempt_id, payload)`; payload — одна из frozen структур `StageChanged`, `ProgressChanged`, `FilesSaved`, `RequestsDiscovered`, `SelectionRequired`, `RateLimitDeferred`, `WorkFinished`, `WorkFailed`, `WorkStopped`. WorkStopped подтверждает освобождение ресурсов после stop/deferral; терминальные worker-события доставляются только после teardown. RateLimitDeferred содержит next_allowed_at/automatic_retry/reason по политике Instagram.
@@ -114,11 +114,13 @@ T4 verified on Windows 11 x64 / Python 3.12.10 / FFmpeg 9.0.2: 47 new tests, 126
 
 **Interfaces:** Produces `YouTubeProvider(pipeline: MediaPipeline)` implementing Provider. Consumes request link/format and ephemeral AuthGateway options; emits typed stage/progress/files/discovered events.
 
-- [ ] Red: `test_single_video`, `test_music_track_audio_mode`, `test_music_playlist`, `test_playlist_order_and_unavailable_entry`, `test_auth_options_are_not_in_result_or_logs`, `test_audio_quality_not_misrepresented_as_lossless` with recorded synthetic metadata. Progress burst 3000 callbacks/3s yields ≤7 UI telemetry updates and cannot skip processing.
-- [ ] `python -m pytest tests/unit/test_youtube_provider.py tests/integration/test_youtube_worker.py -q`: FAIL.
-- [ ] Перенести yt-dlp options/auth/hooks из legacy worker в provider; плейлист выдаёт стабильные задания/нумерацию, недоступный элемент не уничтожает остальные. Никакого обращения к Qt/App.
-- [ ] Tests: PASS with local media URLs; живые YouTube/Music проверки отложены в T16 и не подменяются этими тестами.
-- [ ] Commit `feat: port YouTube and Music provider to shared pipeline`.
+- [x] Red: `test_single_video`, `test_music_track_audio_mode`, `test_music_playlist`, `test_playlist_order_and_unavailable_entry`, `test_auth_options_are_not_in_result_or_logs`, `test_audio_quality_not_misrepresented_as_lossless` with recorded synthetic metadata. Progress burst 3000 callbacks/3s yields ≤7 UI telemetry updates and cannot skip processing.
+- [x] `python -m pytest tests/unit/test_youtube_provider.py tests/integration/test_youtube_worker.py -q`: FAIL.
+- [x] Перенести yt-dlp options/auth/hooks из legacy worker в provider; плейлист выдаёт стабильные задания/нумерацию, недоступный элемент не уничтожает остальные. Никакого обращения к Qt/App.
+- [x] Tests: PASS with local media URLs; живые YouTube/Music проверки отложены в T16 и не подменяются этими тестами.
+- [x] Commit `feat: port YouTube and Music provider to shared pipeline`.
+
+T5: 27 tests (24 unit + 3 real HTTP/FFmpeg integration), 153 total pytest + full scripts/check.py passed locally on Windows. Playlist discovery retains valid private IDs as independent jobs, skips entries without IDs without closing numbering gaps, emits batches ≤25. Lazy yt-dlp entries are consumed within the downloader lifetime and safe error/cancellation boundary. Children use a stable per-playlist ID directory (portable case marker) and original 001 positions; T9 must persist PlaylistPosition. Native sessions/live YouTube/Music remain unverified until their later stages/T16.
 
 ### Task 6: GetCourse: урок, плеер, выбор материалов
 

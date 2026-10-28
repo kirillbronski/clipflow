@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+import re
 
 
 class Service(StrEnum):
@@ -52,13 +53,29 @@ class DownloadOptions:
 
 
 @dataclass(frozen=True)
+class PlaylistPosition:
+    playlist_id: str
+    index: int
+
+    def __post_init__(self):
+        if not isinstance(self.playlist_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', self.playlist_id):
+            raise ValueError('Invalid playlist identity')
+        if type(self.index) is not int or self.index < 1:
+            raise ValueError('Playlist position must be a positive integer')
+
+
+@dataclass(frozen=True)
 class DownloadRequest:
     link: ParsedLink
     options: DownloadOptions
     selection: tuple[str, ...] | None = None
     profile_limit: int | None = None
+    playlist: PlaylistPosition | None = None
 
     def __post_init__(self):
+        if self.playlist is not None and (not isinstance(self.playlist, PlaylistPosition)
+                or self.link.service != Service.YOUTUBE or self.link.kind != ContentKind.VIDEO):
+            raise ValueError('Playlist position belongs to a YouTube child video')
         if self.profile_limit not in (None, 10, 50):
             raise ValueError('Profile limit must be 10, 50, or all')
         if self.selection is not None:

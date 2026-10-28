@@ -75,5 +75,6 @@ def request_key(request: DownloadRequest) -> str:
     data = {'service': request.link.service, 'kind': request.link.kind,
             'id': request.link.canonical_id, 'options': options,
             'selection': sorted(request.selection) if request.selection is not None else None,
-            'profile_limit': request.profile_limit}
+            'profile_limit': request.profile_limit,
+            'playlist': asdict(request.playlist) if request.playlist is not None else None}
     return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
