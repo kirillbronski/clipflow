@@ -64,7 +64,7 @@ def test_mixed_photo_video_numbering_and_paired_txt_md(tmp_path,monkeypatch,http
     assert result.files[0].read_bytes()==(root/'image.png').read_bytes()
     for caption in result.files[1::2]:
         assert caption.read_text(encoding='utf-8-sig')=='Подпись — полностью\nВторая строка'
-    assert gate.calls==['metadata','post','completed']
+    assert gate.calls==['cdn','cdn','cdn','completed']
     assert len([e for e in events if isinstance(e,FilesSaved)])==3
     assert '2026-10-28' in str(result.files[0].parent)
 
@@ -129,13 +129,14 @@ def test_failed_item_has_diagnostic_and_keeps_finished_files(tmp_path,monkeypatc
 
 
 def test_file_429_stops_without_success_or_implicit_retries(tmp_path,monkeypatch,http_media):
+    from clipflow.application.instagram_rate_policy import InstagramDeferred
     base,root=http_media
     data=product(base);data['carousel_media'][0]['image_versions2']['candidates'][-1]['url']=base+'/throttled.png'
     extracted(monkeypatch,data)
     ctx,events,gate=context()
-    with pytest.raises(InstagramMediaFailure) as error:
+    with pytest.raises(InstagramDeferred) as error:
         InstagramPostProvider(MediaPipeline()).execute(request(tmp_path),ctx)
-    assert error.value.index==1 and error.value.reason=='instagram_rate_limited'
+    assert error.value.decision.reason=='rate_limit'
     assert not any(isinstance(e,FilesSaved) for e in events)
     assert 'completed' not in gate.calls
     assert (root/'throttled-count').read_text()=='1'

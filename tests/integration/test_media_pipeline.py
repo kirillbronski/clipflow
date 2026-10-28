@@ -27,8 +27,9 @@ class NoAuth:
 
 @pytest.fixture
 def context():
+    from tests.instagram_fixtures import Gate
     events = []
-    return ExecutionContext(CancellationToken(), events.append, NoAuth()), events
+    return ExecutionContext(CancellationToken(), events.append, NoAuth(), Gate()), events
 
 
 @pytest.fixture(scope='module')

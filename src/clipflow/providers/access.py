@@ -47,13 +47,18 @@ def _cookie_text(source):
 
 
 @contextmanager
-def open_downloader(options):
+def open_downloader(options, *, instagram_context=None, instagram_kind='metadata'):
     options = dict(options)
     source = options.pop('_cookies_source', None) or options.pop('cookiefile', None)
     # Remove both aliases even when the first one was present.
     options.pop('cookiefile', None)
     jar = options.pop('_cookiejar', None)
-    with YoutubeDL(options) as ydl:
+    if instagram_context is not None:
+        from clipflow.providers.instagram_transport import InstagramDownloader
+        downloader = InstagramDownloader(options,instagram_context,instagram_kind)
+    else:
+        downloader = YoutubeDL(options)
+    with downloader as ydl:
         if source:
             ydl.cookiejar.load(StringIO(_cookie_text(source)), ignore_discard=True, ignore_expires=True)
         if jar is not None:

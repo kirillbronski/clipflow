@@ -18,7 +18,7 @@ from clipflow.domain.events import (
     SelectionRequired, RateLimitDeferred, WorkFinished, WorkFailed, WorkStopped,
     StopReason,
 )
-from clipflow.domain.models import Job, JobState, TERMINAL_STATES
+from clipflow.domain.models import Job, JobState, Service, TERMINAL_STATES
 from clipflow.domain.urls import request_key
 
 
@@ -32,9 +32,11 @@ _ACKS = (WorkFinished, WorkFailed, WorkStopped)
 
 
 class Scheduler:
-    def __init__(self, repository: JobRepository, executor: Executor):
+    def __init__(self, repository: JobRepository, executor: Executor, *, clock=None):
         self.repository = repository
         self.executor = executor
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self._instagram_deferred: RateLimitDeferred | None = None
         self._running = False
         self._closed = False
         self._pumping = False
@@ -74,11 +76,12 @@ class Scheduler:
         self._pumping = True
         try:
             while self._running and self._active is None:
+                self._defer_waiting_instagram()
                 job = next((j for j in self.repository.list() if j.state == JobState.QUEUED), None)
                 if job is None:
                     break
                 job = replace(job, state=JobState.PROBING, attempt_id=uuid4().hex,
-                              error=None, pause_reason=None, next_allowed_at=None)
+                              error=None, pause_reason=None, next_allowed_at=None, automatic_retry=False)
                 self._active = (job.id, job.attempt_id)
                 self._launched = False
                 self._discovered = False
@@ -107,19 +110,42 @@ class Scheduler:
 
     def pause(self, job_id: str) -> None:
         job = self.repository.get(job_id)
-        if job.state in TERMINAL_STATES or job.state == JobState.PAUSED:
+        if job.state in TERMINAL_STATES:
             return
-        self._save(replace(job, state=JobState.PAUSED, pause_reason='user'))
+        if job.state == JobState.PAUSED:
+            if job.automatic_retry:
+                self._save(replace(job,pause_reason='user',automatic_retry=False))
+            return
+        self._save(replace(job, state=JobState.PAUSED, pause_reason='user',automatic_retry=False))
         self._stop(job_id, 'pause')
 
     def resume(self, job_id: str) -> None:
         job = self.repository.get(job_id)
         if job.state != JobState.PAUSED or job.pause_reason == 'selection_required':
             raise ValueError('Job cannot be resumed')
-        if job.next_allowed_at and job.next_allowed_at > datetime.now(timezone.utc):
+        if job.next_allowed_at and job.next_allowed_at > self.clock():
             raise ValueError('Cooldown has not expired')
         self._save(replace(job, state=JobState.QUEUED, pause_reason=None, next_allowed_at=None))
         self._pump()
+
+    def tick(self) -> None:
+        """Called on the owner thread by T10; construction never resumes network."""
+        if not self._running or self._closed:
+            return
+        for job in self.repository.list():
+            if (job.state == JobState.PAUSED and job.automatic_retry and job.pause_reason in {'rate_limit','rate_spacing'}
+                    and job.next_allowed_at and job.next_allowed_at <= self.clock()):
+                self._save(replace(job,state=JobState.QUEUED,pause_reason=None,next_allowed_at=None))
+        self._pump()
+
+    def _defer_waiting_instagram(self) -> None:
+        limit=self._instagram_deferred
+        if limit is None or limit.next_allowed_at <= self.clock():
+            return
+        for waiting in self.repository.list():
+            if waiting.state == JobState.QUEUED and waiting.request.link.service == Service.INSTAGRAM:
+                self._save(replace(waiting,state=JobState.PAUSED,pause_reason=limit.reason,
+                                   next_allowed_at=limit.next_allowed_at,automatic_retry=limit.automatic_retry))
 
     def cancel(self, job_id: str, include_children: bool = True) -> None:
         targets = {job_id}
@@ -192,8 +218,10 @@ class Scheduler:
             self._save(replace(job, state=JobState.PAUSED, pause_reason='selection_required'))
             self._stop(job.id, 'pause')
         elif isinstance(payload, RateLimitDeferred):
+            self._instagram_deferred=payload
             self._save(replace(job, state=JobState.PAUSED, pause_reason=payload.reason,
-                               next_allowed_at=payload.next_allowed_at))
+                               next_allowed_at=payload.next_allowed_at, automatic_retry=payload.automatic_retry))
+            self._defer_waiting_instagram()
             self._stop(job.id, 'pause')
         elif isinstance(payload, _ACKS):
             self._active = None

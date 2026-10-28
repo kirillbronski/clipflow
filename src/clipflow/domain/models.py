@@ -109,3 +109,4 @@ class Job:
     error: str | None = None
     pause_reason: str | None = None
     next_allowed_at: datetime | None = None
+    automatic_retry: bool = False

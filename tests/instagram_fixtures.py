@@ -1,6 +1,7 @@
 """Synthetic Instagram products and explicit offline pacing-policy doubles."""
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+from contextlib import contextmanager
 
 import pytest
 from yt_dlp import YoutubeDL
@@ -17,6 +18,13 @@ class Gate:
         cancel.raise_if_cancelled()
         self.calls.append(kind)
     def record_completed_post(self): self.calls.append('completed')
+    @contextmanager
+    def request(self,kind,cancel):
+        self.acquire(kind,cancel)
+        yield lambda:True
+    def record_429(self,retry_after):
+        from clipflow.domain.events import RateLimitDeferred
+        return RateLimitDeferred(datetime(2030,1,1,tzinfo=timezone.utc),False)
 
 
 class Auth:

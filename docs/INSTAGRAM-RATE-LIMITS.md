@@ -37,3 +37,9 @@ Fake clock и инъецируемый random: minimum spacing; Instaloader/yt-d
 - [yt-dlp: sleep-requests, sleep-interval, max-sleep-interval](https://github.com/yt-dlp/yt-dlp#sleep-options). Эти параметры помогают pacing, но независимые клиенты сами по себе не образуют общий межбиблиотечный бюджет.
 - [RFC 6585 §4 — HTTP 429](https://www.rfc-editor.org/rfc/rfc6585#section-4).
 - [RFC 9110 §10.2.3 — Retry-After](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3).
+
+## Состояние реализации T8, 28 октября 2026
+
+Требования выше реализованы и проверены в новом `src/clipflow`: shared policy и SQLite store, scoped yt-dlp/Instaloader HTTP transports, response lease, Retry-After, persisted backoff и scheduler deferral. Instaloader page/API requests консервативно используют интервал 10–20s; индивидуальный пост использует post category для первого запроса, затем metadata. CDN не делает sleep при чтении каждого блока. Latest N при неизвестном порядке требует исчерпания feed/Reels; сохранённый page checkpoint — progress hint, resume re-enumerates with dedup, без ложной полноты.
+
+Это не исправление работающего legacy 1.8.7 UI: подключение registry/singleton policy/owner-thread tick/close — T10/T13. Живой заблокированный профиль не запрашивался; отсутствие новых 429 не обещается. Source versions остались Instaloader 4.15.3 и yt-dlp 2026.8.19. Полная offline проверка — 257 pytest + legacy checks на Windows; live/native package acceptance остаётся T16.

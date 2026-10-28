@@ -53,7 +53,9 @@ class MediaPipeline:
                 if item.kind == 'photo' and urlsplit(url).scheme not in {'http', 'https'}:
                     raise MediaFailure('invalid_media')
                 context.emit(StageChanged(JobState.DOWNLOADING))
-                with open_downloader(self._options(item, request, context, target)) as ydl:
+                with open_downloader(self._options(item, request, context, target),
+                                     instagram_context=context if request.link.service == Service.INSTAGRAM else None,
+                                     instagram_kind='cdn') as ydl:
                     if item.kind == 'photo':
                         self._photo(ydl, url, target, context, item.info.get('http_headers'))
                     else:
@@ -101,7 +103,7 @@ class MediaPipeline:
                        format='bestaudio/best' if request.options.format == 'mp3' else f'bestvideo{limit}+bestaudio/best{limit}',
                        merge_output_format='mkv')
         if request.link.service == Service.INSTAGRAM:
-            options.update(extractor_retries=0,fragment_retries=0)
+            options.update(extractor_retries=0,fragment_retries=0,hls_prefer_native=True)
         if self.ffmpeg:
             options['ffmpeg_location'] = self.ffmpeg
         if self.node:

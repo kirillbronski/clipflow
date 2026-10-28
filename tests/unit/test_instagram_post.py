@@ -29,7 +29,7 @@ def test_single_post_does_not_discover_profile(tmp_path,monkeypatch):
     result=InstagramPostProvider(MediaPipeline()).probe(request(tmp_path),ctx)
     assert len(result.items)==1 and result.items[0].kind=='photo'
     assert not any(isinstance(e,RequestsDiscovered) for e in events)
-    assert gate.calls==['metadata']
+    assert gate.calls==[]  # Synthetic extractor performs no HTTP request.
 
 
 def test_carousel_img_index_does_not_truncate(tmp_path,monkeypatch):
@@ -111,7 +111,7 @@ def test_metadata_http_failures_are_specific_and_safe(tmp_path,monkeypatch,capsy
         InstagramPostProvider(MediaPipeline()).probe(request(tmp_path),ctx)
     output=capsys.readouterr()
     assert 'synthetic-secret' not in str(error.value)+output.out+output.err
-    assert gate.calls==['metadata']
+    assert gate.calls==[]  # Error injected above transport; actual HTTP tested separately.
 
 
 def test_cancelled_probe_never_fetches_post(tmp_path,monkeypatch):

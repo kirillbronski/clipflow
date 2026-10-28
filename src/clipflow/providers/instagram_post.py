@@ -111,7 +111,6 @@ class InstagramPostProvider:
         if context.instagram_rate is None:
             raise MediaFailure('instagram_rate_policy_required')
         context.emit(StageChanged(JobState.PROBING))
-        context.instagram_rate.acquire('metadata',context.cancel)
         context.cancel.raise_if_cancelled()
         try:
             access = dict(context.auth.options_for(request.options.auth_profile,request.link.canonical_url))
@@ -120,7 +119,7 @@ class InstagramPostProvider:
                            noplaylist=False,playlist_items=None,ignoreerrors=False,
                            retries=0,extractor_retries=0,fragment_retries=0,socket_timeout=30,
                            concurrent_fragment_downloads=1)
-            with open_downloader(options) as ydl:
+            with open_downloader(options,instagram_context=context,instagram_kind='post') as ydl:
                 ydl.add_info_extractor(InstagramExtractor())
                 info = ydl.extract_info(request.link.canonical_url,download=False,process=False)
                 context.cancel.raise_if_cancelled()
@@ -176,7 +175,6 @@ class InstagramPostProvider:
     def execute(self, request, context):
         result,auth = self._probe(request,context)
         context = replace(context,auth=auth)
-        context.instagram_rate.acquire('post',context.cancel)
         files = []
         for item in result.items:
             context.cancel.raise_if_cancelled()
@@ -187,4 +185,7 @@ class InstagramPostProvider:
                 raise InstagramMediaFailure(item.id,item.index,reason) from None
         context.cancel.raise_if_cancelled()
         context.instagram_rate.record_completed_post()
+        store=getattr(context.instagram_rate,'store',None)
+        if store:
+            store.mark_completed(str(result.items[0].info.get('author','')).lower(),request.link.canonical_id)
         return DownloadResult(tuple(files))
