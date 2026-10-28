@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T8 завершён; пауза перед T9.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T9 завершён; пауза перед T10.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -175,11 +175,13 @@ T8: 38 new cases, 257 total pytest; exact completeness is conservative: latest N
 
 **Interfaces:** Produces `SqliteJobRepository(path: Path)` implementing JobRepository plus `.history()->tuple[Job,...]`, `.recover()->tuple[Job,...]`, `.clear_history()->None`, `.close()->None`; `SettingsStore(directory: Path).load()->AppSettings`, `.save(settings: AppSettings)->None`. AppSettings fields: schema_version=2, theme='dark', language='ru', auto_start=False, presets per Service, recent_folders, profile_limit=10.
 
-- [ ] Red: `test_restart_recovers_active_as_paused`, `test_completed_history_preserved`, `test_unknown_schema_never_overwrites`, `test_busy_db_reports_failure`, `test_corrupt_database_is_preserved_and_reported`, `test_readonly_data_directory_reports_actionable_error`, `test_corrupt_settings_backup_and_defaults`, `test_legacy_settings_migrate_without_touching_sessions`, `test_no_credentials_or_signed_cdn_urls_persisted`.
-- [ ] `python -m pytest tests/integration/test_repository.py tests/unit/test_settings_migration.py -q`: FAIL.
-- [ ] Создать schema-versioned SQLite (`queue.sqlite3`) и JSON `settings-v2.json` рядом с прежним settings.json. Migration читает whitelist старых параметров, делает backup, не изменяет старые protected files. Запись атомарна; транзакции ограничены. Original lesson/post URL можно хранить только без секретных query-параметров; auth-required request хранит безопасный protected-profile reference, не credential value. Если ссылка без секрета невосстановима — при восстановлении запросить ввод снова, не записывать секрет в историю.
-- [ ] Tests: PASS with temporary disk DB, simulated power-loss point после готового файла и до commit. Recover не создаёт сетевой запрос сам и согласует найденный файл через pipeline при явном resume.
-- [ ] Commit `feat: persist queue and history with safe settings migration`.
+- [x] Red: `test_restart_recovers_active_as_paused`, `test_completed_history_preserved`, `test_unknown_schema_never_overwrites`, `test_busy_db_reports_failure`, `test_corrupt_database_is_preserved_and_reported`, `test_readonly_data_directory_reports_actionable_error`, `test_corrupt_settings_backup_and_defaults`, `test_legacy_settings_migrate_without_touching_sessions`, `test_no_credentials_or_signed_cdn_urls_persisted`.
+- [x] `python -m pytest tests/integration/test_repository.py tests/unit/test_settings_migration.py -q`: FAIL.
+- [x] Создать schema-versioned SQLite (`queue.sqlite3`) и JSON `settings-v2.json` рядом с прежним settings.json. Migration читает whitelist старых параметров, делает backup, не изменяет старые protected files. Запись атомарна; транзакции ограничены. Original lesson/post URL можно хранить только без секретных query-параметров; auth-required request хранит безопасный protected-profile reference, не credential value. Если ссылка без секрета невосстановима — при восстановлении запросить ввод снова, не записывать секрет в историю.
+- [x] Tests: PASS with temporary disk DB, simulated power-loss point после готового файла и до commit. Recover не создаёт сетевой запрос сам и согласует найденный файл через pipeline при явном resume.
+- [x] Commit `feat: persist queue and history with safe settings migration`.
+
+T9: 34 new cases; 291 total pytest + full scripts/check.py PASS on Windows/Python 3.12.10. Queue schema1 in queue.sqlite3; settings schema2 in settings-v2.json. Recover is explicit, pauses interrupted/queued jobs, clears attempt and automatic_retry, preserves deadlines/files/history. Signed GetCourse player URLs stay only in current-run memory; disk stores opaque identity + source_required, all scheduler start commands refuse until the same source is explicitly re-entered. A rotated/different signed URL requires a new job to avoid attaching old outputs to another source. GetCourse request_key uses an idempotent source fingerprint for dedup after redaction/restart. Legacy settings.json and protected session files remain byte-for-byte unchanged; settings-v1 backup contains only normalized whitelisted preferences (unknown fields are not copied), original remains available. History clear preserves ancestors needed by live jobs and never removes media. T10 wires repository.recover/close, settings and source re-entry UI; legacy default/UI/installers remain unchanged.
 
 ### Task 10: Qt-оболочка с настоящим вертикальным сценарием
 

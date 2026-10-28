@@ -71,11 +71,19 @@ def parse_url(text: str) -> ParsedLink:
     raise InvalidLink('Unsupported service')
 
 
+def source_reference(link: ParsedLink) -> str:
+    """Opaque comparison identity for a source that cannot be stored verbatim."""
+    if link.service==Service.GETCOURSE and re.fullmatch(r'protected-[0-9a-f]{64}',link.canonical_id):
+        return link.canonical_id
+    return 'protected-'+hashlib.sha256(link.canonical_id.encode()).hexdigest()
+
+
 def request_key(request: DownloadRequest) -> str:
     options = asdict(request.options)
     options['folder'] = os.path.normcase(str(request.options.folder))
     data = {'service': request.link.service, 'kind': request.link.kind,
-            'id': request.link.canonical_id, 'options': options,
+            'id': source_reference(request.link) if request.link.service==Service.GETCOURSE else request.link.canonical_id,
+            'options': options,
             'selection': sorted(request.selection) if request.selection is not None else None,
             'profile_limit': request.profile_limit,
             'playlist': asdict(request.playlist) if request.playlist is not None else None}

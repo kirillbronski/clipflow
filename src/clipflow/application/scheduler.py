@@ -18,8 +18,8 @@ from clipflow.domain.events import (
     SelectionRequired, RateLimitDeferred, WorkFinished, WorkFailed, WorkStopped,
     StopReason,
 )
-from clipflow.domain.models import Job, JobState, Service, TERMINAL_STATES
-from clipflow.domain.urls import request_key
+from clipflow.domain.models import Job, JobState, ParsedLink, Service, TERMINAL_STATES
+from clipflow.domain.urls import request_key,source_reference
 
 
 class Executor(Protocol):
@@ -77,7 +77,7 @@ class Scheduler:
         try:
             while self._running and self._active is None:
                 self._defer_waiting_instagram()
-                job = next((j for j in self.repository.list() if j.state == JobState.QUEUED), None)
+                job = next((j for j in self.repository.list() if j.state == JobState.QUEUED and not j.source_required), None)
                 if job is None:
                     break
                 job = replace(job, state=JobState.PROBING, attempt_id=uuid4().hex,
@@ -121,6 +121,8 @@ class Scheduler:
 
     def resume(self, job_id: str) -> None:
         job = self.repository.get(job_id)
+        if job.source_required:
+            raise ValueError('Job source must be provided again')
         if job.state != JobState.PAUSED or job.pause_reason == 'selection_required':
             raise ValueError('Job cannot be resumed')
         if job.next_allowed_at and job.next_allowed_at > self.clock():
@@ -166,14 +168,30 @@ class Scheduler:
 
     def retry(self, job_id: str) -> None:
         job = self.repository.get(job_id)
+        if job.source_required:
+            raise ValueError('Job source must be provided again')
         if job.state not in TERMINAL_STATES:
             raise ValueError('Only terminal jobs can be retried')
         self._save(replace(job, state=JobState.QUEUED, error=None,
                            pause_reason=None, next_allowed_at=None))
         self._pump()
 
+    def provide_source(self, job_id: str, link: ParsedLink) -> None:
+        """Explicit replacement for a source whose secret URL was not persisted."""
+        job=self.repository.get(job_id)
+        if (not job.source_required or job.state not in TERMINAL_STATES | {JobState.PAUSED}
+                or link.service!=job.request.link.service or link.kind!=job.request.link.kind):
+            raise ValueError('Job is not waiting for this source')
+        if job.request.link.canonical_id!=source_reference(link):
+            raise ValueError('Source changed; add it as a new job')
+        request=replace(job.request,link=link)
+        self._save(replace(job,request=request,state=JobState.PAUSED,source_required=False,
+                           pause_reason='user',error=None,automatic_retry=False))
+
     def select_items(self, job_id: str, ids: tuple[str, ...]) -> None:
         job = self.repository.get(job_id)
+        if job.source_required:
+            raise ValueError('Job source must be provided again')
         if job.state != JobState.PAUSED or job.pause_reason != 'selection_required' or not ids:
             raise ValueError('Job is not waiting for a nonempty selection')
         updated = replace(job.request, selection=ids)
