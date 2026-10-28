@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T3 завершён; пауза перед T4.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T4 завершён; пауза перед T5.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -100,11 +100,13 @@
 
 **Interfaces:** Produces `Provider` Protocol `.probe(request, context)->ProbeResult`, `.execute(request, context)->DownloadResult`; `MediaPipeline.save(item: MediaItem, request: DownloadRequest, context: ExecutionContext)->tuple[Path,...]`; `output_path(request, item, author: str|None, post: PostIdentity|None)->Path`; `PostIdentity(code: str, title: str|None, published_at: datetime|None)`.
 
-- [ ] Red: `test_untitled_posts_cannot_collide`, `test_post_folder_off_includes_post_id`, `test_windows_reserved_unicode_and_long_path`, `test_filtered_items_keep_original_number`, `test_caption_replace_failure_preserves_previous_file`, `test_disk_full_never_reports_success`. Native FFmpeg test: MP4/MKV/WebM/MP3 output has expected streams/container; second run preserves finished file mtime; cancellation retains resumable partials.
-- [ ] Run `python -m pytest tests/unit/test_media_paths.py tests/integration/test_media_pipeline.py -q`: FAIL for missing pipeline.
-- [ ] Реализовать безопасные пути, оригинальную нумерацию, atomic descriptions и общий FFmpeg/YoutubeDL pipeline. WebM: remux совместимых потоков, VP9/Opus conversion для несовместимых; не менять разрешение молча. Для фото сохранить оригинальное расширение/байты. Учитывать postprocessed final extension при повторе.
-- [ ] Тот же pytest с настоящим FFmpeg/FFprobe и локальным HTTP-сервером: PASS; ошибки инструмента/записи дают typed failure, не completed.
-- [ ] Commit `refactor: extract safe media pipeline and output layout`.
+- [x] Red: `test_untitled_posts_cannot_collide`, `test_post_folder_off_includes_post_id`, `test_windows_reserved_unicode_and_long_path`, `test_filtered_items_keep_original_number`, `test_caption_replace_failure_preserves_previous_file`, `test_disk_full_never_reports_success`. Native FFmpeg test: MP4/MKV/WebM/MP3 output has expected streams/container; second run preserves finished file mtime; cancellation retains resumable partials.
+- [x] Run `python -m pytest tests/unit/test_media_paths.py tests/integration/test_media_pipeline.py -q`: FAIL for missing pipeline.
+- [x] Реализовать безопасные пути, оригинальную нумерацию, atomic descriptions и общий FFmpeg/YoutubeDL pipeline. WebM: remux совместимых потоков, VP9/Opus conversion для несовместимых; не менять разрешение молча. Для фото сохранить оригинальное расширение/байты. Учитывать postprocessed final extension при повторе.
+- [x] Тот же pytest с настоящим FFmpeg/FFprobe и локальным HTTP-сервером: PASS; ошибки инструмента/записи дают typed failure, не completed.
+- [x] Commit `refactor: extract safe media pipeline and output layout`.
+
+T4 verified on Windows 11 x64 / Python 3.12.10 / FFmpeg 9.0.2: 46 new tests, 125 total pytest tests, full scripts/check.py. `MediaItem.info` carries transient source metadata; Instagram adapters normalize `author`, `post_code`, `post_title`, `published_at` (datetime), `description`, `ext`. Mixed/lowercase post codes include a deterministic case marker to avoid collisions on case-insensitive volumes. No new packaged Qt release or live provider check is implied.
 
 ### Task 5: YouTube и YouTube Music через общий провайдер
 
