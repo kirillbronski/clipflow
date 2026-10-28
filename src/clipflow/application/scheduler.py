@@ -39,6 +39,7 @@ class Scheduler:
         self._instagram_deferred: RateLimitDeferred | None = None
         self._preferred_job: str | None = None
         self._running = False
+        self._drained = False
         self._closed = False
         self._pumping = False
         self._active: tuple[str, str] | None = None
@@ -73,6 +74,7 @@ class Scheduler:
                 raise ValueError('Job cannot be started')
             self._preferred_job=job_id
         self._running = True
+        self._drained = False
         self._pump()
 
     def _pump(self) -> None:
@@ -81,11 +83,16 @@ class Scheduler:
             return
         self._pumping = True
         try:
-            while self._running and self._active is None:
+            while self._running and not self._drained and self._active is None:
                 self._defer_waiting_instagram()
-                queued=[j for j in self.repository.list() if j.state==JobState.QUEUED and not j.source_required]
+                jobs=self.repository.list()
+                queued=[j for j in jobs if j.state==JobState.QUEUED and not j.source_required]
                 if not queued:
+                    self._drained=not any(j.state==JobState.PAUSED and j.automatic_retry
+                                          and j.pause_reason in {'rate_limit','rate_spacing'}
+                                          and j.next_allowed_at is not None for j in jobs)
                     break
+                if not getattr(self.executor,'is_idle',True): break
                 job=next((j for j in queued if j.id==self._preferred_job),queued[0])
                 self._preferred_job=None
                 job = replace(job, state=JobState.PROBING, attempt_id=uuid4().hex,
@@ -136,6 +143,7 @@ class Scheduler:
         if job.next_allowed_at and job.next_allowed_at > self.clock():
             raise ValueError('Cooldown has not expired')
         self._save(replace(job, state=JobState.QUEUED, pause_reason=None, next_allowed_at=None))
+        self._drained=False
         self._pump()
 
     def tick(self) -> None:
@@ -182,6 +190,7 @@ class Scheduler:
             raise ValueError('Only terminal jobs can be retried')
         self._save(replace(job, state=JobState.QUEUED, error=None,
                            pause_reason=None, next_allowed_at=None))
+        self._drained=False
         self._pump()
 
     def provide_source(self, job_id: str, link: ParsedLink) -> None:
@@ -204,6 +213,7 @@ class Scheduler:
             raise ValueError('Job is not waiting for a nonempty selection')
         updated = replace(job.request, selection=ids)
         self._save(replace(job, request=updated, state=JobState.QUEUED, pause_reason=None))
+        self._drained=False
         self._pump()
 
     def refresh_selection(self, job_id: str) -> None:
@@ -212,6 +222,7 @@ class Scheduler:
         if job.source_required or job.state!=JobState.PAUSED or job.pause_reason!='selection_required':
             raise ValueError('Job is not waiting for selection')
         self._save(replace(job,state=JobState.QUEUED,pause_reason=None))
+        self._drained=False
         self._pump()
 
     def shutdown(self) -> None:

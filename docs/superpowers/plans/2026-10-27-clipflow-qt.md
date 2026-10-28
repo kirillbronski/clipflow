@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T10 завершён; пауза перед T11.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T11 завершён; пауза перед T12.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -205,11 +205,13 @@ T10 CI correction: initial 9540e90 passed Windows but macOS failed Return activa
 
 **Interfaces:** Produces `Composer` signals `submit_requested(text, mode, profile_limit)`, `probe_requested(text, request_id)`; `BatchDialog(submission, presets).preview()->BatchPreview`, accepted только после явной кнопки. Presenter использует SubmissionService из T2, не переключает чужие поля для добавления.
 
-- [ ] Red qtbot: `test_batch_button_always_visible`, `test_mixed_batch_adds_three_services_and_profile`, `test_bad_line_does_not_block_valid_lines`, `test_single_profile_requires_explicit_mode`, `test_profile_10_50_all`, `test_input_changed_during_probe_not_cleared`, `test_quality_pending_does_not_drop_batch`, `test_cancel_dialog_adds_nothing`, `test_getcourse_media_selection`.
-- [ ] `python -m pytest tests/ui/test_submission_dialogs.py -q`: FAIL.
-- [ ] Реализовать видимые режимы и раскрываемые параметры, per-service draft/presets, batch preview с лимитами/ошибками/дублями, асинхронный probe с request ID. Accepted input очищается только если всё ещё относится к принятому запросу. SelectionRequired открывает Qt-выбор материалов без blocking GUI worker.
-- [ ] Qt suite: PASS; проверять клик/Enter на настоящих виджетах до JobRepository, а не только прямой вызов presenter.
-- [ ] Commit `feat: expose reliable single batch and Instagram profile modes`.
+- [x] Red qtbot: `test_batch_button_always_visible`, `test_mixed_batch_adds_three_services_and_profile`, `test_bad_line_does_not_block_valid_lines`, `test_single_profile_requires_explicit_mode`, `test_profile_10_50_all`, `test_input_changed_during_probe_not_cleared`, `test_quality_pending_does_not_drop_batch`, `test_cancel_dialog_adds_nothing`, `test_getcourse_media_selection`.
+- [x] `python -m pytest tests/ui/test_submission_dialogs.py -q`: FAIL.
+- [x] Реализовать видимые режимы и раскрываемые параметры, per-service draft/presets, batch preview с лимитами/ошибками/дублями, асинхронный probe с request ID. Accepted input очищается только если всё ещё относится к принятому запросу. SelectionRequired открывает Qt-выбор материалов без blocking GUI worker.
+- [x] Qt suite: PASS; проверять клик/Enter на настоящих виджетах до JobRepository, а не только прямой вызов presenter.
+- [x] Commit `feat: expose reliable single batch and Instagram profile modes`.
+
+> T11: 21 submission GUI cases, 336 total pytest and full scripts/check.py PASS on Windows/Python 3.12.10. Explicit Single/Batch/Profile/Playlist/Lesson modes, per-service drafts/presets, frozen mixed batch preview and explicit confirmation through T2; bad lines do not block valid requests, duplicates are shown. Instagram limits 10/50/all and forced profile post folders preserve single-post preferences. Async ID-guarded probes debounce 300ms, memory-only 100-entry/120s quality cache; real downloads cancel optional probes and wait for teardown in one executor slot. Drained scheduler does not restart later additions with auto-start off, while rate cooldown retry remains armed. Actual Qt clicks/Enter reach the repository; GetCourse selection remains real. Native Windows 880×680 expanded form and batch verified without upstream requests, accounts or Tk. Core700/720lines97.22%,229/250branches91.60%; own runtime2900/3073lines94.37%. Standard coverage conservatively misses QThread bodies; no exclusions added. Offscreen layout regression guarantees a usable minimum URL width and no horizontal scrolling. Themes/RU-EN/clipboard/DPI remain T12, protected auth T13, full lifecycle T14, packages/live/whole-branch review T16. Legacy default unchanged; no new installer.
 
 ### Task 12: Полные темы, RU/EN и системная клавиатура
 

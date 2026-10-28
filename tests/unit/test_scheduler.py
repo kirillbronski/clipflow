@@ -62,6 +62,15 @@ def test_one_running_job(queue):
     assert len(worker.runs) == 2
 
 
+def test_drained_queue_requires_explicit_start_for_new_jobs(queue):
+    repo,worker,scheduler=queue; scheduler.start(); finish(worker); finish(worker)
+    repo.add(Job('three',request('third')))
+    scheduler.tick()
+    assert repo.get('three').state==JobState.QUEUED and len(worker.runs)==2
+    scheduler.start()
+    assert worker.runs[-1][0].id=='three'
+
+
 def test_old_attempt_cannot_fail_new_attempt(queue):
     repo, worker, scheduler = queue
     scheduler.start()

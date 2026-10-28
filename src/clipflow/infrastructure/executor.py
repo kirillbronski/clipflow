@@ -7,6 +7,28 @@ from clipflow.domain.events import (
     CancellationToken,JobEvent,ProgressChanged,WorkCancelled,WorkFailed,WorkFinished,WorkStopped,
 )
 from clipflow.providers.base import ExecutionContext,MediaFailure
+from clipflow.domain.models import ContentKind
+
+
+class _ProbeWorker(QThread):
+    def __init__(self,request,request_id,provider,auth,policy,parent):
+        super().__init__(parent); self.request=request; self.request_id=request_id
+        self.provider=provider; self.auth=auth; self.policy=policy; self.cancel=CancellationToken()
+        self.heights=(); self.error=''
+
+    def run(self):
+        try:
+            self.cancel.raise_if_cancelled()
+            if (self.request.link.kind in {ContentKind.PROFILE,ContentKind.PLAYLIST}
+                    or self.request.options.format=='mp3' or self.request.options.media_filter=='photo'):
+                return  # Collections choose formats per material, never enumerate twice for quality.
+            context=ExecutionContext(self.cancel,lambda event:None,self.auth,self.policy)
+            result=self.provider.probe(self.request,context)
+            self.cancel.raise_if_cancelled()
+            self.heights=tuple(sorted({height for height in result.available_heights if type(height) is int and height>0},reverse=True))
+        except WorkCancelled as error: self.error='rate_limit' if hasattr(error,'decision') else 'probe_cancelled'
+        except MediaFailure as error: self.error=error.code
+        except Exception: self.error='probe_failed'
 
 
 class _Worker(QThread):
@@ -44,21 +66,23 @@ class _Worker(QThread):
 class ThreadExecutor(QObject):
     closed=Signal()
     error=Signal(str)
+    available=Signal()
 
     def __init__(self,provider_registry,auth_gateway,*,instagram_rate=None,cleanup=None):
         super().__init__()
         self.registry=provider_registry; self.auth=auth_gateway; self.instagram_rate=instagram_rate
         self._cleanup=cleanup or (lambda:None)
         self._workers={}; self._closing=False; self._closed=False
+        self._probe=None; self._pending_probe=None
 
     @property
-    def is_idle(self): return not self._workers
+    def is_idle(self): return not self._workers and self._probe is None
 
     @property
     def is_closed(self): return self._closed
 
     def start(self,job,on_event):
-        if self._closing or self._workers: raise ValueError('Executor unavailable')
+        if self._closing or not self.is_idle: raise ValueError('Executor unavailable')
         provider=self.registry[(job.request.link.service,job.request.link.kind)]
         worker=_Worker(job,provider,self.auth,self.instagram_rate,self)
         self._workers[(job.id,job.attempt_id)]=(worker,on_event)
@@ -90,15 +114,49 @@ class ThreadExecutor(QObject):
         try: record[1](JobEvent(*key,worker.terminal))
         except Exception: self.error.emit('queue_update_failed')
         worker.deleteLater()
+        self._start_probe()
         self._try_close()
+        if self.is_idle and not self._closing: self.available.emit()
+
+    def request_probe(self,request,request_id,callback):
+        if self._closing: return
+        self.cancel_probes()
+        self._pending_probe=(request,request_id,callback)
+        self._start_probe()
+
+    def cancel_probes(self):
+        self._pending_probe=None
+        if self._probe: self._probe[0].cancel.cancel('cancel')
+
+    def _start_probe(self):
+        if self._closing or not self.is_idle or self._pending_probe is None: return
+        request,request_id,callback=self._pending_probe; self._pending_probe=None
+        provider=self.registry.get((request.link.service,request.link.kind))
+        worker=_ProbeWorker(request,request_id,provider,self.auth,self.instagram_rate,self)
+        self._probe=(worker,callback)
+        worker.finished.connect(self._probe_finished,Qt.ConnectionType.QueuedConnection)
+        worker.start()
+
+    @Slot()
+    def _probe_finished(self): self._finish_probe(self.sender())
+
+    def _finish_probe(self,worker):
+        if self._probe is None or self._probe[0] is not worker: return
+        _,callback=self._probe; self._probe=None; worker.wait()
+        if not self._closing:
+            try: callback(worker.request_id,worker.heights,worker.error)
+            except Exception: self.error.emit('probe_failed')
+        worker.deleteLater(); self._start_probe(); self._try_close()
+        if self.is_idle and not self._closing: self.available.emit()
 
     def shutdown(self):
         self._closing=True
+        self.cancel_probes()
         for worker,_ in tuple(self._workers.values()): worker.cancel.cancel('shutdown')
         self._try_close()
 
     def _try_close(self):
-        if self._closing and not self._workers and not self._closed:
+        if self._closing and self.is_idle and not self._closed:
             try: self._cleanup()
             except Exception: self.error.emit('worker_cleanup_failed')
             self._closed=True
@@ -107,7 +165,8 @@ class ThreadExecutor(QObject):
     def drain(self):
         """After QApplication.exec exits: reap workers, never destroy a live QThread."""
         self.shutdown()
-        while self._workers:
+        while not self.is_idle:
             QCoreApplication.processEvents()
             for worker,_ in tuple(self._workers.values()):
                 if worker.wait(25): self._finish_worker(worker)
+            if self._probe and self._probe[0].wait(25): self._finish_probe(self._probe[0])

@@ -109,10 +109,13 @@ def test_local_media_download_reaches_real_completed_file(make_window,qtbot,medi
     finally: restored.close()
 
 
-def test_window_minimum_880x680(make_window):
+def test_window_minimum_880x680(make_window,qtbot):
     window,_=make_window(); window.resize(880,680)
     assert window.minimumWidth()==880 and window.minimumHeight()==680
+    # QScrollArea applies the viewport's resize in the next event-loop turn.
+    qtbot.waitUntil(lambda:window.url_input.width()>=180)
     assert window.url_input.width()>150 and window.add_button.width()>=150
+    assert window.composer_host.horizontalScrollBar().maximum()==0
 
 
 def test_large_queue_uses_model_not_child_widgets(make_window,tmp_path):
