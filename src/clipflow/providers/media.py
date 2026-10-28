@@ -54,7 +54,7 @@ class MediaPipeline:
                 context.emit(StageChanged(JobState.DOWNLOADING))
                 with YoutubeDL(self._options(item, request, context, target)) as ydl:
                     if item.kind == 'photo':
-                        self._photo(ydl, url, target, context)
+                        self._photo(ydl, url, target, context, item.info.get('http_headers'))
                     else:
                         info = copy.deepcopy(dict(item.info))
                         info.update(id=item.id, title=item.title)
@@ -120,10 +120,12 @@ class MediaPipeline:
             context.cancel.raise_if_cancelled()
         return hook
 
-    def _photo(self, ydl, url, target, context):
+    def _photo(self, ydl, url, target, context, source_headers=None):
         partial = Path(str(target)+'.part')
         offset = partial.stat().st_size if partial.exists() else 0
-        headers = {'Range': f'bytes={offset}-'} if offset else {}
+        headers = dict(source_headers or {})
+        if offset:
+            headers['Range'] = f'bytes={offset}-'
         hook = self._telemetry(context)
         try:
             response = ydl.urlopen(Request(url, headers=headers))

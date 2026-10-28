@@ -106,7 +106,7 @@
 - [x] Тот же pytest с настоящим FFmpeg/FFprobe и локальным HTTP-сервером: PASS; ошибки инструмента/записи дают typed failure, не completed.
 - [x] Commit `refactor: extract safe media pipeline and output layout`.
 
-T4 verified on Windows 11 x64 / Python 3.12.10 / FFmpeg 9.0.2: 46 new tests, 125 total pytest tests, full scripts/check.py. `MediaItem.info` carries transient source metadata; Instagram adapters normalize `author`, `post_code`, `post_title`, `published_at` (datetime), `description`, `ext`. Mixed/lowercase post codes include a deterministic case marker to avoid collisions on case-insensitive volumes. No new packaged Qt release or live provider check is implied.
+T4 verified on Windows 11 x64 / Python 3.12.10 / FFmpeg 9.0.2: 47 new tests, 126 total pytest tests, full scripts/check.py. `MediaItem.info` carries transient source metadata; Instagram adapters normalize `author`, `post_code`, `post_title`, `published_at` (datetime), `description`, `ext`, `http_headers` when required by the extractor. Mixed/lowercase post codes include a deterministic case marker to avoid collisions on case-insensitive volumes. No new packaged Qt release or live provider check is implied.
 
 ### Task 5: YouTube и YouTube Music через общий провайдер
 

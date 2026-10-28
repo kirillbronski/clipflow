@@ -60,6 +60,11 @@ def media_server(tmp_path_factory, tools):
             pass
         def do_GET(self):
             type(self).hits += 1
+            if self.path == '/protected.png':
+                if self.headers.get('Referer') != 'https://www.instagram.com/':
+                    self.send_error(403)
+                    return
+                self.path = '/photo.png'
             if self.path == '/resume.jpg':
                 data = (root/'large.jpg').read_bytes()
                 range_header = self.headers.get('Range')
@@ -96,7 +101,9 @@ def item(url, kind='video', ext='mp4', **info):
 
 
 def probe(path, tools):
-    return json.loads(subprocess.check_output([tools[1], '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(path)], text=True))
+    data = json.loads(subprocess.check_output([tools[1], '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(path)], text=True, encoding='utf-8'))
+    assert Path(data['format']['filename']) == path
+    return data
 
 
 @pytest.mark.parametrize('fmt,container,codecs', [
@@ -131,7 +138,7 @@ def test_compatible_webm_is_remuxed_without_changing_packets(tmp_path, context, 
     base, root, _ = media_server
     final, = MediaPipeline().save(item(base+'/compatible.webm', ext='webm'), request(tmp_path, 'webm'), ctx)
     def packet_hashes(path):
-        result = subprocess.check_output([tools[1], '-v', 'error', '-show_packets', '-show_data_hash', 'sha256', '-of', 'json', str(path)], text=True)
+        result = subprocess.check_output([tools[1], '-v', 'error', '-show_packets', '-show_data_hash', 'sha256', '-of', 'json', str(path)], text=True, encoding='utf-8')
         return [(p['stream_index'], p['data_hash']) for p in json.loads(result)['packets']]
     assert packet_hashes(final) == packet_hashes(root/'compatible.webm')
 
@@ -349,3 +356,11 @@ def test_cancellation_reaps_processing_child(context, monkeypatch):
         timer.join()
     assert time.monotonic()-start < 3
     assert len(children) == 1 and children[0].poll() is not None
+
+
+def test_photo_uses_extractor_required_headers(tmp_path, context, media_server):
+    ctx, _ = context
+    base, root, _ = media_server
+    media = item(base+'/protected.png', 'photo', 'png', http_headers={'Referer':'https://www.instagram.com/'})
+    final, = MediaPipeline().save(media, request(tmp_path), ctx)
+    assert final.read_bytes() == (root/'photo.png').read_bytes()
