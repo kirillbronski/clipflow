@@ -38,6 +38,16 @@ QToolTip { background: #302b43; color: #fff; border: 1px solid #83759e; }
 '''
 
 
+class QueueView(QListView):
+    """Return/Enter activate once on both platforms; keep native navigation."""
+    def keyPressEvent(self,event):
+        if event.key() in {Qt.Key.Key_Return,Qt.Key.Key_Enter} and event.modifiers() in {Qt.KeyboardModifier.NoModifier,Qt.KeyboardModifier.KeypadModifier}:
+            if not event.isAutoRepeat() and self.currentIndex().isValid():
+                self.activated.emit(self.currentIndex())
+            event.accept()
+        else: super().keyPressEvent(event)
+
+
 class MainWindow(QMainWindow):
     def __init__(self,presenter):
         super().__init__()
@@ -84,7 +94,7 @@ class MainWindow(QMainWindow):
         queue_header=QHBoxLayout(); self.count_label=QLabel('Очередь'); queue_header.addWidget(self.count_label,1)
         self.start_button=QPushButton('▷  Запустить очередь'); self.start_button.clicked.connect(presenter.start_queue); queue_header.addWidget(self.start_button)
         main.addLayout(queue_header)
-        self.queue_view=QListView(); self.queue_view.setUniformItemSizes(True); self.queue_view.setSpacing(0)
+        self.queue_view=QueueView(); self.queue_view.setUniformItemSizes(True); self.queue_view.setSpacing(0)
         self.proxy=QueueFilter(presenter.model,self); self.queue_view.setModel(self.proxy)
         delegate=QueueDelegate(self.queue_view); self.queue_view.setItemDelegate(delegate)
         delegate.action_requested.connect(self._row_action)

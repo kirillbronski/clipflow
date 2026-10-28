@@ -261,7 +261,8 @@ def test_startup_storage_failure_is_actionable_without_traceback(qtbot,monkeypat
     assert messages and 'записи' in messages[0]
 
 
-def test_real_row_pause_resume_cancel_controls(make_window,qtbot):
+@pytest.mark.parametrize('activation_key',[Qt.Key.Key_Return,Qt.Key.Key_Enter])
+def test_real_row_pause_resume_cancel_controls(make_window,qtbot,activation_key):
     from PySide6.QtCore import QPoint
     window,provider=make_window(); identity=add(window,qtbot)
     index=window.queue_view.model().index(0,0)
@@ -272,11 +273,27 @@ def test_real_row_pause_resume_cancel_controls(make_window,qtbot):
     qtbot.mouseClick(window.queue_view.viewport(),Qt.MouseButton.LeftButton,pos=primary)
     qtbot.waitUntil(lambda:window.presenter.executor.is_idle)
     assert window.presenter.repository.get(identity).state==JobState.PAUSED
-    window.queue_view.setCurrentIndex(index); qtbot.keyClick(window.queue_view,Qt.Key.Key_Return)
+    window.queue_view.setCurrentIndex(index)
+    modifier=Qt.KeyboardModifier.KeypadModifier if activation_key==Qt.Key.Key_Enter else Qt.KeyboardModifier.NoModifier
+    qtbot.keyClick(window.queue_view,activation_key,modifier)
     qtbot.waitUntil(lambda:window.presenter.repository.get(identity).state==JobState.DOWNLOADING)
     qtbot.mouseClick(window.queue_view.viewport(),Qt.MouseButton.LeftButton,pos=QPoint(rect.right()-27,rect.top()+41))
     qtbot.waitUntil(lambda:window.presenter.executor.is_idle)
     assert window.presenter.repository.get(identity).state==JobState.CANCELLED
+
+
+def test_held_return_does_not_pause_the_just_started_job(make_window,qtbot):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QApplication
+    window,provider=make_window(); identity=add(window,qtbot)
+    window.queue_view.setCurrentIndex(window.queue_view.model().index(0,0)); activations=[]
+    window.queue_view.activated.connect(lambda index:activations.append(index.row()))
+    qtbot.keyClick(window.queue_view,Qt.Key.Key_Return)
+    qtbot.waitUntil(lambda:window.presenter.repository.get(identity).state==JobState.DOWNLOADING)
+    QApplication.sendEvent(window.queue_view,QKeyEvent(QEvent.Type.KeyPress,Qt.Key.Key_Return,
+                                                     Qt.KeyboardModifier.NoModifier,'',True,2))
+    assert activations==[0] and window.presenter.repository.get(identity).state==JobState.DOWNLOADING
 
 
 def test_navigation_and_auto_start_keep_input_and_snapshot(make_window,qtbot):
