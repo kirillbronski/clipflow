@@ -63,7 +63,9 @@ def test_playlist_number_and_postprocessed_extension(tmp_path):
 
 def test_getcourse_complete_title(tmp_path):
     req = request(tmp_path, url='https://school.getcourse.ru/pl/teach/control/lesson/view?id=123')
-    assert output_path(req, MediaItem('v', 1, 'video', 'Урок 1 — Основы звука', {}), None, None) == tmp_path/'GetCourse/Урок 1 - Основы звука.mp4'
+    path = output_path(req, MediaItem('v', 1, 'video', 'Урок 1 — Основы звука', {}), None, None)
+    assert path.is_relative_to(tmp_path/'GetCourse')
+    assert path.name == 'Урок 1 - Основы звука.mp4'
 
 
 @pytest.mark.parametrize('code', ['../bad', '', 'ABC/xyz', 'CON'])

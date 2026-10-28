@@ -18,6 +18,7 @@ from clipflow.domain.events import FilesSaved, ProgressChanged, StageChanged, Wo
 from clipflow.domain.models import DownloadRequest, JobState, Service
 from clipflow.domain.paths import PostIdentity, UnsafePath, output_path
 from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
+from clipflow.providers.access import open_downloader
 
 
 class _QuietLogger:
@@ -52,7 +53,7 @@ class MediaPipeline:
                 if item.kind == 'photo' and urlsplit(url).scheme not in {'http', 'https'}:
                     raise MediaFailure('invalid_media')
                 context.emit(StageChanged(JobState.DOWNLOADING))
-                with YoutubeDL(self._options(item, request, context, target)) as ydl:
+                with open_downloader(self._options(item, request, context, target)) as ydl:
                     if item.kind == 'photo':
                         self._photo(ydl, url, target, context, item.info.get('http_headers'))
                     else:

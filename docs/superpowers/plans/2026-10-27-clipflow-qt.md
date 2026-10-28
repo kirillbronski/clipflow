@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T5 завершён; пауза перед T6.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T6 завершён; пауза перед T7.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -128,11 +128,13 @@ T5: 27 tests (24 unit + 3 real HTTP/FFmpeg integration), 153 total pytest + full
 
 **Interfaces:** Produces `GetCourseProvider(pipeline)` implementing Provider. ProbeResult содержит стабильные media IDs/названия; для выбора selection_required=True, execute проверяет request.selection против актуальных доступных IDs.
 
-- [ ] Red: `test_direct_player`, `test_lesson_all_items`, `test_selection_required_and_selected_ids`, `test_school_login_error_not_instagram_hint`, `test_source_cookie_export_is_not_overwritten`, `test_metadata_change_rejects_missing_selection`.
-- [ ] `python -m pytest tests/unit/test_getcourse_provider.py -q`: FAIL.
-- [ ] Перенести GetCourse extractor/title parsing и доступ: protected account reference, browser cookies, email/password, Netscape export, no-login. Сетевой доступ к школе идёт через AuthGateway; чтение экспорта не записывает его обратно.
-- [ ] Tests: PASS; скрытые credentials редактируются в диагностике, ошибка одного материала не удаляет остальные.
-- [ ] Commit `feat: preserve GetCourse access and lesson selection`.
+- [x] Red: `test_direct_player`, `test_lesson_all_items`, `test_selection_required_and_selected_ids`, `test_school_login_error_not_instagram_hint`, `test_source_cookie_export_is_not_overwritten`, `test_metadata_change_rejects_missing_selection`.
+- [x] `python -m pytest tests/unit/test_getcourse_provider.py -q`: FAIL.
+- [x] Перенести GetCourse extractor/title parsing и доступ: protected account reference, browser cookies, email/password, Netscape export, no-login. Сетевой доступ к школе идёт через AuthGateway; чтение экспорта не записывает его обратно.
+- [x] Tests: PASS; скрытые credentials редактируются в диагностике, ошибка одного материала не удаляет остальные.
+- [x] Commit `feat: preserve GetCourse access and lesson selection`.
+
+T6: 30 cases in test_getcourse_provider.py (including two actual local HTTP/FFmpeg transfers), 183 total pytest + full scripts/check.py passed on Windows. Scoped subclasses replace legacy global monkey patches. Regional vhcdn/gceuproxy /sign-player routes are supported; lookalikes rejected. Stable IDs come from video_hash/actual player IDs; missing/changed selection is rejected. Multiple chosen IDs become independent lesson child requests with singleton selection. Shared providers/access.py reads Netscape exports into memory without rewriting them, rejects malformed rows before yt-dlp can log raw cookie contents, and accepts ephemeral _cookiejar for the authenticated media transfer. AuthGateway protected storage/browser UI adapters remain T13; live school access remains T16. GetCourse outputs use stable lesson/player subdirectories to prevent same-title collisions; new paths do not move existing files.
 
 ### Task 7: Instagram: отдельный пост, Reel и карусель
 

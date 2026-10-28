@@ -53,7 +53,9 @@ def parse_url(text: str) -> ParsedLink:
                 name = name.lower()
                 return ParsedLink(Service.INSTAGRAM, ContentKind.PROFILE, name, f'https://www.instagram.com/{name}/')
             raise InvalidLink('Expected an Instagram post or profile')
-        if host == 'getcourse.ru' or host.endswith(('.getcourse.ru', '.getcourse.io')):
+        regional_player = (re.fullmatch(r'[a-z0-9-]+\.(?:vhcdn|gceuproxy)\.com', host)
+                           and path.rstrip('/') == '/sign-player' and query.get('json', [''])[0])
+        if regional_player or host == 'getcourse.ru' or host.endswith(('.getcourse.ru', '.getcourse.io')):
             if not path or path == '/':
                 raise InvalidLink('Expected a GetCourse lesson or player')
             parameters = sorted((key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True)

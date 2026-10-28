@@ -9,6 +9,7 @@ from clipflow.domain.models import ContentKind, DownloadRequest, JobState, Playl
 from clipflow.domain.urls import parse_url
 from clipflow.providers.base import DownloadResult, ExecutionContext, MediaFailure, MediaItem, ProbeResult
 from clipflow.providers.media import MediaPipeline, _QuietLogger
+from clipflow.providers.access import open_downloader
 
 
 class YouTubeProvider:
@@ -101,7 +102,7 @@ class YouTubeProvider:
                 options['js_runtimes'] = {'node': {'path': self.pipeline.node}}
             if self.pipeline.ffmpeg:
                 options['ffmpeg_location'] = self.pipeline.ffmpeg
-            with YoutubeDL(options) as ydl:
+            with open_downloader(options) as ydl:
                 info = ydl.extract_info(request.link.canonical_url, download=False)
                 if isinstance(info, dict) and request.link.kind == ContentKind.PLAYLIST:
                     # yt-dlp pages can be lazy and perform requests during iteration.

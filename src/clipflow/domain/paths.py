@@ -2,8 +2,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import hashlib
 import re
 import unicodedata
+from urllib.parse import urlparse
 from typing import TYPE_CHECKING
 
 from clipflow.domain.models import ContentKind, DownloadRequest, Service
@@ -70,6 +72,14 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
     root = request.options.folder
     service = {Service.YOUTUBE: 'YouTube', Service.INSTAGRAM: 'Instagram', Service.GETCOURSE: 'GetCourse'}[request.link.service]
     directory = root/service
+    if request.link.service == Service.GETCOURSE:
+        if request.link.kind == ContentKind.PLAYER:
+            identity = str(item.info.get('getcourse_video_hash') or item.id)
+            label = 'Плеер'
+        else:
+            identity = (urlparse(request.link.canonical_url).hostname or '') + '/' + str(item.info.get('getcourse_lesson_id') or request.link.canonical_id)
+            label = 'Урок'
+        directory /= label + ' - ' + hashlib.sha256(identity.encode('utf-8')).hexdigest()[:12]
     if request.link.service == Service.INSTAGRAM:
         if post is None:
             raise UnsafePath('Post identity is required')
