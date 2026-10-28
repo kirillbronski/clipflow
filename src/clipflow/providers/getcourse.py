@@ -15,7 +15,7 @@ from yt_dlp.utils import ExtractorError, urlencode_postdata
 
 from clipflow.domain.events import RequestsDiscovered, SelectionRequired, StageChanged, WorkCancelled
 from clipflow.domain.models import ContentKind, JobState, Service
-from clipflow.providers.access import open_downloader
+from clipflow.providers.access import open_downloader, SessionAuth
 from clipflow.providers.base import DownloadResult, MediaFailure, MediaItem, ProbeResult
 from clipflow.providers.media import _QuietLogger
 
@@ -146,15 +146,6 @@ class LessonExtractor(GetCourseRuIE):
         return self.playlist_result(entries, identity, title)
 
 
-class _SessionAuth:
-    def __init__(self, options, jar):
-        self.options = {k:v for k,v in options.items() if k not in {'cookiefile','_cookies_source','cookiesfrombrowser','username','password'}}
-        self.jar = jar
-
-    def options_for(self, profile, url):
-        return dict(self.options, _cookiejar=self.jar)
-
-
 class GetCourseProvider:
     def __init__(self, pipeline):
         self.pipeline = pipeline
@@ -257,5 +248,5 @@ class GetCourseProvider:
                 context.cancel.raise_if_cancelled()
                 return DownloadResult((),len(items))
             item = self._resolve(ydl,items[0],context)
-            session_context = replace(context,auth=_SessionAuth(access,ydl.cookiejar))
+            session_context = replace(context,auth=SessionAuth(access,ydl.cookiejar))
             return DownloadResult(self.pipeline.save(item,request,session_context))

@@ -8,6 +8,16 @@ from pathlib import Path
 from yt_dlp import YoutubeDL
 
 
+class SessionAuth:
+    """An in-memory metadata session handed to transfers, never a saved profile."""
+    def __init__(self, options, jar):
+        self.options = {k:v for k,v in options.items() if k not in {'cookiefile','_cookies_source','cookiesfrombrowser','username','password'}}
+        self.jar = jar
+
+    def options_for(self, profile, url):
+        return dict(self.options, _cookiejar=self.jar)
+
+
 def _cookie_text(source):
     # yt-dlp prints malformed Netscape rows directly, bypassing its logger.
     # Validate before giving it a row that could contain account secrets.

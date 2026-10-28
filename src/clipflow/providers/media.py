@@ -95,11 +95,13 @@ class MediaPipeline:
         template = str(target.parent/(target.stem+'.source.')).replace('%', '%%')+'%(ext)s'
         options.update(outtmpl=template, noplaylist=True, windowsfilenames=True,
                        quiet=True, no_warnings=True, logger=_QuietLogger(),
-                       continuedl=True, overwrites=False, retries=3, socket_timeout=30,
+                       continuedl=True, overwrites=False, retries=0 if request.link.service == Service.INSTAGRAM else 3, socket_timeout=30,
                        concurrent_fragment_downloads=1 if request.link.service == Service.INSTAGRAM else 8,
                        progress_hooks=[self._telemetry(context)], postprocessors=[],
                        format='bestaudio/best' if request.options.format == 'mp3' else f'bestvideo{limit}+bestaudio/best{limit}',
                        merge_output_format='mkv')
+        if request.link.service == Service.INSTAGRAM:
+            options.update(extractor_retries=0,fragment_retries=0)
         if self.ffmpeg:
             options['ffmpeg_location'] = self.ffmpeg
         if self.node:

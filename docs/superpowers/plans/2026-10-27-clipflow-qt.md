@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T6 завершён; пауза перед T7.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T7 завершён; пауза перед T8.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -142,13 +142,17 @@ T6: 30 cases in test_getcourse_provider.py (including two actual local HTTP/FFmp
 
 **Interfaces:** Produces `InstagramPostProvider(pipeline)` implementing Provider; наследует проверенное извлечение фото/метаданных из `source/instagram_media.py`, не из App.worker.
 
-- [ ] Red: `test_single_post_does_not_discover_profile`, `test_carousel_img_index_does_not_truncate`, `test_mixed_photo_video_numbering_and_paired_txt_md`, `test_author_and_post_folder_options_independent`, `test_caption_missing_or_disabled`, `test_second_untitled_post_same_author_safe`.
-- [ ] `python -m pytest tests/unit/test_instagram_post.py tests/integration/test_instagram_files.py -q`: FAIL.
-- [ ] Реализовать post/Reel probe/execute с исходным порядком, безопасным author/post ID, парными описаниями и фильтрами. При HTTP/FS failure завершённые элементы сохраняются, failed item имеет отдельную диагностику.
-- [ ] Tests: PASS with actual local image/video downloads; нет лишних TXT для caption=None, нет перезаписи соседнего поста при выключенной папке поста.
-- [ ] Commit `feat: port individual Instagram posts and carousels`.
+- [x] Red: `test_single_post_does_not_discover_profile`, `test_carousel_img_index_does_not_truncate`, `test_mixed_photo_video_numbering_and_paired_txt_md`, `test_author_and_post_folder_options_independent`, `test_caption_missing_or_disabled`, `test_second_untitled_post_same_author_safe`.
+- [x] `python -m pytest tests/unit/test_instagram_post.py tests/integration/test_instagram_files.py -q`: FAIL.
+- [x] Реализовать post/Reel probe/execute с исходным порядком, безопасным author/post ID, парными описаниями и фильтрами. При HTTP/FS failure завершённые элементы сохраняются, failed item имеет отдельную диагностику.
+- [x] Tests: PASS with actual local image/video downloads; нет лишних TXT для caption=None, нет перезаписи соседнего поста при выключенной папке поста.
+- [x] Commit `feat: port individual Instagram posts and carousels`.
+
+T7: 36 cases (20 unit + 16 local HTTP/FFmpeg integration), 219 total pytest + full scripts/check.py passed locally on Windows. Profiles are rejected before networking; img_index is removed by canonical routing. Scoped extractor preserves the photo adaptation; original carousel positions, author/post options, caption pairs and completed-file reuse use T4. First failed item stops the post with InstagramMediaFailure(media_id,index,reason); prior FilesSaved remain, later items are not claimed complete. Shared SessionAuth carries refreshed metadata cookies into transfers without credentials in results/history. No policy in context fails closed before requests; automatic yt-dlp retries are disabled for Instagram. Actual shared HTTP pacing/cooldown/Retry-After remains T8, including the upstream homepage initialization request. Final tests stub that initialization and enforce loopback-only urlopen; the first pre-isolation run accidentally allowed the initialization homepage fetch and is not offline or live-content acceptance evidence.
 
 ### Task 8: Instagram-профили: точный лимит, частичные результаты и отмена
+
+T7 follow-through for the existing shared-policy requirement: also wire providers/instagram_post.py and providers/access.py as needed. The coarse metadata/post acquire calls in T7 are not full HTTP pacing: cover yt-dlp initialization/homepage, API/probes and CDN transfers with the same real policy, propagate Retry-After/RateLimitDeferred, keep implicit library retries disabled, and test every path without making live requests to a blocked account.
 
 **Files:** Create `providers/instagram_profile.py`, `tests/unit/test_profile_discovery.py`, `tests/integration/test_profile_queue.py`.
 
