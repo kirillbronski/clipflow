@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -19,12 +18,6 @@ def auth_root(tmp_path,monkeypatch):
     monkeypatch.setenv('CLIPFLOW_DATA_DIR',str(tmp_path))
 
 
-def legacy(name):
-    path=Path(__file__).resolve().parents[2]/'source'/f'{name}.py'
-    spec=importlib.util.spec_from_file_location('old_'+name,path); module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-    return module
-
-
 def seed(directory,service,protect):
     folder=directory/('YouTubeAuth' if service==Service.YOUTUBE else 'InstagramAuth'); folder.mkdir(parents=True,exist_ok=True)
     cookie=dict(domain='.youtube.com' if service==Service.YOUTUBE else '.instagram.com',path='/',
@@ -34,7 +27,8 @@ def seed(directory,service,protect):
 
 
 def test_old_encrypted_session_readable(tmp_path):
-    old=legacy('platform_support'); gateway=NativeAuthGateway(tmp_path)
+    from tests.fixtures import legacy_profile_codec as old
+    gateway=NativeAuthGateway(tmp_path)
     folder=seed(tmp_path,Service.YOUTUBE,old.protect_profile); original=(folder/'session.dat').read_bytes()
     status=gateway.status(Service.YOUTUBE)
     jar=gateway.options_for(status.profile,'https://youtube.com/watch?v=ABC')['_cookiejar']

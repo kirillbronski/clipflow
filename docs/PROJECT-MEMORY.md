@@ -156,3 +156,13 @@
 ## Следующий шаг
 
 T15 уже начат: завершить exact-SHA check/package workflows и передать владельцу EXE/DMG. Дождаться его результата Launch Services на Mac27.0.1; до этого T15 остаётся pending, T16 не начинать автоматически. Затем исполнять один этап через executing-plans/TDD и журнал `.superpowers/sdd/2026-10-27-clipflow-qt/progress.md` (копия в Agents/ClipFlow/implementation/), обновить память/план/срез и снова остановиться. Не начинать повторный brainstorming и не запрашивать повторное утверждение уже принятой спецификации/плана. Исходная точка исполнения — ce1d84e; подробные rulings и результаты — в журнале.
+
+## 2026-10-29 — scope update: T16 Windows
+
+Owner explicitly authorized finishing all Windows T16 work while no Mac is available.
+Continue in C:/Users/Kirill/PycharmProjects/ClipFlow (reconfirmed after conflicting Drive instructions).
+T16 is in progress: 70 replacement parity cases passed; legacy runtime retirement is underway.
+Mac work must be performed on a Mac: native Cocoa/clipboard/DPI/auth, final macOS packaging,
+Launch Services on macOS 27.0.1, install/upgrade preserving the profile, cleanup of temporary
+registered apps, and final DMG verification. Existing T15 DMG is a candidate, not Mac acceptance.
+Do not mark Mac T15/T16 complete or infer success from Windows/mock tests.

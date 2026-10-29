@@ -1,4 +1,4 @@
-"""Explicit Qt preview bootstrap, isolated from the legacy Tk entry point."""
+"""Single Qt application bootstrap, shared by source and frozen entrypoints."""
 import os
 from pathlib import Path
 import shutil

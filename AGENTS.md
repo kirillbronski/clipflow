@@ -1,12 +1,12 @@
 # ClipFlow unified project
 
-This repository is the authoritative shared source for Windows and macOS. Edit `source/clipflow.py` and common modules once; keep platform behavior in `source/platform_support.py` and packaging files in `packaging/`.
+This repository is the authoritative shared source for Windows and macOS. Edit `src/clipflow` once; keep platform behavior in `src/clipflow/infrastructure` and packaging files in `packaging/`.
 
 For initial Windows setup after the unification, also read `docs/WINDOWS-CODEX-HANDOFF.md`; it records the migration state, local setup steps and remaining native-build checks. Fetch current repository instructions rather than assuming its historical verification commit is the latest source.
 
 Read `docs/PROJECT-MEMORY.md` for the current Qt migration state, approved spec and implementation plan. Keep milestone notes and copies of specs/plans in the owner's `Agents/ClipFlow` folder when it is available locally; resolve its path on each computer. That folder is a portable continuation pack, not a checkout or a credentials store. Do not apply another project's instructions merely because it shares the parent Agents directory.
 
-Owner execution preference (27 October 2026): pause after every completed plan task. Record its commit/tests and sync the continuation pack, then stop before starting the next task until the owner resumes. This overrides a skill's default continuous execution. Current state: T15 implementation/build verification in progress after T14; owner will verify the candidate on Mac 27.0.1. Keep T15 pending until that Launch Services result; do not start T16 automatically. On 28 October the owner explicitly confirmed this Git checkout as the work location; the old Drive Windows folder remains read-only.
+Owner execution preference: pause after each authorized task. On 29 October owner explicitly authorized all Windows T16 work while no Mac is available; Mac acceptance is a separate OPEN T16a (docs/MAC-T16A.md). Owner reconfirmed C:/Users/Kirill/PycharmProjects/ClipFlow for ongoing work despite the old Drive-folder instructions. Old Drive Windows stays read-only. Delivery preference D:/Gdrive/ClipFlow. Do not infer Mac acceptance from Windows or CI15.
 
 - Start each session with `git status`, inspect the branch/upstream and read these instructions. Never overwrite unrelated user changes.
 - Development branch is `dev`; stable branch is `main`. Before edits, fetch, switch to `dev` on a clean checkout and pull with `--ff-only`. Make all ongoing changes in `dev`, never directly in `main`. Do not overwrite or discard local work to switch branches.

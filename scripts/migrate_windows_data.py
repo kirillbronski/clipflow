@@ -38,16 +38,19 @@ def migrate(source, destination):
     return result
 
 
-if __name__ == '__main__':
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True, type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if sys.platform != 'win32':
         parser.error('Run this import on the Windows computer under the original user account.')
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'source'))
-    from platform_support import APP_DATA
+    from clipflow.infrastructure.platform import data_directory
     try:
-        for name, status in migrate(args.source, APP_DATA).items():
+        for name, status in migrate(args.source, data_directory()).items():
             print(f'{name}: {status}')
     except (OSError, ValueError):
         raise SystemExit('Import failed. Check the selected directory, file format and permissions. Originals were preserved.')
+    return 0
+
+
+if __name__=='__main__': raise SystemExit(main())

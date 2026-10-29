@@ -1,0 +1,62 @@
+{
+  "test_clipboard.py": [
+    "tests/platform/test_qt_clipboard.py::test_ctrl_command_v_button_context_menu_all_services",
+    "tests/platform/test_qt_clipboard.py::test_russian_keyboard_edit_shortcuts",
+    "tests/ui/test_submission_dialogs.py::test_input_changed_during_probe_not_cleared"
+  ],
+  "test_data_migration.py": [
+    "tests/unit/test_windows_data_import.py::test_import_preserves_encrypted_bytes_and_existing_files"
+  ],
+  "test_download_status.py": [
+    "tests/unit/test_scheduler.py::test_old_attempt_cannot_fail_new_attempt",
+    "tests/unit/test_scheduler.py::test_download_100_is_not_completed_before_processing",
+    "tests/ui/test_workbench.py::test_progress_burst_throttled_but_critical_title_and_failure_immediate",
+    "tests/ui/test_workbench.py::test_worker_events_update_correct_attempt"
+  ],
+  "test_file_actions.py": [
+    "tests/ui/test_history_actions.py::test_clear_keeps_files",
+    "tests/ui/test_history_actions.py::test_delete_requires_confirmation_and_containment",
+    "tests/ui/test_history_actions.py::test_ui_delete_confirmation_and_list_only_removal"
+  ],
+  "test_instagram_description.py": [
+    "tests/integration/test_instagram_files.py::test_mixed_photo_video_numbering_and_paired_txt_md",
+    "tests/integration/test_instagram_files.py::test_author_and_post_folder_options_independent",
+    "tests/integration/test_instagram_files.py::test_caption_missing_or_disabled",
+    "tests/integration/test_instagram_files.py::test_second_untitled_post_same_author_safe",
+    "tests/integration/test_media_pipeline.py::test_caption_replace_failure_preserves_previous_file",
+    "tests/unit/test_settings_migration.py::test_legacy_settings_migrate_without_touching_sessions"
+  ],
+  "test_instagram_photo_download.py": [
+    "tests/integration/test_media_pipeline.py::test_photo_original_bytes_extension_and_atomic_caption",
+    "tests/integration/test_media_pipeline.py::test_cancel_retains_partial_and_next_run_finishes",
+    "tests/integration/test_media_pipeline.py::test_range_resume_and_full_partial_after_pause"
+  ],
+  "test_instagram_profile.py": [
+    "tests/unit/test_profile_discovery.py::test_latest_10_with_old_pinned_posts",
+    "tests/unit/test_profile_discovery.py::test_latest_50_merges_reels_without_duplicates",
+    "tests/unit/test_profile_discovery.py::test_all_paginates_until_exhausted",
+    "tests/integration/test_profile_queue.py::test_429_second_page_keeps_discovered_jobs_but_not_success",
+    "tests/ui/test_submission_dialogs.py::test_profile_forces_folder_without_overwriting_single_post_preference"
+  ],
+  "test_platform_support.py": [
+    "tests/platform/test_auth_compatibility.py::test_old_encrypted_session_readable",
+    "tests/platform/test_auth_compatibility.py::test_macos_data_and_keychain_namespace_unchanged",
+    "tests/platform/test_qt_clipboard.py::test_native_clipboard_roundtrip"
+  ],
+  "test_services.py": [
+    "tests/unit/test_urls.py::test_invalid_or_lookalike_links_are_rejected",
+    "tests/ui/test_submission_dialogs.py::test_service_drafts_and_options_are_independent",
+    "tests/ui/test_submission_dialogs.py::test_quality_probe_is_async_cached_and_does_not_change_best_default",
+    "tests/ui/test_themes.py::test_translation_catalog_and_language_change_preserve_drafts",
+    "tests/ui/test_themes.py::test_ru_en_880px_no_clipping",
+    "tests/platform/test_auth_compatibility.py::test_youtube_instagram_isolation",
+    "tests/unit/test_instagram_post.py::test_highest_resolution_photo_and_original_extension"
+  ],
+  "test_telemetry_rate.py": [
+    "tests/unit/test_transfer_telemetry.py::test_fragment_burst_measures_speed_and_estimated_100_cannot_bypass_throttle"
+  ],
+  "test_video_formats.py": [
+    "tests/integration/test_media_pipeline.py::test_native_containers_and_repeat_preserves_finished_file",
+    "tests/integration/test_media_pipeline.py::test_compatible_webm_is_remuxed_without_changing_packets"
+  ]
+}

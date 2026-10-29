@@ -116,15 +116,27 @@ class MediaPipeline:
     @staticmethod
     def _telemetry(context):
         last = -float('inf')
+        sample_time=None; sample_bytes=0; observed=0; total=None; stream=None
         def hook(data):
-            nonlocal last
+            nonlocal last,sample_time,sample_bytes,observed,total,stream
             context.cancel.raise_if_cancelled()
             now = time.monotonic()
+            downloaded=data.get('downloaded_bytes')
+            if downloaded is None: downloaded=observed if data.get('status')=='finished' else 0
+            identity=data.get('filename')
+            if sample_time is None or downloaded<observed or (identity is not None and identity!=stream):
+                sample_time=now; sample_bytes=downloaded
+                total=None
+            if identity is not None: stream=identity
+            observed=downloaded
+            total=data.get('total_bytes') or data.get('total_bytes_estimate') or total
             if data.get('status') == 'finished' or now-last >= .5:
                 last = now
-                total = data.get('total_bytes') or data.get('total_bytes_estimate')
-                context.emit(ProgressChanged(data.get('downloaded_bytes') or 0, total,
-                                             data.get('speed'), data.get('eta')))
+                elapsed=now-sample_time
+                speed=max(0,(observed-sample_bytes)/elapsed) if elapsed>0 else None
+                eta=max(0,(total-observed)/speed) if total and speed and total>=observed else None
+                context.emit(ProgressChanged(observed,total,speed,eta))
+                sample_time=now; sample_bytes=observed
             context.cancel.raise_if_cancelled()
         return hook
 

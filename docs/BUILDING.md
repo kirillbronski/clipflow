@@ -1,39 +1,13 @@
-# Сборка установщиков
+# Нативная сборка 2.0
 
-Источник версии один: `source/version.py`. Исходники Windows и macOS общие; сборку выполняют на целевой системе. Сначала настройте окружение из DEVELOPMENT.md и выполните `python scripts/check.py`.
+Версия: `src/clipflow/version.py`. Python3.12, PyInstaller, FFmpeg/FFprobe/Node и лицензии. Сначала `python scripts/check.py`; затем **на целевой ОС** `python scripts/build.py`. Каждый запуск создаёт fresh UUID stage в outputs/2.0.0; установленную папку никогда не накладывать поверх поставки.
 
-## Windows x64
+Windows x64: Inno Setup6 в PATH/стандартной папке или INNO_SETUP_COMPILER. Chocolatey shims не заменяют настоящие FFmpeg/FFprobe. Скрипт ограничивает DLL/PATH окружение и явно передаёт tool paths. Результат: версионные Setup EXE и portable ZIP (распаковать целиком). `--portable-only` пропускает компиляцию установщика. AppId прежний, данные LocalAppData остаются отдельно.
 
-Установите Inno Setup 6. Компилятор ищется в PATH и стандартной папке установки; альтернативный путь задаётся переменной `INNO_SETUP_COMPILER`. FFmpeg и FFprobe должны быть настоящими бинарниками, а не ярлыками или Chocolatey shim-файлами.
+Mac arm64: `python scripts/build.py` на Apple Silicon; FFmpeg/FFprobe/Node в PATH/Homebrew. .app, DMG, APP ZIP, ad-hoc codesign и hdiutil verify. Deployment minimum27; runner15 binary smoke не заменяет запуск из DMG через Launch Services27. Полный [T16a](MAC-T16A.md) остаётся обязательным для Mac выпуска.
 
-Сборка Windows ограничивает PATH каталогами Python, Windows и выбранных бинарников: DLL сторонних инструментов из окружения не должны подменять системные зависимости Qt.
+Упаковка включает QtWebEngine/resources/translations, yt-dlp JS assets, FFmpeg/FFprobe/Node и third-party notices. В поставке не должно быть plaintext project source, tests, caches, logs, пользовательских настроек/сессий или uninstallers исходной установки. Tk больше не нужен: соответствующий runtime retired после parity.
 
-```powershell
-.venv\Scripts\python.exe scripts/build.py
-```
+Smoke выполняет реальный frozen Qt UI/local media и оба protected auth self-tests на synthetic profiles. Windows EXE дополнительно проверить innounp integrity; metadata build-report source_commit/dirty=False, размеры и SHA256SUMS. Dirty-сборки диагностические. CI workflow Build native Qt candidates принимает target all/windows/macos; общий source CI обеих ОС сохраняется.
 
-Результат в `outputs/`: `ClipFlow-Setup-VERSION.exe` и `ClipFlow-VERSION-Windows-x64-portable.zip`. Portable ZIP нужно распаковать целиком. Сохранён прежний AppId установщика, поэтому обновление устанавливается поверх ClipFlow, сохраняя пользовательские профили.
-
-Без Inno Setup можно собрать portable ZIP:
-
-```powershell
-.venv\Scripts\python.exe scripts/build.py --portable-only
-```
-
-В GitHub Actions доступен ручной workflow **Build Windows**: он собирает общий код на Windows и прикрепляет EXE/ZIP как артефакты. Публикация в Releases выполняется отдельно после проверки.
-
-## macOS Apple Silicon
-
-Сборка ожидает FFmpeg, FFprobe и Node в `/opt/homebrew/bin`. Python должен быть arm64 с работающим Tk.
-
-```sh
-.venv/bin/python scripts/build.py
-```
-
-Результат в `outputs/`: `.app`, `ClipFlow-VERSION-macOS-arm64.dmg` и ZIP приложения. Скрипт проверяет подпись, встроенные окна входа и контрольную сумму DMG. Временная копия для DMG удаляется после упаковки. `.app` в outputs — результат сборки; после установки и архивирования её следует убрать, чтобы в Launchpad не появлялись дубликаты.
-
-Минимальная система текущей сборки — macOS 27. Для более ранней системы нужна отдельная проверка Python и всех включённых бинарников; одного изменения Info.plist недостаточно. Подпись ad-hoc не заменяет Developer ID и notarization.
-
-## Публикация
-
-Сначала проверки и сборки, затем Git-тег версии и GitHub Release. В Assets помещаются EXE, DMG и при необходимости portable ZIP. Установщики, `.venv`, профили входа и временные результаты в Git не добавляются.
+Выдача владельцу: D:/Gdrive/ClipFlow, EXE/portable ZIP, SHA256SUMS и verification report. Предыдущие проверенные кандидаты сохранять отдельно, не перезаписывать неизвестный файл. Mac DMG до T16a обозначать T15 candidate. GitHub Release и установка приложения — отдельные действия, не следствие появления файла в Drive.
