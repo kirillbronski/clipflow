@@ -1,5 +1,6 @@
 """Preferences use the same validated owner-thread commands as the main menus."""
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QFormLayout,QComboBox,QLabel
+from clipflow.version import APP_VERSION
 
 
 class SettingsPage(QWidget):
@@ -11,7 +12,7 @@ class SettingsPage(QWidget):
         for name,code in [('Русский','ru'),('English','en')]: self.language_box.addItem(name,code)
         form.addRow(self.tr.widget(QLabel,'theme'),self.theme_box); form.addRow(self.tr.widget(QLabel,'language'),self.language_box)
         layout.addLayout(form); layout.addSpacing(24); layout.addWidget(self.tr.widget(QLabel,'about'))
-        self.about_label=QLabel('ClipFlow 2.0 · Preview'); layout.addWidget(self.about_label)
+        self.about_label=QLabel(f'ClipFlow {APP_VERSION} · Preview'); layout.addWidget(self.about_label)
         note=self.tr.widget(QLabel,'about_description'); note.setWordWrap(True); layout.addWidget(note); layout.addStretch()
         self.theme_box.currentIndexChanged.connect(lambda:self._save('theme',self.theme_box.currentData()))
         self.language_box.currentIndexChanged.connect(lambda:self._save('language',self.language_box.currentData()))

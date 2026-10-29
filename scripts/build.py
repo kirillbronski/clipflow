@@ -1,112 +1,113 @@
-"""Build native installers from the single shared ClipFlow source tree."""
+"""Native Qt candidates; fresh stages, bundled-tool smoke, source provenance."""
 from pathlib import Path
 import argparse
+from datetime import datetime,timezone
+import hashlib
+import json
 import os
 import platform
-import runpy
 import shutil
 import subprocess
 import sys
+from urllib.request import urlopen
+from uuid import uuid4
 
-ROOT = Path(__file__).resolve().parents[1]
-VERSION = runpy.run_path(str(ROOT / 'source/version.py'))['APP_VERSION']
+ROOT=Path(__file__).resolve().parents[1]
+from package_config import APP_VERSION,spec_inputs,resolve_tool,windows_build_environment
 
-def run(*args, **kwargs):
-    subprocess.run([str(arg) for arg in args], cwd=ROOT, check=True, **kwargs)
 
-def check_auth(executable):
-    for flag, service in [('--auth-self-test', 'youtube'), ('--instagram-auth-self-test', 'instagram')]:
-        directory = ROOT / 'work' / 'build-verification' / service
-        env = dict(os.environ, CLIPFLOW_DATA_DIR=str(directory))
-        run(executable, flag, directory, env=env, timeout=90)
+def run(*args,**kwargs):
+    return subprocess.run([str(v) for v in args],cwd=ROOT,check=True,**kwargs)
 
-def macos():
-    if platform.machine() != 'arm64':
-        raise SystemExit('The current macOS release targets Apple Silicon (arm64).')
-    run(sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--distpath', ROOT/'outputs',
-        '--workpath', ROOT/'work/build', ROOT/'packaging/macos/ClipFlow.spec')
-    app = ROOT/'outputs/ClipFlow.app'
-    run('codesign', '--verify', '--deep', '--strict', app)
-    check_auth(app/'Contents/MacOS/ClipFlow')
-    # App copies only exist while staging the DMG, keeping Launchpad clean.
-    stage = ROOT/'work/dmg'
-    if stage.exists():
-        shutil.rmtree(stage)
-    stage.mkdir(parents=True)
-    try:
-        run('ditto', app, stage/'ClipFlow.app')
-        (stage/'Applications').symlink_to('/Applications')
-        shutil.copy2(ROOT/'INSTALL.txt', stage)
-        image = ROOT/'outputs'/f'ClipFlow-{VERSION}-macOS-arm64.dmg'
-        run('hdiutil', 'create', '-volname', f'ClipFlow {VERSION}', '-srcfolder', stage, '-ov', '-format', 'UDZO', image)
-        run('hdiutil', 'verify', image)
-        run('ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', app,
-            ROOT/'outputs'/f'ClipFlow-{VERSION}-macOS-app.zip')
-    finally:
-        ls = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
-        subprocess.run([ls, '-u', str(stage/'ClipFlow.app')], capture_output=True)
-        shutil.rmtree(stage)
-    print('Release ready:', image)
 
-def windows(portable_only=False):
-    from importlib.util import find_spec
-    if find_spec('PyInstaller') is None:
-        raise SystemExit('Install requirements.txt into this Python environment first.')
-    sys.path.insert(0, str(ROOT/'source'))
-    from platform_support import binary_path
-    args = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--windowed', '--onedir',
-            '--name', 'ClipFlow', '--icon', str(ROOT/'assets/icons/clipflow.ico'),
-            '--distpath', str(ROOT/'outputs'), '--workpath', str(ROOT/'work/build'),
-            '--specpath', str(ROOT/'work'), '--paths', str(ROOT/'source'),
-            '--paths', str(ROOT/'source/_internal')]
-    for name in ['clipflow.png', 'clipflow-getcourse.png', 'clipflow-instagram.png']:
-        args += ['--add-data', str(ROOT/'source'/name)+os.pathsep+'.']
-    args += ['--add-data', str(ROOT/'assets/licenses/Instaloader-LICENSE.txt')+os.pathsep+'licenses']
-    for package in ['yt_dlp', 'yt_dlp_ejs']:
-        args += ['--collect-submodules', package, '--collect-data', package]
-    args += ['--collect-data', 'customtkinter', '--hidden-import', 'PySide6.QtWebEngineCore',
-             '--hidden-import', 'PySide6.QtWebEngineWidgets']
-    binary_directories = []
-    for name in ['ffmpeg','ffprobe','node']:
-        binary = binary_path(name)
-        if not binary:
-            raise SystemExit(f'{name} missing. Add it to PATH or set CLIPFLOW_BIN_DIR.')
-        args += ['--add-binary', binary+os.pathsep+'bin']
-        binary_directories.append(str(Path(binary).parent))
-    args += [str(ROOT/'source/clipflow.py')]
-    # PyInstaller builds into a new directory; existing installers remain untouched.
-    distribution = ROOT/'outputs/ClipFlow'
-    if distribution.exists():
-        shutil.rmtree(distribution)
-    # Unrelated tools on the caller's PATH can supply incompatible DLLs (for
-    # example Poppler's ICU instead of Windows ICU required by QtCore).
-    windows_dir = Path(os.environ['SystemRoot'])
-    build_path = [Path(sys.executable).parent, Path(sys.base_prefix),
-                  Path(sys.base_prefix)/'DLLs', windows_dir/'System32', windows_dir,
-                  *binary_directories]
-    build_env = dict(os.environ, PATH=os.pathsep.join(dict.fromkeys(map(str, build_path))))
-    run(*args, env=build_env)
-    check_auth(distribution/'ClipFlow.exe')
-    archive = shutil.make_archive(str(ROOT/'outputs'/f'ClipFlow-{VERSION}-Windows-x64-portable'), 'zip',
-                                  ROOT/'outputs', 'ClipFlow')
-    if not portable_only:
-        compiler = os.environ.get('INNO_SETUP_COMPILER') or shutil.which('ISCC')
-        if not compiler:
-            candidates = [Path(os.environ.get(key,''))/'Inno Setup 6/ISCC.exe' for key in ['ProgramFiles(x86)','ProgramFiles']]
-            compiler = next((str(p) for p in candidates if p.is_file()), None)
-        if not compiler:
-            raise SystemExit('Portable ZIP built. Install Inno Setup 6 for the installer, or use --portable-only.')
-        run(compiler, '/DAppVersion='+VERSION, ROOT/'packaging/windows/setup.iss')
-    print('Portable release ready:', archive)
+def prepare():
+    directory=ROOT/'work/package-licenses'; directory.mkdir(parents=True,exist_ok=True)
+    node=run(resolve_tool('node'),'--version',capture_output=True,text=True).stdout.strip()
+    if not node.startswith('v') or not all(c.isdigit() or c in '.v' for c in node): raise RuntimeError('Invalid Node version')
+    license=directory/f'Node-{node}-LICENSE.txt'
+    if not license.exists():
+        with urlopen(f'https://raw.githubusercontent.com/nodejs/node/{node}/LICENSE',timeout=30) as response:
+            license.write_bytes(response.read())
+    digest=hashlib.sha256()
+    paths=list((ROOT/'src/clipflow').rglob('*.py'))+list((ROOT/'scripts').glob('*.py'))+list((ROOT/'packaging').rglob('*'))
+    for path in sorted(p for p in paths if p.is_file() and '__pycache__' not in p.parts):
+        digest.update(str(path.relative_to(ROOT)).replace('\\','/').encode()); digest.update(path.read_bytes())
+    info={'version':APP_VERSION,'source_commit':run('git','rev-parse','HEAD',capture_output=True,text=True).stdout.strip(),
+          'dirty':bool(run('git','status','--porcelain',capture_output=True,text=True).stdout.strip()),
+          'source_fingerprint':digest.hexdigest(),'os':platform.platform(),'cpu':platform.machine(),
+          'built_at_utc':datetime.now(timezone.utc).isoformat(),'channel':'candidate'}
+    (ROOT/'work/package-build-info.json').write_text(json.dumps(info,indent=2)+'\n',encoding='utf-8')
+    numbers=tuple(map(int,APP_VERSION.split('.')))+(0,)
+    version=f'''VSVersionInfo(ffi=FixedFileInfo(filevers={numbers!r},prodvers={numbers!r},
+mask=0x3f,flags=0x0,OS=0x40004,fileType=0x1,subtype=0x0,date=(0,0)),kids=[
+StringFileInfo([StringTable('040904B0',[
+StringStruct('FileVersion',{APP_VERSION!r}),StringStruct('ProductVersion',{APP_VERSION!r}),
+StringStruct('ProductName','ClipFlow'),StringStruct('FileDescription','ClipFlow'),
+StringStruct('OriginalFilename','ClipFlow.exe')])]),VarFileInfo([VarStruct('Translation',[1033,1200])])])'''
+    (ROOT/'work/windows-version.txt').write_text(version,encoding='utf-8')
+    return info
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--portable-only', action='store_true', help='Windows: skip Inno Setup installer')
-    options = parser.parse_args()
-    (ROOT/'outputs').mkdir(exist_ok=True)
-    if sys.platform == 'darwin':
-        macos()
-    elif sys.platform == 'win32':
-        windows(options.portable_only)
+
+def installer_compiler():
+    candidates=[os.environ.get('INNO_SETUP_COMPILER'),shutil.which('ISCC')]
+    candidates += [str(Path(os.environ.get(key,''))/'Inno Setup 6/ISCC.exe') for key in ('ProgramFiles(x86)','ProgramFiles')]
+    result=next((p for p in candidates if p and Path(p).is_file()),None)
+    if result is None: raise RuntimeError('Set INNO_SETUP_COMPILER or install Inno Setup 6; --portable-only skips installer')
+    return result
+
+
+def main(argv=None):
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--portable-only',action='store_true'); parser.add_argument('--skip-smoke',action='store_true')
+    args=parser.parse_args(argv)
+    system='windows' if sys.platform=='win32' else 'macos' if sys.platform=='darwin' else None
+    if system is None: parser.error('Build on native Windows or macOS')
+    if system=='macos' and platform.machine()!='arm64': parser.error('macOS release targets Apple Silicon arm64')
+    info=prepare(); label=system+'-'+uuid4().hex[:10]
+    output=ROOT/'outputs'/APP_VERSION/label; output.mkdir(parents=True,exist_ok=False)
+    stage=ROOT/'work/native-build'/label; stage.mkdir(parents=True,exist_ok=False)
+    env=dict(os.environ)
+    env.update({'CLIPFLOW_'+name.upper()+'_PATH':str(resolve_tool(name)) for name in ('ffmpeg','ffprobe','node')})
+    if system=='windows': env=windows_build_environment(env,Path(sys.executable),Path(sys.base_prefix))
+    run(sys.executable,'-m','PyInstaller','--noconfirm','--clean','--distpath',output,
+        '--workpath',stage,ROOT/f'packaging/{system}/ClipFlow.spec',env=env)
+    app=output/('ClipFlow' if system=='windows' else 'ClipFlow.app')
+    executable=app/('ClipFlow.exe' if system=='windows' else 'Contents/MacOS/ClipFlow')
+    if system=='macos': run('codesign','--verify','--deep','--strict',app)
+    if not args.skip_smoke:
+        smoke=ROOT/'work/package-smoke'/label
+        run(sys.executable,ROOT/'scripts/package_smoke.py','--executable',executable,'--data-dir',smoke,timeout=240)
+        shutil.copy2(smoke/'package-report.json',output/'package-report.json')
+    artifacts=[]
+    if system=='windows':
+        archive=shutil.make_archive(str(output/f'ClipFlow-{APP_VERSION}-Windows-x64-portable'),'zip',output,'ClipFlow')
+        artifacts.append(Path(archive))
+        if not args.portable_only:
+            run(installer_compiler(),'/DAppVersion='+APP_VERSION,'/DDistributionRoot='+str(app),
+                '/DOutputRoot='+str(output),ROOT/'packaging/windows/setup.iss')
+            artifacts.append(output/f'ClipFlow-Setup-{APP_VERSION}.exe')
     else:
-        parser.error('Native builds require Windows or macOS.')
+        dmg_stage=stage/'dmg'; dmg_stage.mkdir()
+        run('ditto',app,dmg_stage/'ClipFlow.app'); (dmg_stage/'Applications').symlink_to('/Applications')
+        shutil.copy2(ROOT/'INSTALL.txt',dmg_stage)
+        image=output/f'ClipFlow-{APP_VERSION}-macOS-arm64.dmg'
+        try:
+            run('hdiutil','create','-volname',f'ClipFlow {APP_VERSION}','-srcfolder',dmg_stage,'-ov','-format','UDZO',image)
+            run('hdiutil','verify',image)
+            archive=output/f'ClipFlow-{APP_VERSION}-macOS-app.zip'
+            run('ditto','-c','-k','--sequesterRsrc','--keepParent',app,archive)
+            artifacts += [image,archive]
+        finally:
+            ls='/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+            subprocess.run([ls,'-u',str(dmg_stage/'ClipFlow.app')],capture_output=True)
+            shutil.rmtree(dmg_stage)
+    info['artifacts']=[{'name':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'bytes':path.stat().st_size} for path in artifacts]
+    info['package_smoke']=not args.skip_smoke
+    info['launch_services_mac27_verified']=False
+    (output/'build-report.json').write_text(json.dumps(info,indent=2)+'\n',encoding='utf-8')
+    (output/'SHA256SUMS.txt').write_text(''.join(a['sha256']+'  '+a['name']+'\n' for a in info['artifacts']),encoding='utf-8')
+    print('Native candidate ready:',output)
+    return 0
+
+
+if __name__=='__main__': raise SystemExit(main())

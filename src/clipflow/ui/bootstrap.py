@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 import shutil
 import sys
+from dataclasses import replace
+from clipflow.version import APP_VERSION
 
 from PySide6.QtWidgets import QApplication,QMessageBox
 
@@ -35,11 +37,22 @@ def _binary(name):
     return shutil.which(executable)
 
 
+def installer_language(directory):
+    if not getattr(sys,'frozen',False) or any((Path(directory)/name).exists() for name in ('settings-v2.json','settings.json')):
+        return None
+    try: value=(Path(sys.executable).parent/'language.txt').read_text(encoding='utf-8-sig').strip()
+    except (OSError,UnicodeError): return None
+    return value.split(':')[1] if value in {APP_VERSION+':ru',APP_VERSION+':en'} else None
+
+
 def create_application(argv:list[str],data_dir:Path|None=None):
     app=QApplication.instance() or QApplication(argv)
     app.setApplicationName('ClipFlow')
     directory=Path(data_dir) if data_dir is not None else data_directory()
+    language=installer_language(directory)
     settings_store=SettingsStore(directory); settings=settings_store.load()
+    if language is not None:
+        settings=replace(settings,language=language); settings_store.save(settings)
     app.setProperty('clipflowLanguage',settings.language); app.setProperty('clipflowTheme',settings.theme)
     repository=SqliteJobRepository(directory/'queue.sqlite3')
     try:
@@ -71,6 +84,9 @@ def main(argv=None):
     if any(flag in arguments for flag in FLAGS):
         from clipflow.infrastructure.auth_process.__main__ import main as auth_main
         return auth_main(arguments[1:])
+    if '--ui-self-test' in arguments:
+        from clipflow.ui.self_test import main as self_test
+        return self_test(arguments[1:])
     try: app,window=create_application(arguments)
     except (RepositoryError,SettingsError) as error:
         app=QApplication.instance()

@@ -27,7 +27,7 @@ jobs:
       - name: Install FFmpeg on macOS
         if: runner.os == 'macOS'
         run: brew install ffmpeg
-      - run: python scripts/check.py
+      - run: python scripts/check.py --qt
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Native Qt clipboard DPI history and shutdown on Windows
@@ -54,3 +54,10 @@ jobs:
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_AUTH_NATIVE: '1'
+      - name: Coverage proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Coverage-${{ matrix.os }}
+          path: work/verification/*.json
+          retention-days: 14

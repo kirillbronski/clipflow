@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 import shutil
 import sys
+import platform as runtime_platform
+import traceback
 
 from clipflow.domain.models import Service
 from clipflow.infrastructure.platform import PlatformServices,data_directory
@@ -20,6 +22,7 @@ def main(argv=None):
     parser.add_argument('--auth-self-test',nargs='?',const=''); parser.add_argument('--instagram-auth-self-test',nargs='?',const='')
     parser.add_argument('--language',choices=('ru','en'),default='ru'); parser.add_argument('--data-dir')
     parser.add_argument('--instance-id')
+    parser.add_argument('--report')
     args=parser.parse_args(sys.argv[1:] if argv is None else argv)
     if args.instance_id is not None and not re.fullmatch(r'[0-9a-f]{32}',args.instance_id):
         print('FAIL invalid_instance_id'); return 2
@@ -37,6 +40,8 @@ def main(argv=None):
             print('FAIL invalid_self_test_directory'); return 2
         if directory.exists() and any(directory.iterdir()):
             print('FAIL self_test_profile_not_empty'); return 2
+    if args.report and (not testing or not Path(args.report).resolve().is_relative_to(root)):
+        return 2
     directory.mkdir(parents=True,exist_ok=True)
     from PySide6.QtCore import QLockFile,Qt,QCoreApplication,QTimer
     from PySide6.QtWidgets import QApplication
@@ -88,8 +93,19 @@ def main(argv=None):
                     assert not window.windowIcon().isNull() and window.windowIcon().cacheKey()==original_icon
                     assert 'tkinter' not in sys.modules
                     window.session.snapshot.unlink(missing_ok=True); window.cookies.clear(); window.save_timer.stop()
+                    if args.report:
+                        from clipflow.version import APP_VERSION
+                        Path(args.report).write_text(json.dumps({'passed':True,'service':service.value,
+                            'version':APP_VERSION,'frozen':bool(getattr(sys,'frozen',False)),
+                            'rendered':True,'protected_snapshot':True,'os':runtime_platform.platform(),
+                            'cpu':runtime_platform.machine()}),encoding='utf-8')
                     print('PASS isolated WebEngine render, modes, protected compatible snapshot, domain scope, no Tk; theme='+theme.mode); app.exit(0)
-                except Exception: print('FAIL auth_self_test'); app.exit(1)
+                except Exception as error:
+                    if args.report:
+                        frame=traceback.extract_tb(error.__traceback__)[-1]
+                        Path(args.report).write_text(json.dumps({'passed':False,
+                            'error_type':type(error).__name__,'function':frame.name,'line':frame.lineno}),encoding='utf-8')
+                    print('FAIL auth_self_test'); app.exit(1)
             QTimer.singleShot(350,lambda:window.view.page().runJavaScript('navigator.userAgent',check))
         window.mode.setCurrentIndex(1)
         window.view.loadFinished.connect(loaded); window.view.setHtml('<html><body>ClipFlow local self-test</body></html>')

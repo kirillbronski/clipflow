@@ -261,11 +261,13 @@ T10 CI correction: initial 9540e90 passed Windows but macOS failed Return activa
 
 **Interfaces:** Produces CLI `python scripts/check.py --qt` (new unit/integration/Qt suite), `python scripts/check_coverage.py` (threshold gate), `python scripts/build.py` (native release), `python scripts/package_smoke.py --executable PATH --data-dir TEMP` (real package/self-test/auth/embedded tools/resources). Qt bootstrap supports `--ui-self-test` in a built binary.
 
-- [ ] Red: `test_both_specs_use_same_qt_entry_version_and_resources`, `test_no_tk_or_legacy_app_in_release`, `test_coverage_threshold_gate_fails_below_each_limit`, `test_windows_build_path_excludes_foreign_dlls`, `test_auth_flags_work_when_frozen`.
-- [ ] Run these tests: FAIL against old specs; сначала зафиксировать падение новых тестов, не собирать старый продукт под новым номером.
-- [ ] Перенести единственный version source в `src/clipflow/version.py`; build entry — новый `__main__.py`, данные/Qt plugins/auth resources/FFmpeg/Node/licenses включены. Сохранить Windows AppId и macOS bundle ID, исправление из 1.8.7 по DLL PATH сохранить. Native workflow matrix — Windows/macOS; test matrix продолжает работать на каждую PR/push, package workflow — manual/release candidate.
+- [x] Red: `test_both_specs_use_same_qt_entry_version_and_resources`, `test_no_tk_or_legacy_app_in_release`, `test_coverage_threshold_gate_fails_below_each_limit`, `test_windows_build_path_excludes_foreign_dlls`, `test_auth_flags_work_when_frozen`.
+- [x] Run these tests: FAIL against old specs; сначала зафиксировать падение новых тестов, не собирать старый продукт под новым номером.
+- [x] Перенести единственный version source в `src/clipflow/version.py`; build entry — новый `__main__.py`, данные/Qt plugins/auth resources/FFmpeg/Node/licenses включены. Сохранить Windows AppId и macOS bundle ID, исправление из 1.8.7 по DLL PATH сохранить. Native workflow matrix — Windows/macOS; test matrix продолжает работать на каждую PR/push, package workflow — manual/release candidate.
 - [ ] `python scripts/check.py --qt`, `python scripts/check_coverage.py`: PASS с coverage JSON по каждому порогу. После `.venv`-free запуска собранного приложения package smoke: PASS. macOS runner, который старше minimum 27, может собирать/проверять Python, но не доказывает поддержку запуска App через Launch Services: этот шаг обязателен на имеющемся Mac 27.0.1 либо совместимом runner. Windows GUI smoke — в native session. Точный OS/CPU записать в отчёт.
-- [ ] Commit `build: verify Qt coverage and native Windows macOS packages`.
+- [x] Commit `build: verify Qt coverage and native Windows macOS packages`.
+
+> T15 implementation/local validation: common Qt specs/version2.0.0, strict explicit runtime coverage gates, fenced frozen self-tests, Windows DLL-safe build, installer provenance. Local411passed/6skips; core97.24% lines/91.60%branches; runtime87.55%lines. Windows native frozen UI/local HTTP/FFmpeg/both WebEngine self-tests and installer CRC verified on diagnostic build. Exact-SHA candidate/check workflow results are recorded in the ledger/continuation pack. Owner will personally verify Launch Services on Mac27.0.1: this remaining acceptance is NOT PASSED, so T15 is not complete and T16 has not started.
 
 ### Task 16: Паритет, удаление legacy, документация и выпуск
 

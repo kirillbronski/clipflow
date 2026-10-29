@@ -17,6 +17,7 @@ from clipflow.ui.themes import ThemeManager,icon
 from clipflow.ui.input import InputActions
 from clipflow.ui.accounts import AccountsPage
 from clipflow.ui.settings_page import SettingsPage
+from clipflow.version import APP_VERSION
 
 
 
@@ -35,7 +36,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.presenter=presenter; presenter.setParent(self)
         self._closing_requested=False; self._ui_disposed=False; self._dialogs=[]; self._service=Service.YOUTUBE
-        self.setWindowTitle('ClipFlow · Qt preview'); self.setMinimumSize(880,680); self.resize(1180,800)
+        self.setWindowTitle(f'ClipFlow {APP_VERSION} · Qt preview'); self.setMinimumSize(880,680); self.resize(1180,800)
         self.tr=Translator(presenter.settings.language,self); self.tr.install_qt()
         self.theme=ThemeManager(QApplication.instance(),presenter.settings,self)
         self._nav_key='all_downloads'; self._error_code=None; self._section='downloads'

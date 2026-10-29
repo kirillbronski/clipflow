@@ -1,32 +1,62 @@
-name: Build Windows
+name: Build native Qt candidates
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
+  package:
+    name: Package · ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: pip
       - run: python -m pip install -r requirements-dev.txt
-      - name: Install FFmpeg and Inno Setup
+      - name: Install Windows tools
+        if: runner.os == 'Windows'
         run: choco install ffmpeg innosetup --yes --no-progress
-      - name: Use actual FFmpeg binaries instead of Chocolatey shims
+      - name: Resolve actual FFmpeg executables
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $binary = Get-ChildItem C:\ProgramData\chocolatey\lib\ffmpeg -Filter ffmpeg.exe -Recurse | Select-Object -First 1
-          if (!$binary) { throw 'FFmpeg binary not found' }
+          if (!$binary) { throw 'Actual FFmpeg binary not found' }
           "CLIPFLOW_BIN_DIR=$($binary.DirectoryName)" >> $env:GITHUB_ENV
-      - run: python scripts/check.py
-      - run: python scripts/build.py
-      - uses: actions/upload-artifact@v4
+      - name: Install macOS tools
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Qt regression and coverage gates
+        run: python scripts/check.py --qt
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: Build and smoke native package
+        run: python scripts/build.py
+      - name: Candidate artifacts and native proof
+        uses: actions/upload-artifact@v4
         with:
-          name: ClipFlow-Windows
+          name: ClipFlow-${{ matrix.os }}
           path: |
-            outputs/ClipFlow-Setup-*.exe
-            outputs/ClipFlow-*-Windows-x64-portable.zip
+            outputs/**/ClipFlow-Setup-*.exe
+            outputs/**/ClipFlow-*-Windows-x64-portable.zip
+            outputs/**/ClipFlow-*-macOS-arm64.dmg
+            outputs/**/ClipFlow-*-macOS-app.zip
+            outputs/**/package-report.json
+            outputs/**/build-report.json
+            outputs/**/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Coverage proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Coverage-package-${{ matrix.os }}
+          path: work/verification/*.json
           retention-days: 14

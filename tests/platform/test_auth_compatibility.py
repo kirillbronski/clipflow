@@ -223,11 +223,16 @@ def test_auth_self_tests_native(tmp_path,flag):
     from clipflow.infrastructure.settings import SettingsStore,AppSettings
     SettingsStore(tmp_path).save(AppSettings(theme='light'))
     destination=tmp_path/('instagram' if 'instagram' in flag else 'youtube')
-    result=subprocess.run([sys.executable,'run.py',flag,str(destination),'--data-dir',str(tmp_path)],capture_output=True,text=True,timeout=45)
+    report=tmp_path/'auth-proof.json'
+    result=subprocess.run([sys.executable,'run.py',flag,str(destination),'--data-dir',str(tmp_path),
+                           '--report',str(report)],capture_output=True,text=True,timeout=45)
     assert result.returncode==0,result.stdout+result.stderr
     assert 'PASS isolated WebEngine render' in result.stdout
     assert 'theme=light' in result.stdout
     assert not (destination/'session.dat').exists()
+    import json
+    proof=json.loads(report.read_text(encoding='utf-8'))
+    assert proof['passed'] and proof['rendered'] and proof['protected_snapshot'] and proof['os'] and proof['cpu']
 
 
 @pytest.mark.native_gui
