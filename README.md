@@ -16,10 +16,16 @@
 
 ## Интерфейс
 
-Реальные Qt Widgets captures на Windows с изолированными демонстрационными записями (не HTML-макет и не доказательство сетевой загрузки):
+Актуальная компоновка по утверждённому макету. Ниже — настоящие Qt Widgets
+снимки на Mac с изолированными демонстрационными заданиями; они показывают
+интерфейс, а не подтверждают сетевую загрузку этих материалов.
 
-![ClipFlow Qt — тёмная тема Windows](docs/screenshots/qt-windows-dark.png)
-![ClipFlow Qt — светлая тема Windows](docs/screenshots/qt-windows-light.png)
+![ClipFlow Qt — светлая тема Mac](docs/screenshots/qt-macos-light-design-parity.png)
+![ClipFlow Qt — тёмная тема Mac](docs/screenshots/qt-macos-dark-design-parity.png)
+
+Акценты площадок: YouTube — красный, Instagram — розовый/фиолетовый,
+GetCourse — зелёный. Состояния очереди фильтруются отдельными вкладками;
+папка и автозапуск доступны в раскрывающихся параметрах.
 
 ## Установка и запуск
 

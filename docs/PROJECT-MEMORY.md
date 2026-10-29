@@ -2,6 +2,54 @@
 
 Обновлено 29 октября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Актуальное уточнение — 29 октября: восстановление дизайна
+
+Получен dev `bd2e049` с Windows-частью T16. Предыдущая память этого чата про T11
+устарела. T1–T14 реализованы, T15-кандидаты собраны на другом ПК; Windows T16
+имеет parity/live результаты, но независимый review/итоговый пакет по последнему
+срезу ещё не завершены. Mac T16a остаётся открытым: `docs/MAC-T16A.md`.
+
+Владелец попросил продолжить и вернуть внешний вид к скриншоту первоначального
+утверждённого макета, затем уточнил: отдельные акценты близки к фирменным цветам
+площадок (YouTube red, Instagram pink/purple, GetCourse green). Завершена отдельная
+одна задача visual parity: [план](superpowers/plans/2026-10-29-clipflow-design-parity.md).
+Рабочее место сейчас Mac checkout; Windows-пути из предыдущего среза не являются
+указанием работать на Mac вне актуального Git checkout.
+
+Изменения: светлый белый canvas/мягкая панель и соответствующая dark theme,
+компактная форма с режимами справа, встроенная кнопка вставки, пояснение, summary
+и disclosure; папка/автозапуск в раскрытии; группировка/живые счётчики sidebar,
+аккаунты/настройки снизу; настоящие All/Active/Done/Error фильтры; painted строки
+с неброскими действиями и прогрессом цвета сервиса. Нет подставных авторов,
+миниатюр или статусов в runtime; screenshots используют только isolated QA jobs.
+Сетевой/SQLite/auth/media код не перерабатывался.
+
+На стартовом bd2e049 полный Cocoa check на этом Mac выявил 7 Instagram cases,
+которые упирались в portable path limit из-за длинного per-test tmp root, и timeout
+активации GUI в test_batch_shortcut_ctrl_command_n. Transfer fixture получила
+короткий уникальный tmp root (production path protections сохранены); offline
+suite запускается явно offscreen, native Cocoa clipboard/DPI отдельно. Нельзя
+утверждать исправление активации приложения по offscreen результату.
+
+Результат Mac27.0.1 arm64/Python3.12.15: 428 passed/6 explicit skips в полном
+`QT_QPA_PLATFORM=offscreen python scripts/check.py`; core97.24% строк/91.60% ветвей,
+runtime87.70% строк. Новых design cases10; mutation с общим accent вместо цвета
+сервиса даёт3 FAIL, исходник восстановлен и полный suite снова GREEN. Отдельный
+Cocoa input/DPI suite8 PASS/1 deselected: paste shortcut/button/context во всех
+трёх сервисах, русские edit shortcuts, native clipboard с восстановлением,
+масштабы100/150/200%. Cmd+N foreground activation всё ещё не принят на этом Mac.
+Снимки реального Qt (isolated illustrative jobs) в docs/screenshots; README
+обновлён, фото/авторы/состояния не подделываются в runtime. Windows exact-SHA
+CI результата пока нет; локальная Windows QA этой правки не выполнялась.
+
+Задача visual parity завершена; сохранить commit/результаты/Agents snapshot и пауза. Mac
+Keychain/WebEngine/live/package/Finder/Launch Services/install часть T16a этим
+изменением не закрывается. Установленное приложение/профиль не менялись; main
+не мержить до общих exact-SHA и нативных gate результатов.
+
+Записи отдельных T1–T15 ниже содержат исторические результаты соответствующих
+этапов; при расхождении приоритет у этого раздела и последнего Agents snapshot.
+
 ## Что утверждено
 
 Владелец утвердил переход на PySide6/Qt, направление интерактивного макета и письменную спецификацию. Разрешены планирование и последующая реализация. Одна кодовая база Windows/macOS, обязательная тёмная тема и проверенные сценарии — ключевые требования.
@@ -155,7 +203,10 @@
 
 ## Следующий шаг
 
-T15 уже начат: завершить exact-SHA check/package workflows и передать владельцу EXE/DMG. Дождаться его результата Launch Services на Mac27.0.1; до этого T15 остаётся pending, T16 не начинать автоматически. Затем исполнять один этап через executing-plans/TDD и журнал `.superpowers/sdd/2026-10-27-clipflow-qt/progress.md` (копия в Agents/ClipFlow/implementation/), обновить память/план/срез и снова остановиться. Не начинать повторный brainstorming и не запрашивать повторное утверждение уже принятой спецификации/плана. Исходная точка исполнения — ce1d84e; подробные rulings и результаты — в журнале.
+После текущей visual parity задачи пауза до команды владельца. Затем продолжить
+Mac T16a по docs/MAC-T16A.md с новым SHA, сверить состояние Windows review и
+повторить cross-platform CI. Пакеты до исправления дизайна являются прежними
+кандидатами; не выдавать их за сборку с новым интерфейсом.
 
 ## 2026-10-29 — scope update: T16 Windows
 

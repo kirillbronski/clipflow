@@ -61,7 +61,12 @@ class JobListModel(QAbstractListModel):
 
 class QueueFilter(QSortFilterProxyModel):
     def __init__(self,model,parent=None):
-        super().__init__(parent); self.service=None; self.history=False; self.setSourceModel(model)
+        super().__init__(parent); self.service=None; self.history=False; self.status='all'; self.setSourceModel(model)
+
+    def show_status(self,status):
+        if status not in {'all','active','completed','failed'}: raise ValueError('invalid_status')
+        self.beginFilterChange(); self.status=status
+        self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
 
     def show_source(self,service=None,history=False):
         self.beginFilterChange()
@@ -71,4 +76,7 @@ class QueueFilter(QSortFilterProxyModel):
     def filterAcceptsRow(self,row,parent):
         model=self.sourceModel(); job=model.data(model.index(row,0,parent),model.JobRole)
         return ((self.service is None or job.request.link.service.value==self.service)
-                and (not self.history or job.state in TERMINAL_STATES))
+                and (not self.history or job.state in TERMINAL_STATES)
+                and (self.status=='all' or self.status=='active' and job.state not in TERMINAL_STATES
+                     or self.status=='completed' and job.state==JobState.COMPLETED
+                     or self.status=='failed' and job.state==JobState.FAILED))

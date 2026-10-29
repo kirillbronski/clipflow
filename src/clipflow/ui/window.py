@@ -1,6 +1,6 @@
-"""First functional Qt workbench; full composer/themes/accounts follow in T11–T13."""
-from PySide6.QtCore import Qt,QSize
-from PySide6.QtGui import QAction,QActionGroup,QKeySequence
+"""Qt workbench following the approved desktop composition and shared commands."""
+from PySide6.QtCore import Qt,QSize,QTimer
+from PySide6.QtGui import QAction,QActionGroup,QKeySequence,QPainter,QColor,QPixmap,QIcon
 from PySide6.QtWidgets import (
     QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,QLabel,QPushButton,QLineEdit,QComboBox,
     QListView,QFrame,QFileDialog,QCheckBox,QDialog,QDialogButtonBox,QListWidget,QListWidgetItem,QInputDialog,QScrollArea,QApplication,QMenu,QMessageBox,QAbstractItemView,
@@ -31,6 +31,18 @@ class QueueView(QListView):
         else: super().keyPressEvent(event)
 
 
+class NavigationButton(QPushButton):
+    """Keep native button accessibility; paint a separate live count at the right."""
+    count=None
+
+    def paintEvent(self,event):
+        super().paintEvent(event)
+        if self.count is not None:
+            painter=QPainter(self); painter.setPen(self.palette().color(self.foregroundRole()))
+            font=self.font(); font.setPixelSize(11); painter.setFont(font)
+            painter.drawText(self.rect().adjusted(0,0,-12,0),Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter,str(self.count))
+
+
 class MainWindow(QMainWindow):
     def __init__(self,presenter):
         super().__init__()
@@ -43,37 +55,49 @@ class MainWindow(QMainWindow):
         self._input_actions=InputActions(self,self.tr); QApplication.instance().installEventFilter(self._input_actions)
         QApplication.instance().aboutToQuit.connect(self.dispose_ui)
         root=QWidget(); root.setObjectName('root'); self.setCentralWidget(root); layout=QHBoxLayout(root); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
-        sidebar=QFrame(); sidebar.setObjectName('sidebar'); sidebar.setFixedWidth(180)
+        sidebar=QFrame(); sidebar.setObjectName('sidebar'); sidebar.setFixedWidth(205); self.sidebar=sidebar
         side=QVBoxLayout(sidebar); side.setContentsMargins(14,22,14,20); side.setSpacing(8)
-        brand=QLabel('↓  ClipFlow'); brand.setObjectName('brand'); side.addWidget(brand); side.addSpacing(20)
+        brand_row=QHBoxLayout(); logo=QLabel(); logo.setPixmap(icon('#6754df','#ffffff').pixmap(32,32)); brand_row.addWidget(logo)
+        brand=QLabel('ClipFlow'); brand.setObjectName('brand'); brand_row.addWidget(brand); brand_row.addStretch(); side.addLayout(brand_row); side.addSpacing(20)
         self.nav_buttons=[]
         for label,service,history in [('all_downloads',None,False),('history',None,True),('YouTube','youtube',False),
                                       ('Instagram','instagram',False),('GetCourse','getcourse',False)]:
-            button=QPushButton(label) if service else self.tr.widget(QPushButton,label); button.setProperty('nav_key',label); button.setObjectName('nav'); button.setCheckable(True)
+            if service=='youtube':
+                side.addSpacing(22); sources=self.tr.widget(QLabel,'sources_label'); sources.setObjectName('muted'); side.addWidget(sources)
+            button=NavigationButton(label) if service else self.tr.widget(NavigationButton,label); button.setProperty('nav_key',label); button.setObjectName('nav'); button.setCheckable(True)
             button.clicked.connect(lambda checked=False,s=service,h=history,t=label:self._navigate(s,h,t))
             side.addWidget(button); self.nav_buttons.append(button)
         self.nav_buttons[0].setChecked(True)
+        side.addStretch()
         self.accounts_button=self.tr.widget(QPushButton,'accounts'); self.accounts_button.setObjectName('nav'); side.addWidget(self.accounts_button)
         self.settings_button=self.tr.widget(QPushButton,'menu_settings'); self.settings_button.setObjectName('nav'); side.addWidget(self.settings_button)
         self.accounts_button.setCheckable(True); self.settings_button.setCheckable(True)
         self.accounts_button.clicked.connect(lambda:self._show_section('accounts')); self.settings_button.clicked.connect(lambda:self._show_section('settings'))
-        side.addStretch(); local=self.tr.widget(QLabel,'local_note'); local.setObjectName('muted'); side.addWidget(local)
+        side.addSpacing(14); line=QFrame(); line.setObjectName('divider'); line.setFixedHeight(1); side.addWidget(line)
+        local=self.tr.widget(QLabel,'local_note'); local.setObjectName('muted'); side.addWidget(local)
         layout.addWidget(sidebar)
-        main=QVBoxLayout(); main.setContentsMargins(28,28,28,18); main.setSpacing(16); layout.addLayout(main,1)
-        header=QHBoxLayout(); self.heading=self.tr.widget(QLabel,'all_downloads'); self.heading.setObjectName('heading'); header.addWidget(self.heading,1)
+        main=QVBoxLayout(); main.setContentsMargins(36,32,36,18); main.setSpacing(20); layout.addLayout(main,1); self.main_layout=main
+        header=QHBoxLayout(); titles=QVBoxLayout(); titles.setSpacing(5); self.heading=self.tr.widget(QLabel,'all_downloads'); self.heading.setObjectName('heading'); titles.addWidget(self.heading); header.addLayout(titles,1)
         self.batch_button=self.tr.widget(QPushButton,'batch_button'); self.batch_button.clicked.connect(self._open_batch); header.addWidget(self.batch_button); main.addLayout(header)
-        subtitle=self.tr.widget(QLabel,'subtitle'); subtitle.setObjectName('muted'); main.addWidget(subtitle)
+        subtitle=QLabel(); self.subtitle=subtitle; subtitle.setObjectName('muted'); titles.addWidget(subtitle)
         self.composer=Composer(presenter.settings,self,translator=self.tr)
         self.url_input=self.composer.url_input; self.add_button=self.composer.add_button
         self.folder_input=self.composer.folder_input; self.summary=self.composer.summary; self.auto_start=self.composer.auto_start
         self.auto_start.toggled.connect(self._set_auto_start)
         self.composer_host=QScrollArea(); self.composer_host.setWidgetResizable(True); self.composer_host.setFrameShape(QFrame.Shape.NoFrame)
-        self.composer_host.setMinimumHeight(210); self.composer_host.setMaximumHeight(380); self.composer_host.setWidget(self.composer)
+        self.composer_host.setWidget(self.composer)
+        self.composer.parameters_button.toggled.connect(self._resize_composer)
+        for button in self.composer.mode_buttons.values(): button.clicked.connect(self._resize_composer)
         main.addWidget(self.composer_host)
         self.error_label=QLabel(); self.error_label.setObjectName('error'); self.error_label.setWordWrap(True); self.error_label.hide(); main.addWidget(self.error_label)
         queue_header=QHBoxLayout(); self.count_label=QLabel(); queue_header.addWidget(self.count_label,1)
         self.start_button=self.tr.widget(QPushButton,'start_queue'); self.start_button.clicked.connect(presenter.start_queue); queue_header.addWidget(self.start_button)
         main.addLayout(queue_header)
+        self.status_tabs=QWidget(); tab_layout=QHBoxLayout(self.status_tabs); tab_layout.setContentsMargins(0,0,0,0); tab_layout.setSpacing(16); self.status_buttons={}
+        for status in ('all','active','completed','failed'):
+            button=QPushButton(); button.setObjectName('statusTab'); button.setCheckable(True); button.setChecked(status=='all')
+            button.clicked.connect(lambda checked=False,s=status:self._filter_status(s)); tab_layout.addWidget(button); self.status_buttons[status]=button
+        tab_layout.addStretch(); main.addWidget(self.status_tabs)
         self.queue_view=QueueView(); self.queue_view.setObjectName('queue'); self.queue_view.setUniformItemSizes(True); self.queue_view.setSpacing(0)
         self.proxy=QueueFilter(presenter.model,self); self.queue_view.setModel(self.proxy)
         delegate=QueueDelegate(self.queue_view,theme=self.theme,translator=self.tr); self.queue_view.setItemDelegate(delegate)
@@ -85,7 +109,7 @@ class MainWindow(QMainWindow):
         main.addWidget(self.queue_view,1)
         self.empty=self.tr.widget(QLabel,'empty'); self.empty.setObjectName('muted'); main.addWidget(self.empty)
         footer=self.tr.widget(QLabel,'footer'); footer.setObjectName('muted'); main.addWidget(footer)
-        self._download_widgets=(self.composer_host,self.count_label,self.start_button,self.queue_view,self.empty,footer,subtitle)
+        self._download_widgets=(self.composer_host,self.count_label,self.start_button,self.status_tabs,self.queue_view,self.empty,footer,subtitle)
         self.accounts_page=AccountsPage(presenter,self.tr,self); self.settings_page=SettingsPage(presenter,self.tr,self)
         main.addWidget(self.accounts_page,1); main.addWidget(self.settings_page,1); self.accounts_page.hide(); self.settings_page.hide()
         self.composer.submit_requested.connect(self._submit)
@@ -100,6 +124,24 @@ class MainWindow(QMainWindow):
         self.composer.service_changed.connect(self._accent)
         self.presenter.model.translator=self.tr
         self._settings_changed(); self._update_counts(); self._accent()
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        if hasattr(self,'composer_host'):
+            self.sidebar.setFixedWidth(180 if self.width()<1000 else 205)
+            margin=24 if self.width()<1000 else 36
+            self.main_layout.setContentsMargins(margin,32,margin,18)
+            self._resize_composer()
+
+    def _resize_composer(self,*args):
+        def apply():
+            self.composer_host.setFixedHeight(min(max(170,self.composer.sizeHint().height()+2),min(380,int(self.height()*.48))))
+        QTimer.singleShot(0,self,apply)
+
+    def _filter_status(self,status):
+        self.proxy.show_status(status)
+        for name,button in self.status_buttons.items(): button.setChecked(name==status)
+        self._update_counts()
 
     def _menus(self):
         bar=self.menuBar(); bar.setNativeMenuBar(True)
@@ -144,12 +186,29 @@ class MainWindow(QMainWindow):
 
     def _accent(self,*args):
         t=self.theme.tokens(); color=t[self.composer.service.value]
-        self.setStyleSheet(f'QPushButton#primary {{background:{color};color:{t["accent_text"]};border-color:{color};}}')
+        background=color
+        if self.composer.service==Service.INSTAGRAM:
+            start='#a93d85' if self.theme.resolved_mode()=='light' else '#f3aed9'
+            background=f'qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {start},stop:1 {color})'
+        self.setStyleSheet(f'QPushButton#primary {{background:{background};color:{t["accent_text"]};border-color:{color};}} QPushButton#statusTab:checked {{border-bottom-color:{color};}}')
         self.setWindowIcon(icon(color,t['accent_text'])); self.queue_view.viewport().update()
+        for button in self.nav_buttons:
+            service=button.property('nav_key').lower()
+            if service in {'youtube','instagram','getcourse'}:
+                dot=QPixmap(10,10); dot.fill(Qt.GlobalColor.transparent); painter=QPainter(dot); painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                painter.setBrush(QColor(t[service])); painter.setPen(Qt.PenStyle.NoPen); painter.drawEllipse(1,1,8,8); painter.end(); button.setIcon(QIcon(dot))
+                tint=QColor(t[service]); tint.setAlpha(22)
+                button.setStyleSheet(f'QPushButton:checked {{color:{t[service]};background:{tint.name(QColor.NameFormat.HexArgb)};}}')
+        self._subtitle(); self._resize_composer()
+
+    def _subtitle(self):
+        key=self.composer.service.value+'_subtitle' if self._nav_key in SOURCE_NAMES.values() else 'subtitle'
+        self.subtitle.setText(self.tr.text(key))
 
     def retranslate(self):
         self.heading.setText(self.tr.text(self._nav_key) if self._nav_key in CATALOG[self.tr.language] else self._nav_key)
         self._update_counts(); self.queue_view.viewport().update()
+        self._subtitle(); self._resize_composer()
         if self.presenter.model.rowCount(): self.presenter.model.dataChanged.emit(self.presenter.model.index(0),self.presenter.model.index(self.presenter.model.rowCount()-1))
         if self._error_code and self.error_label.isVisible(): self._show_error(self._error_code)
 
@@ -212,6 +271,13 @@ class MainWindow(QMainWindow):
         self.count_label.setText(self.tr.text('history_count',count=count) if self.proxy.history else self.tr.text('queue_count',count=count,word=self.tr.text(key)))
         self.start_button.setVisible(self._section=='downloads' and not self.proxy.history)
         self.empty.setVisible(self._section=='downloads' and self.proxy.rowCount()==0)
+        jobs=self.presenter.model.jobs
+        for button in self.nav_buttons:
+            key=button.property('nav_key')
+            button.count=sum(key=='all_downloads' or key=='history' and j.state in {JobState.COMPLETED,JobState.CANCELLED,JobState.FAILED} or j.request.link.service.value==key.lower() for j in jobs); button.update()
+        scoped=[j for j in jobs if (self.proxy.service is None or j.request.link.service.value==self.proxy.service) and (not self.proxy.history or j.state in {JobState.COMPLETED,JobState.CANCELLED,JobState.FAILED})]
+        counts={'all':len(scoped),'active':sum(j.state not in {JobState.COMPLETED,JobState.CANCELLED,JobState.FAILED} for j in scoped),'completed':sum(j.state==JobState.COMPLETED for j in scoped),'failed':sum(j.state==JobState.FAILED for j in scoped)}
+        for status,button in self.status_buttons.items(): button.setText(self.tr.text('filter_'+status)+'  '+str(counts[status]))
 
     def _row_action(self,identity,action):
         if action=='cancel': self.presenter.cancel_job(identity)
@@ -260,6 +326,7 @@ class MainWindow(QMainWindow):
         if service is not None:
             self.composer.set_service(Service(service))
         self._update_counts()
+        self._subtitle(); self._resize_composer()
 
     def _show_section(self,section):
         self._section=section

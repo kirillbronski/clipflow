@@ -3,6 +3,17 @@ import weakref
 from PySide6.QtCore import QObject,Signal,QLibraryInfo,QLocale,QTranslator
 
 MESSAGES={
+ 'download_label':('Скачать','Download'),
+ 'sources_label':('И С Т О Ч Н И К И','S O U R C E S'),
+ 'filter_all':('Все','All'), 'filter_active':('В работе','Active'),
+ 'filter_completed':('Готово','Done'), 'filter_failed':('Ошибки','Errors'),
+ 'instagram_link':('Ссылка на пост или Reel Instagram','Instagram post or Reel link'),
+ 'instagram_hint':('Карусель целиком — по одной ссылке. Фото и видео сохранятся в исходном порядке.','One link downloads the whole carousel. Photos and videos keep their original order.'),
+ 'youtube_hint':('Видео, треки и плейлисты YouTube Music — в вашу коллекцию.','Videos, tracks and YouTube Music playlists — in your collection.'),
+ 'getcourse_hint':('Скачиваются только материалы, к которым у вас есть доступ.','Download materials you have access to.'),
+ 'instagram_subtitle':('Посты, Reels и карусели — в вашей коллекции.','Posts, Reels and carousels — in your collection.'),
+ 'youtube_subtitle':('Видео и музыка — в удобном формате на вашем компьютере.','Videos and music — in the format you need, on your computer.'),
+ 'getcourse_subtitle':('Уроки и материалы — для просмотра в удобное время.','Lessons and course materials — ready when you are.'),
  'history_count':('История  ·  {count}','History  ·  {count}'),
  'open_folder':('Открыть папку файла','Open file folder'),
  'clear_queue':('Очистить очередь (файлы останутся)','Clear queue (keep files)'),

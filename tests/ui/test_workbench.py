@@ -306,6 +306,7 @@ def test_navigation_and_auto_start_keep_input_and_snapshot(make_window,qtbot):
     assert window.proxy.rowCount()==0 and not window.composer.isVisible()
     qtbot.mouseClick(window.nav_buttons[0],Qt.MouseButton.LeftButton)
     assert window.url_input.text()=='draft' and window.proxy.rowCount()==1
+    window.composer.parameters_button.setChecked(True)
     qtbot.mouseClick(window.auto_start,Qt.MouseButton.LeftButton)
     assert window.presenter.settings.auto_start
     window.url_input.setText('https://youtu.be/DEF'); qtbot.mouseClick(window.add_button,Qt.MouseButton.LeftButton)

@@ -30,16 +30,16 @@ class Composer(QFrame):
         self._drafts={s:'' for s in Service}; self._modes={s:'lesson' if s==Service.GETCOURSE else 'single' for s in Service}
         self._post_preference=True; self._probe_id=''; self.quality_pending=False
         self._timer=QTimer(self); self._timer.setSingleShot(True); self._timer.setInterval(300); self._timer.timeout.connect(self._probe)
-        layout=QVBoxLayout(self); layout.setContentsMargins(18,16,18,16); layout.setSpacing(12)
-        top=QHBoxLayout(); top.addWidget(self.tr.widget(QLabel,'service'))
+        layout=QVBoxLayout(self); layout.setContentsMargins(20,16,20,16); layout.setSpacing(12)
+        top=QHBoxLayout(); top.addWidget(self.tr.widget(QLabel,'download_label')); top.addStretch()
         self.service_box=QComboBox()
         for service in Service: self.service_box.addItem(NAMES[service],service.value)
-        top.addWidget(self.service_box); top.addStretch(); layout.addLayout(top)
-        modes=QHBoxLayout(); self.mode_buttons={}
+        self.service_box.hide()
+        modes=QHBoxLayout(); modes.setSpacing(4); self.mode_buttons={}
         for mode in ('single','batch','profile','playlist','lesson'):
             button=QPushButton(); button.setObjectName('mode'); button.setCheckable(mode!='batch'); self.mode_buttons[mode]=button; modes.addWidget(button)
             button.clicked.connect(lambda checked=False,m=mode:self._set_mode(m))
-        modes.addStretch(); layout.addLayout(modes)
+        top.addLayout(modes); layout.addLayout(top)
         self.profile_row=QWidget(); self.profile_row.setObjectName('composerSection'); profile=QHBoxLayout(self.profile_row); profile.setContentsMargins(0,0,0,0)
         profile.addWidget(self.tr.widget(QLabel,'profile_posts')); self.limit_box=QComboBox()
         for text,value in [(self.tr.text('last_10'),10),(self.tr.text('last_50'),50),(self.tr.text('all_available'),None)]: self.limit_box.addItem(text,value)
@@ -47,12 +47,16 @@ class Composer(QFrame):
         entry=QGridLayout(); self._entry=entry; self.paste_button=self.tr.widget(QPushButton,'paste')
         self.url_input=QLineEdit(); self.url_input.setAccessibleName(self.tr.text('link_accessible')); self.url_input.setMinimumWidth(180)
         self.add_button=self.tr.widget(QPushButton,'add_primary'); self.add_button.setObjectName('primary'); self.add_button.setMinimumWidth(170)
-        entry.addWidget(self.paste_button,0,0); entry.addWidget(self.url_input,0,1); entry.addWidget(self.add_button,0,2); entry.setColumnStretch(1,1); layout.addLayout(entry)
+        self.paste_button.setObjectName('inlinePaste')
+        input_layout=QHBoxLayout(self.url_input); input_layout.setContentsMargins(0,3,4,3); input_layout.addStretch(); input_layout.addWidget(self.paste_button)
+        self.url_input.setTextMargins(0,0,72,0)
+        entry.addWidget(self.url_input,0,1); entry.addWidget(self.add_button,0,2); entry.setColumnStretch(1,1); layout.addLayout(entry)
         self.hint=QLabel(); self.hint.setObjectName('muted'); self.hint.setWordWrap(True); layout.addWidget(self.hint)
         disclosure=QHBoxLayout(); self.parameters_button=QToolButton(); self.parameters_button.setText(self.tr.text('download_options'))
         self.parameters_button.setCheckable(True); self.parameters_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.parameters_button.setArrowType(Qt.ArrowType.RightArrow); disclosure.addWidget(self.parameters_button)
-        self.summary=QLabel(); self.summary.setWordWrap(True); self.summary.setObjectName('muted'); disclosure.addWidget(self.summary,1); layout.addLayout(disclosure)
+        divider=QFrame(); divider.setObjectName('divider'); divider.setFixedHeight(1); layout.addWidget(divider)
+        self.summary=QLabel(); self.summary.setWordWrap(True); self.summary.setObjectName('muted'); self.summary.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter); disclosure.addWidget(self.summary,1); layout.addLayout(disclosure)
         self.parameters=QWidget(); self.parameters.setObjectName('composerSection'); params=QVBoxLayout(self.parameters); params.setContentsMargins(0,0,0,0); params.setSpacing(10)
         grid=QGridLayout(); self.format_box=QComboBox(); self.quality_box=QComboBox(); self.filter_box=QComboBox()
         for text,value in [('MP4','mp4'),('MKV','mkv'),('WebM','webm'),(self.tr.text('audio_format'),'mp3')]: self.format_box.addItem(text,value)
@@ -69,9 +73,9 @@ class Composer(QFrame):
         params.addWidget(self.instagram_options); self.parameters.hide(); layout.addWidget(self.parameters)
         path=QHBoxLayout(); path.addWidget(self.tr.widget(QLabel,'folder')); self.folder_input=QLineEdit(); self.folder_input.setMinimumWidth(80)
         self.folder_input.setAccessibleName(self.tr.text('download_folder')); self.choose_button=self.tr.widget(QPushButton,'choose'); self.recent_box=QComboBox()
-        self.recent_box.setMaximumWidth(110); path.addWidget(self.folder_input,1); path.addWidget(self.choose_button); path.addWidget(self.recent_box); layout.addLayout(path)
+        self.recent_box.setMaximumWidth(110); path.addWidget(self.folder_input,1); path.addWidget(self.choose_button); path.addWidget(self.recent_box); params.addLayout(path)
         bottom=QHBoxLayout(); self.profile_note=QLabel(); self.profile_note.setObjectName('muted'); self.profile_note.setWordWrap(True)
-        bottom.addWidget(self.profile_note,1); self.auto_start=self.tr.widget(QCheckBox,'auto_start'); self.auto_start.setChecked(settings.auto_start); bottom.addWidget(self.auto_start); layout.addLayout(bottom)
+        bottom.addWidget(self.profile_note,1); self.auto_start=self.tr.widget(QCheckBox,'auto_start'); self.auto_start.setChecked(settings.auto_start); bottom.addWidget(self.auto_start); params.addLayout(bottom)
         self.parameters_button.toggled.connect(self._expand)
         self.service_box.currentIndexChanged.connect(lambda:self.set_service(Service(self.service_box.currentData())))
         self.url_input.textChanged.connect(self._text_changed); self.url_input.returnPressed.connect(self._submit); self.add_button.clicked.connect(self._submit)
@@ -92,7 +96,7 @@ class Composer(QFrame):
     def _arrange_entry(self):
         self.add_button.ensurePolished(); self.paste_button.ensurePolished()
         self.add_button.setMinimumWidth(max(170,self.add_button.fontMetrics().horizontalAdvance(self.add_button.text())+24))
-        needed=self.paste_button.sizeHint().width()+self.url_input.minimumWidth()+self.add_button.minimumWidth()+64
+        needed=self.url_input.minimumWidth()+self.add_button.minimumWidth()+48
         compact=self.width()<needed
         position=(1,1) if compact else (0,2)
         current=self._entry.getItemPosition(self._entry.indexOf(self.add_button))[:2]
@@ -170,7 +174,8 @@ class Composer(QFrame):
         self.post_folder.setChecked(True if profile else self._post_preference); self.post_folder.setEnabled(not profile)
         self.description_format.setEnabled(self.description.isChecked())
         self.profile_note.setText(self.tr.text('profile_note') if profile else '')
-        self.url_input.setPlaceholderText('https://www.instagram.com/username/' if profile else self.tr.text('link_placeholder'))
+        self.url_input.setPlaceholderText('https://www.instagram.com/username/' if profile else self.tr.text('instagram_link') if ig else self.tr.text('link_placeholder'))
+        if not self.url_input.text(): self._hint('instagram_hint' if ig and not profile else 'youtube_hint' if self.service==Service.YOUTUBE else 'getcourse_hint' if self.service==Service.GETCOURSE else 'profile_note')
         photo_only=ig and self.filter_box.currentData()=='photo'
         self.format_box.setEnabled(not photo_only); self.quality_box.setEnabled(not photo_only and self.format_box.currentData()!='mp3')
 
@@ -213,7 +218,9 @@ class Composer(QFrame):
         self.probe_requested.emit('',self._probe_id)
         self._loading=True; self._quality((),self._presets[self.service].max_height); self._loading=False
         try: link=parse_url(self.url_input.text())
-        except ValueError: self._hint(None); return
+        except ValueError:
+            self._hint('instagram_hint' if self.service==Service.INSTAGRAM and self.mode!='profile' else 'youtube_hint' if self.service==Service.YOUTUBE else 'getcourse_hint' if self.service==Service.GETCOURSE else 'profile_note')
+            return
         if self.mode=='single' and link.kind in {ContentKind.PROFILE,ContentKind.PLAYLIST}:
             self._hint('choose_profile' if link.kind==ContentKind.PROFILE else 'choose_playlist')
             return

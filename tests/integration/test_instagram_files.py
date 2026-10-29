@@ -21,6 +21,14 @@ def offline(monkeypatch):
     isolate_instagram(monkeypatch)
 
 
+@pytest.fixture
+def tmp_path(tmp_path_factory):
+    # Keep these transfer scenarios below the production portable path limit.
+    # macOS's long per-user temp root + pytest's full test name otherwise makes
+    # them path-rejection tests before any HTTP/media behavior is exercised.
+    return tmp_path_factory.mktemp('ig-files')
+
+
 @pytest.fixture(scope='module')
 def http_media(tmp_path_factory):
     root=tmp_path_factory.mktemp('instagram-local')
