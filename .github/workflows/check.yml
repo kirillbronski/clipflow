@@ -30,6 +30,7 @@ jobs:
       - run: python scripts/check.py --qt
         env:
           QT_QPA_PLATFORM: offscreen
+          PYTEST_ADDOPTS: --junitxml=work/offline-tests.xml
       - name: Native Qt clipboard DPI history and shutdown on Windows
         if: runner.os == 'Windows'
         run: python -m pytest tests/ui/test_themes.py tests/ui/test_design_parity.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
@@ -54,14 +55,14 @@ jobs:
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_AUTH_NATIVE: '1'
-      - name: Native auth diagnostics
+      - name: Test failure diagnostics
         if: always()
         shell: python
         run: |
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          report = Path('work/native-auth.xml')
-          if report.is_file():
+          for report in (Path('work/offline-tests.xml'), Path('work/native-auth.xml')):
+            if report.is_file():
               for case in ET.parse(report).getroot().iter('testcase'):
                   for failure in list(case.findall('failure')) + list(case.findall('error')):
                       text = case.get('name', '') + ': ' + (failure.text or failure.get('message', ''))
@@ -75,4 +76,5 @@ jobs:
           path: |
             work/verification/*.json
             work/native-auth.xml
+            work/offline-tests.xml
           retention-days: 14
