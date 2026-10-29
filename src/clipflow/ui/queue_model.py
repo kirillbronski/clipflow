@@ -3,6 +3,7 @@ from PySide6.QtCore import QAbstractListModel,QModelIndex,Qt,QSortFilterProxyMod
 
 from clipflow.domain.events import ProgressChanged,TitleChanged
 from clipflow.domain.models import JobState,TERMINAL_STATES
+from clipflow.ui.i18n import Translator
 
 
 class JobListModel(QAbstractListModel):
@@ -12,6 +13,7 @@ class JobListModel(QAbstractListModel):
 
     def __init__(self,jobs=(),parent=None):
         super().__init__(parent)
+        self.translator=Translator(parent=self)
         self.jobs=tuple(jobs); self._rows={job.id:n for n,job in enumerate(self.jobs)}
         self._titles={}; self._progress={}
 
@@ -25,7 +27,7 @@ class JobListModel(QAbstractListModel):
         if not index.isValid() or not 0<=index.row()<len(self.jobs): return None
         job=self.jobs[index.row()]
         title=self._titles.get(job.id) or (job.result_files[0].stem if job.result_files else
-              '@'+job.request.link.canonical_id if job.request.link.kind.value=='profile' else 'Новая загрузка')
+              '@'+job.request.link.canonical_id if job.request.link.kind.value=='profile' else self.translator.text('new_download'))
         return {int(Qt.ItemDataRole.DisplayRole):title,self.TitleRole:title,self.JobIdRole:job.id,
                 self.StateRole:job.state.value,self.ProgressRole:self._progress.get(job.id),
                 self.FilesRole:job.result_files,self.SourceRole:job.request.link.service.value,

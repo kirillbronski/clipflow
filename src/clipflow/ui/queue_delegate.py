@@ -5,16 +5,17 @@ from PySide6.QtWidgets import QStyledItemDelegate,QStyle
 
 from clipflow.domain.models import JobState,TERMINAL_STATES
 from clipflow.ui.queue_model import JobListModel
+from clipflow.ui.i18n import Translator
+from clipflow.ui.themes import PALETTES
 
 SOURCE_NAMES={'youtube':'YouTube','instagram':'Instagram','getcourse':'GetCourse'}
-SOURCE_COLORS={'youtube':'#ed6262','instagram':'#d45b9f','getcourse':'#58ad94'}
-STATES={JobState.QUEUED:'В очереди',JobState.PROBING:'Проверка ссылки',JobState.DOWNLOADING:'Скачивание',
-        JobState.PROCESSING:'Обработка',JobState.COMPLETED:'Готово',JobState.PAUSED:'На паузе',
-        JobState.FAILED:'Не удалось скачать',JobState.CANCELLED:'Отменено'}
 
 
 class QueueDelegate(QStyledItemDelegate):
     action_requested=Signal(str,str)
+
+    def __init__(self,parent=None,*,theme=None,translator=None):
+        super().__init__(parent); self.theme=theme; self.tr=translator or Translator(parent=self)
 
     def sizeHint(self,option,index): return QSize(400,88)
 
@@ -25,42 +26,46 @@ class QueueDelegate(QStyledItemDelegate):
     def paint(self,painter,option,index):
         job=index.data(JobListModel.JobRole)
         if job is None: return
+        t=self.theme.tokens() if self.theme else PALETTES['dark']
         painter.save(); rect=option.rect.adjusted(0,0,-2,0)
-        if option.state & QStyle.StateFlag.State_Selected: painter.fillRect(rect,QColor('#292639'))
-        painter.setPen(QColor('#30323d')); painter.drawLine(rect.bottomLeft(),rect.bottomRight())
+        selected=bool(option.state & QStyle.StateFlag.State_Selected)
+        if selected: painter.fillRect(rect,QColor(t['selection']))
+        foreground=t['selection_text'] if selected else t['text']
+        muted=t['selection_text'] if selected else t['muted']
+        painter.setPen(QColor(t['border'])); painter.drawLine(rect.bottomLeft(),rect.bottomRight())
         badge=QRect(rect.left()+8,rect.top()+20,42,46)
-        painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor('#333743')); painter.drawRoundedRect(badge,7,7)
-        painter.setPen(QColor(SOURCE_COLORS[job.request.link.service.value])); font=QFont(option.font); font.setPointSize(15)
+        painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(t['surface'])); painter.drawRoundedRect(badge,7,7)
+        painter.setPen(QColor(t[job.request.link.service.value])); font=QFont(option.font); font.setPointSize(15)
         painter.setFont(font); painter.drawText(badge,Qt.AlignmentFlag.AlignCenter,'↓')
         left=rect.left()+64; available=max(50,rect.width()-285)
         title_rect=QRect(left,rect.top()+16,available,23)
-        font.setPointSize(10); font.setBold(True); painter.setFont(font); painter.setPen(QColor('#f0eff6'))
+        font.setPointSize(10); font.setBold(True); painter.setFont(font); painter.setPen(QColor(foreground))
         painter.drawText(title_rect,Qt.AlignmentFlag.AlignVCenter,painter.fontMetrics().elidedText(index.data(JobListModel.TitleRole),Qt.TextElideMode.ElideRight,available))
-        font.setPointSize(9); font.setBold(False); painter.setFont(font); painter.setPen(QColor('#aaa9ba'))
-        quality=f'{job.request.options.max_height}p' if job.request.options.max_height else 'Лучшее качество'
+        font.setPointSize(9); font.setBold(False); painter.setFont(font); painter.setPen(QColor(muted))
+        quality=f'{job.request.options.max_height}p' if job.request.options.max_height else self.tr.text('best_quality')
         meta=f'{SOURCE_NAMES[job.request.link.service.value]}  ·  {job.request.options.format.upper()}  ·  {quality}'
         painter.drawText(QRect(left,rect.top()+39,available,19),Qt.AlignmentFlag.AlignVCenter,
                          painter.fontMetrics().elidedText(meta,Qt.TextElideMode.ElideRight,available))
         progress=index.data(JobListModel.ProgressRole)
-        label=STATES[job.state]
-        if job.source_required: label='Нужна ссылка'
-        elif job.pause_reason=='selection_required': label='Выберите видео'
+        label=self.tr.text('state_'+job.state.value)
+        if job.source_required: label=self.tr.text('source_needed')
+        elif job.pause_reason=='selection_required': label=self.tr.text('selection_needed')
         elif job.pause_reason in {'rate_limit','rate_spacing'}:
-            label='Ожидание Instagram'
+            label=self.tr.text('instagram_wait')
             if job.next_allowed_at: label+=' · '+job.next_allowed_at.astimezone().strftime('%H:%M')
         elif progress and job.state==JobState.DOWNLOADING:
             label=(f'{min(99,int(progress.downloaded_bytes/progress.total_bytes*100))}%' if progress.total_bytes else
-                   f'{progress.downloaded_bytes/1048576:.1f} МБ')
-            if progress.speed_bytes_per_second: label+=f' · {progress.speed_bytes_per_second/1048576:.1f} МБ/с'
-        painter.setPen(QColor('#6bc5a6') if job.state==JobState.COMPLETED else QColor('#e88888') if job.state==JobState.FAILED else QColor('#b4b1c4'))
+                   f'{progress.downloaded_bytes/1048576:.1f} '+self.tr.text('mb'))
+            if progress.speed_bytes_per_second: label+=f' · {progress.speed_bytes_per_second/1048576:.1f} '+self.tr.text('mb_s')
+        painter.setPen(QColor(foreground if selected else t['success'] if job.state==JobState.COMPLETED else t['error'] if job.state==JobState.FAILED else t['muted']))
         painter.drawText(QRect(rect.right()-235,rect.top()+25,146,32),Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter,label)
         if progress and progress.total_bytes and job.state in {JobState.DOWNLOADING,JobState.PROCESSING,JobState.PAUSED}:
             bar=QRect(left,rect.top()+67,max(20,rect.width()-170),3)
-            painter.fillRect(bar,QColor('#393b49'))
+            painter.fillRect(bar,QColor(t['border']))
             width=int(bar.width()*max(0,min(.99,progress.downloaded_bytes/progress.total_bytes)))
-            painter.fillRect(QRect(bar.left(),bar.top(),width,bar.height()),QColor('#9b88f5'))
+            painter.fillRect(QRect(bar.left(),bar.top(),width,bar.height()),QColor(t['accent']))
         primary,secondary=self._buttons(rect)
-        painter.setPen(QPen(QColor('#c7c2dd'),1.5)); painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor(muted),1.5)); painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(primary,6,6)
         glyph='↗' if job.state==JobState.COMPLETED else 'Ⅱ' if job.state in {JobState.PROBING,JobState.DOWNLOADING,JobState.PROCESSING} else '▷'
         painter.drawText(primary,Qt.AlignmentFlag.AlignCenter,glyph)

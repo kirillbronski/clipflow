@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T11 завершён; пауза перед T12.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T12 завершён; пауза перед T13.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -219,11 +219,13 @@ T10 CI correction: initial 9540e90 passed Windows but macOS failed Return activa
 
 **Interfaces:** Produces `ThemeManager(app, settings).set_mode(mode: Literal['dark','light','system'])->None`, `.resolved_mode()->str`, `.tokens()->Mapping[str,str]`; `Translator(language).text(key: str, **args)->str`. Набор токенов покрывает backgrounds/text/disabled/border/accent/success/error/selection/focus/menu/dialog.
 
-- [ ] Red: `test_dark_first_launch_and_persistence`, `test_system_palette_change`, `test_every_dialog_has_readable_dark_controls`, `test_all_text_pairs_contrast_4_5`, `test_ru_en_880px_no_clipping`, `test_ctrl_command_v_button_context_menu_all_services`, `test_russian_keyboard_edit_shortcuts`, `test_batch_shortcut_ctrl_command_n`.
-- [ ] `python -m pytest tests/ui/test_themes.py tests/platform/test_qt_clipboard.py -q`: FAIL (native clipboard marker в настоящей GUI-сессии отдельно).
-- [ ] Реализовать единые palettes/styles и tokens, стандартные Qt menus/input с platform shortcuts, каталог переводов вместо замен произвольного текста. Смена сервиса меняет только accent/иконку, не глобальную палитру. Масштаб определяется Qt DPI; пользовательский zoom не применяется дважды.
-- [ ] Tests: PASS for light/dark/system, RU/EN, 100/150/200% отдельными GUI-процессами; native clipboard тест сохраняет и восстанавливает прежний clipboard. Не заменять native результат offscreen-проходом.
-- [ ] Commit `feat: add persistent dark light system themes and native input`.
+- [x] Red: `test_dark_first_launch_and_persistence`, `test_system_palette_change`, `test_every_dialog_has_readable_dark_controls`, `test_all_text_pairs_contrast_4_5`, `test_ru_en_880px_no_clipping`, `test_ctrl_command_v_button_context_menu_all_services`, `test_russian_keyboard_edit_shortcuts`, `test_batch_shortcut_ctrl_command_n`.
+- [x] `python -m pytest tests/ui/test_themes.py tests/platform/test_qt_clipboard.py -q`: FAIL (native clipboard marker в настоящей GUI-сессии отдельно).
+- [x] Реализовать единые palettes/styles и tokens, стандартные Qt menus/input с platform shortcuts, каталог переводов вместо замен произвольного текста. Смена сервиса меняет только accent/иконку, не глобальную палитру. Масштаб определяется Qt DPI; пользовательский zoom не применяется дважды.
+- [x] Tests: PASS for light/dark/system, RU/EN, 100/150/200% отдельными GUI-процессами; native clipboard тест сохраняет и восстанавливает прежний clipboard. Не заменять native результат offscreen-проходом.
+- [x] Commit `feat: add persistent dark light system themes and native input`.
+
+> T12: ThemeManager uses one semantic palette/style for all Qt forms, lists, tables, inputs, menus, selection, focus, disabled and error/success text; every declared text pair meets4.5:1. Dark default, light/system persisted via owner-thread settings commands; styleHints colorSchemeChanged drives System only. Service changes only accent/icon, not the global palette. Explicit RU/EN catalogue, weak widget bindings and dynamic model/dialog/status/error translations preserve drafts/presets/probe IDs and user titles. Native Qt menu actions/StandardKey bindings, Cyrillic editing and standard editor context actions; native Qt qtbase translations where present. Compact entry wraps its large main action when needed, combo boxes shrink, 880px forms have no horizontal clipping. Qt owns DPI; subprocesses1/1.5/2 account for native Retina/base DPR rather than applying a second UI zoom. 355 collected:354passed/1explicit native-only skip in offline suite + full scripts/check.py PASS; all19 T12 native Windows cases PASS separately (including real clipboard preserved/restored and 3 DPI subprocesses). Native run.py preview themes/RU-EN/services/batch captured/viewed without upstream/Tk/jobs; no real sessions. Native Windows shortcut RED was a test activation precondition: isActiveWindow was set before app/focusWindow activation; waiting actual ApplicationActive/activeWindow fixed it, no fake shortcut/skip. CI now has separate windows/cocoa GUI steps; offscreen success alone is not their acceptance. Core700/720lines97.22%,229/250branches91.60%; own runtime3128/3302lines94.73%,812/966branches84.06% (QThread conservative misses retained). Protected auth/settings-page T13, lifecycle T14, packaging/live/final review T16; legacy default unchanged.
 
 ### Task 13: Аккаунты, защита и перенос авторизационных процессов
 

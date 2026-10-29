@@ -115,7 +115,7 @@ def test_window_minimum_880x680(make_window,qtbot):
     # QScrollArea applies the viewport's resize in the next event-loop turn.
     qtbot.waitUntil(lambda:window.url_input.width()>=180)
     assert window.url_input.width()>150 and window.add_button.width()>=150
-    assert window.composer_host.horizontalScrollBar().maximum()==0
+    qtbot.waitUntil(lambda:window.composer_host.horizontalScrollBar().maximum()==0)
 
 
 def test_large_queue_uses_model_not_child_widgets(make_window,tmp_path):

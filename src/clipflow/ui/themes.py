@@ -1,0 +1,100 @@
+"""One application palette and semantic tokens. Service changes only small accents."""
+from types import MappingProxyType
+from PySide6.QtCore import QObject,Signal,Qt
+from PySide6.QtGui import QColor,QPalette,QIcon,QPixmap,QPainter,QPen
+
+PALETTES={
+ 'dark':dict(background='#1c1e25',surface='#24262f',sidebar='#171920',hover='#30323e',
+             text='#f4f3fa',muted='#b8b6c8',disabled='#aaa6bb',border='#686475',
+             accent='#b6a4ff',accent_text='#181420',success='#80d4b1',error='#ffaaa5',
+             selection='#58467f',selection_text='#ffffff',focus='#b6a4ff',menu='#24262f',dialog='#24262f',
+             youtube='#ff8a86',instagram='#f59bc8',getcourse='#80d4b1'),
+ 'light':dict(background='#f6f5fa',surface='#ffffff',sidebar='#eeedf4',hover='#e8e6ef',
+              text='#23212c',muted='#5d586c',disabled='#655f73',border='#817a8f',
+              accent='#6442b8',accent_text='#ffffff',success='#126444',error='#a51b28',
+              selection='#d9ccff',selection_text='#241642',focus='#6442b8',menu='#ffffff',dialog='#ffffff',
+              youtube='#a51b28',instagram='#9d245c',getcourse='#006b4d'),
+}
+TEXT_PAIRS=tuple((fg,bg) for fg in ('text','muted','disabled','success','error') for bg in ('background','surface','sidebar','hover','menu','dialog'))+(
+ ('selection_text','selection'),('accent_text','accent'),('accent_text','youtube'),('accent_text','instagram'),('accent_text','getcourse'),
+ ('youtube','surface'),('instagram','surface'),('getcourse','surface'))
+
+
+def icon(color,foreground):
+    pixmap=QPixmap(64,64); pixmap.fill(Qt.GlobalColor.transparent); painter=QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing); painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(color))
+    painter.drawRoundedRect(2,2,60,60,14,14); painter.setPen(QPen(QColor(foreground),5,Qt.PenStyle.SolidLine,Qt.PenCapStyle.RoundCap))
+    painter.drawLine(32,16,32,45); painter.drawLine(21,34,32,45); painter.drawLine(32,45,43,34); painter.end()
+    return QIcon(pixmap)
+
+
+class ThemeManager(QObject):
+    changed=Signal()
+    def __init__(self,app,settings,parent=None):
+        super().__init__(parent); self.app=app; self.mode=settings.theme
+        scheme=app.styleHints().colorScheme()
+        self._system='dark' if scheme==Qt.ColorScheme.Dark else 'light'
+        app.setStyle('Fusion')
+        app.styleHints().colorSchemeChanged.connect(self._system_changed)
+        self._apply()
+
+    def resolved_mode(self): return self._system if self.mode=='system' else self.mode
+    def tokens(self): return MappingProxyType(PALETTES[self.resolved_mode()])
+    def set_mode(self,mode):
+        if mode not in {'dark','light','system'}: raise ValueError('invalid_theme')
+        if self.mode!=mode: self.mode=mode; self._apply()
+
+    def _system_changed(self,scheme):
+        if scheme==Qt.ColorScheme.Unknown: return
+        self._system='dark' if scheme==Qt.ColorScheme.Dark else 'light'
+        if self.mode=='system': self._apply()
+
+    def close(self):
+        self.app.styleHints().colorSchemeChanged.disconnect(self._system_changed)
+
+    def _apply(self):
+        t=self.tokens(); palette=QPalette()
+        roles={'Window':'background','Base':'background','AlternateBase':'surface','WindowText':'text','Text':'text',
+               'Button':'surface','ButtonText':'text','Highlight':'selection','HighlightedText':'selection_text',
+               'ToolTipBase':'menu','ToolTipText':'text','PlaceholderText':'muted','Link':'focus','BrightText':'text'}
+        for role,key in roles.items():
+            palette.setColor(getattr(QPalette.ColorRole,role),QColor(t[key]))
+        for role in ('WindowText','Text','ButtonText','PlaceholderText'):
+            palette.setColor(QPalette.ColorGroup.Disabled,getattr(QPalette.ColorRole,role),QColor(t['disabled']))
+        self.app.setPalette(palette)
+        self.app.setStyleSheet(styles(t)); self.changed.emit()
+
+
+def styles(t):
+    return '''
+QWidget {{ color: {text}; font-family: "Segoe UI", "Helvetica Neue"; font-size: 13px; }}
+QMainWindow,QWidget#root {{ background: {background}; }}
+QFrame#sidebar {{ background: {sidebar}; border-right: 1px solid {border}; }}
+QFrame#composer {{ background: {surface}; border: 1px solid {border}; border-radius: 10px; }}
+QWidget#composerSection,QLabel {{ background: transparent; }}
+QLabel#muted {{ color: {muted}; font-size: 12px; }}
+QLabel#heading {{ font-size: 25px; font-weight: 700; }}
+QLabel#brand {{ font-size: 20px; font-weight: 700; padding: 8px; }}
+QLabel#error {{ color: {error}; }}
+QPushButton {{ background: {surface}; border: 1px solid {border}; border-radius: 7px; padding: 8px 10px; }}
+QPushButton:hover {{ background: {hover}; }}
+QPushButton:focus,QLineEdit:focus,QComboBox:focus,QPlainTextEdit:focus,QListView:focus,QToolButton:focus {{ border: 2px solid {focus}; }}
+QPushButton:disabled,QToolButton:disabled,QComboBox:disabled,QCheckBox:disabled {{ color: {disabled}; }}
+QPushButton#primary {{ background: {accent}; color: {accent_text}; border-color: {accent}; font-weight: 600; }}
+QPushButton#nav {{ text-align: left; background: transparent; border: none; padding: 11px; }}
+QPushButton#nav:checked,QPushButton#mode:checked {{ background: {selection}; color: {selection_text}; }}
+QToolButton {{ background: transparent; border: 1px solid transparent; color: {muted}; padding: 4px; }}
+QLineEdit,QComboBox,QPlainTextEdit,QTextEdit {{ background: {background}; border: 1px solid {border}; border-radius: 6px; padding: 8px; color: {text}; placeholder-text-color: {muted}; selection-background-color: {selection}; selection-color: {selection_text}; }}
+QComboBox QAbstractItemView,QListView,QListWidget,QTableView {{ background: {background}; color: {text}; alternate-background-color: {surface}; border: 1px solid {border}; selection-background-color: {selection}; selection-color: {selection_text}; outline: none; }}
+QHeaderView::section {{ background: {surface}; color: {text}; padding: 4px; border: 1px solid {border}; }}
+QListView#queue {{ border: none; }}
+QScrollArea {{ background: {background}; border: none; }}
+QScrollBar:vertical {{ background: {background}; width: 9px; }}
+QScrollBar::handle:vertical {{ background: {border}; min-height: 30px; border-radius: 4px; }}
+QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical {{ height: 0; }}
+QDialog,QMessageBox {{ background: {dialog}; }}
+QMenuBar,QMenu {{ background: {menu}; color: {text}; }}
+QMenu::item:selected,QMenuBar::item:selected {{ background: {selection}; color: {selection_text}; }}
+QMenu::item:disabled {{ color: {disabled}; }}
+QToolTip {{ background: {menu}; color: {text}; border: 1px solid {border}; }}
+'''.format(**t)

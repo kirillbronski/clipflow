@@ -1,8 +1,9 @@
 """First functional Qt workbench; full composer/themes/accounts follow in T11–T13."""
 from PySide6.QtCore import Qt,QSize
+from PySide6.QtGui import QAction,QActionGroup,QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,QLabel,QPushButton,QLineEdit,QComboBox,
-    QListView,QFrame,QFileDialog,QCheckBox,QDialog,QDialogButtonBox,QListWidget,QListWidgetItem,QInputDialog,QScrollArea,
+    QListView,QFrame,QFileDialog,QCheckBox,QDialog,QDialogButtonBox,QListWidget,QListWidgetItem,QInputDialog,QScrollArea,QApplication,
 )
 
 from clipflow.domain.models import Service,JobState
@@ -11,36 +12,10 @@ from clipflow.ui.queue_model import QueueFilter,JobListModel
 from clipflow.ui.queue_delegate import QueueDelegate,SOURCE_NAMES
 from clipflow.ui.composer import Composer
 from clipflow.ui.batch_dialog import BatchDialog
+from clipflow.ui.i18n import Translator,CATALOG
+from clipflow.ui.themes import ThemeManager,icon
+from clipflow.ui.input import InputActions
 
-STYLE='''
-QMainWindow,QWidget { background: #1c1e25; color: #eeedf5; font-family: "Segoe UI", "Helvetica Neue"; font-size: 13px; }
-QFrame#sidebar { background: #171920; border-right: 1px solid #30323d; }
-QFrame#composer { background: #24262f; border: 1px solid #333541; border-radius: 10px; }
-QWidget#composerSection { background: transparent; }
-QLabel { background: transparent; }
-QLabel#muted { color: #aaa9ba; font-size: 12px; }
-QLabel#heading { font-size: 25px; font-weight: 700; }
-QLabel#brand { font-size: 20px; font-weight: 700; padding: 8px; }
-QLabel#error { color: #edaaaa; }
-QPushButton { background: #242630; border: 1px solid #3b3d4c; border-radius: 7px; padding: 9px 13px; }
-QPushButton:hover { background: #30323e; border-color: #767087; }
-QPushButton:pressed { background: #3c3752; }
-QPushButton:focus,QLineEdit:focus,QComboBox:focus { border: 1px solid #aa98fc; }
-QPushButton:disabled { color: #686779; border-color: #323440; }
-QPushButton#primary { background: #8d77ed; color: #ffffff; border-color: #a08af7; font-weight: 600; }
-QPushButton#nav { text-align: left; background: transparent; border: none; padding: 11px; }
-QPushButton#nav:checked { background: #332e4a; color: #b8a8ff; }
-QPushButton#mode:checked { background: #3a3255; border-color: #9b88f5; color: #ffffff; font-weight: 600; }
-QToolButton { background: transparent; border: none; color: #aaa9ba; padding: 4px; }
-QLineEdit,QComboBox { background: #1c1e25; border: 1px solid #3b3d49; border-radius: 6px; padding: 9px; selection-background-color: #6752b2; }
-QComboBox QAbstractItemView { background: #24262f; color: #eeedf5; selection-background-color: #4f446d; }
-QListView { border: none; background: #1c1e25; outline: none; }
-QScrollBar:vertical { background: #1c1e25; width: 9px; }
-QScrollBar::handle:vertical { background: #454452; min-height: 30px; border-radius: 4px; }
-QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height: 0; }
-QDialog { background: #24262f; }
-QToolTip { background: #302b43; color: #fff; border: 1px solid #83759e; }
-'''
 
 
 class QueueView(QListView):
@@ -57,27 +32,31 @@ class MainWindow(QMainWindow):
     def __init__(self,presenter):
         super().__init__()
         self.presenter=presenter; presenter.setParent(self)
-        self._closing_requested=False; self._dialogs=[]; self._service=Service.YOUTUBE
+        self._closing_requested=False; self._ui_disposed=False; self._dialogs=[]; self._service=Service.YOUTUBE
         self.setWindowTitle('ClipFlow · Qt preview'); self.setMinimumSize(880,680); self.resize(1180,800)
-        self.setStyleSheet(STYLE)
-        root=QWidget(); self.setCentralWidget(root); layout=QHBoxLayout(root); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
+        self.tr=Translator(presenter.settings.language,self); self.tr.install_qt()
+        self.theme=ThemeManager(QApplication.instance(),presenter.settings,self)
+        self._nav_key='all_downloads'; self._error_code=None
+        self._input_actions=InputActions(self,self.tr); QApplication.instance().installEventFilter(self._input_actions)
+        QApplication.instance().aboutToQuit.connect(self.dispose_ui)
+        root=QWidget(); root.setObjectName('root'); self.setCentralWidget(root); layout=QHBoxLayout(root); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
         sidebar=QFrame(); sidebar.setObjectName('sidebar'); sidebar.setFixedWidth(180)
         side=QVBoxLayout(sidebar); side.setContentsMargins(14,22,14,20); side.setSpacing(8)
         brand=QLabel('↓  ClipFlow'); brand.setObjectName('brand'); side.addWidget(brand); side.addSpacing(20)
         self.nav_buttons=[]
-        for label,service,history in [('Все загрузки',None,False),('История',None,True),('YouTube','youtube',False),
+        for label,service,history in [('all_downloads',None,False),('history',None,True),('YouTube','youtube',False),
                                       ('Instagram','instagram',False),('GetCourse','getcourse',False)]:
-            button=QPushButton(label); button.setObjectName('nav'); button.setCheckable(True)
+            button=QPushButton(label) if service else self.tr.widget(QPushButton,label); button.setProperty('nav_key',label); button.setObjectName('nav'); button.setCheckable(True)
             button.clicked.connect(lambda checked=False,s=service,h=history,t=label:self._navigate(s,h,t))
             side.addWidget(button); self.nav_buttons.append(button)
         self.nav_buttons[0].setChecked(True)
-        side.addStretch(); local=QLabel('Файлы остаются\nна этом компьютере'); local.setObjectName('muted'); side.addWidget(local)
+        side.addStretch(); local=self.tr.widget(QLabel,'local_note'); local.setObjectName('muted'); side.addWidget(local)
         layout.addWidget(sidebar)
         main=QVBoxLayout(); main.setContentsMargins(28,28,28,18); main.setSpacing(16); layout.addLayout(main,1)
-        header=QHBoxLayout(); self.heading=QLabel('Все загрузки'); self.heading.setObjectName('heading'); header.addWidget(self.heading,1)
-        self.batch_button=QPushButton('+  Несколько ссылок'); self.batch_button.clicked.connect(self._open_batch); header.addWidget(self.batch_button); main.addLayout(header)
-        subtitle=QLabel('Все сервисы. Одна понятная очередь.'); subtitle.setObjectName('muted'); main.addWidget(subtitle)
-        self.composer=Composer(presenter.settings,self)
+        header=QHBoxLayout(); self.heading=self.tr.widget(QLabel,'all_downloads'); self.heading.setObjectName('heading'); header.addWidget(self.heading,1)
+        self.batch_button=self.tr.widget(QPushButton,'batch_button'); self.batch_button.clicked.connect(self._open_batch); header.addWidget(self.batch_button); main.addLayout(header)
+        subtitle=self.tr.widget(QLabel,'subtitle'); subtitle.setObjectName('muted'); main.addWidget(subtitle)
+        self.composer=Composer(presenter.settings,self,translator=self.tr)
         self.url_input=self.composer.url_input; self.add_button=self.composer.add_button
         self.folder_input=self.composer.folder_input; self.summary=self.composer.summary; self.auto_start=self.composer.auto_start
         self.auto_start.toggled.connect(self._set_auto_start)
@@ -85,17 +64,17 @@ class MainWindow(QMainWindow):
         self.composer_host.setMinimumHeight(210); self.composer_host.setMaximumHeight(380); self.composer_host.setWidget(self.composer)
         main.addWidget(self.composer_host)
         self.error_label=QLabel(); self.error_label.setObjectName('error'); self.error_label.setWordWrap(True); self.error_label.hide(); main.addWidget(self.error_label)
-        queue_header=QHBoxLayout(); self.count_label=QLabel('Очередь'); queue_header.addWidget(self.count_label,1)
-        self.start_button=QPushButton('▷  Запустить очередь'); self.start_button.clicked.connect(presenter.start_queue); queue_header.addWidget(self.start_button)
+        queue_header=QHBoxLayout(); self.count_label=QLabel(); queue_header.addWidget(self.count_label,1)
+        self.start_button=self.tr.widget(QPushButton,'start_queue'); self.start_button.clicked.connect(presenter.start_queue); queue_header.addWidget(self.start_button)
         main.addLayout(queue_header)
-        self.queue_view=QueueView(); self.queue_view.setUniformItemSizes(True); self.queue_view.setSpacing(0)
+        self.queue_view=QueueView(); self.queue_view.setObjectName('queue'); self.queue_view.setUniformItemSizes(True); self.queue_view.setSpacing(0)
         self.proxy=QueueFilter(presenter.model,self); self.queue_view.setModel(self.proxy)
-        delegate=QueueDelegate(self.queue_view); self.queue_view.setItemDelegate(delegate)
+        delegate=QueueDelegate(self.queue_view,theme=self.theme,translator=self.tr); self.queue_view.setItemDelegate(delegate)
         delegate.action_requested.connect(self._row_action)
         self.queue_view.activated.connect(lambda index:presenter.toggle_job(index.data(JobListModel.JobIdRole)))
         main.addWidget(self.queue_view,1)
-        self.empty=QLabel('Здесь пока нет заданий. Добавьте первую ссылку.'); self.empty.setObjectName('muted'); main.addWidget(self.empty)
-        footer=QLabel('Файлы сохраняются локально  ·  ClipFlow 2.0 · preview'); footer.setObjectName('muted'); main.addWidget(footer)
+        self.empty=self.tr.widget(QLabel,'empty'); self.empty.setObjectName('muted'); main.addWidget(self.empty)
+        footer=self.tr.widget(QLabel,'footer'); footer.setObjectName('muted'); main.addWidget(footer)
         self.composer.submit_requested.connect(self._submit)
         self.composer.probe_requested.connect(self._request_probe); self.composer.batch_requested.connect(self._open_batch)
         self.composer.preset_changed.connect(self._save_preset); presenter.probe_ready.connect(self.composer.apply_probe)
@@ -103,10 +82,66 @@ class MainWindow(QMainWindow):
         presenter.error_raised.connect(self._show_error); presenter.settings_changed.connect(self._settings_changed)
         presenter.selection_requested.connect(self._select_dialog); presenter.source_requested.connect(self._source_dialog)
         presenter.shutdown_finished.connect(self._shutdown_finished)
-        self._settings_changed(); self._update_counts()
+        self._menus(); self.tr.changed.connect(self.retranslate); self.theme.changed.connect(self._accent)
+        self.composer.service_changed.connect(self._accent)
+        self.presenter.model.translator=self.tr
+        self._settings_changed(); self._update_counts(); self._accent()
+
+    def _menus(self):
+        bar=self.menuBar(); bar.setNativeMenuBar(True)
+        downloads=bar.addMenu(''); self.tr.bind(downloads,'menu_downloads',setter='setTitle')
+        action=downloads.addAction(''); self.tr.bind(action,'batch'); action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.New)); action.triggered.connect(self._open_batch); self.addAction(action)
+        action=downloads.addAction(''); self.tr.bind(action,'start_queue'); action.triggered.connect(self.presenter.start_queue)
+        edit=bar.addMenu(''); self.tr.bind(edit,'menu_edit',setter='setTitle')
+        for key,method,standard in [('undo','undo','Undo'),('redo','redo','Redo'),('cut','cut','Cut'),('copy','copy','Copy'),('paste','paste','Paste'),('select_all','selectAll','SelectAll')]:
+            action=edit.addAction(''); self.tr.bind(action,key); action.setShortcuts(QKeySequence.keyBindings(getattr(QKeySequence.StandardKey,standard)))
+            self.addAction(action)
+            action.triggered.connect(lambda checked=False,m=method:self._edit(m))
+        edit.aboutToShow.connect(lambda:self._edit_enabled(edit))
+        view=bar.addMenu(''); self.tr.bind(view,'menu_view',setter='setTitle')
+        themes=view.addMenu(''); self.tr.bind(themes,'theme',setter='setTitle')
+        self.theme_actions={}; group=QActionGroup(self)
+        for mode in ('dark','light','system'):
+            action=themes.addAction(''); self.tr.bind(action,mode); action.setCheckable(True); group.addAction(action); self.theme_actions[mode]=action
+            action.triggered.connect(lambda checked=False,m=mode:self._preferences(theme=m))
+        settings=bar.addMenu(''); self.tr.bind(settings,'menu_settings',setter='setTitle')
+        languages=settings.addMenu(''); self.tr.bind(languages,'language',setter='setTitle')
+        self.language_actions={}; group=QActionGroup(self)
+        for code,label in [('ru','Русский'),('en','English')]:
+            action=languages.addAction(label); action.setCheckable(True); group.addAction(action); self.language_actions[code]=action
+            action.triggered.connect(lambda checked=False,c=code:self._preferences(language=c))
+        # Explicit wrappers keep the native menu/language-binding lifetime clear.
+        self._menu_objects=[downloads,edit,view,themes,settings,languages]
+
+    def _edit(self,method):
+        widget=QApplication.focusWidget()
+        if widget is not None and self._input_actions.owns(widget) and hasattr(widget,method): getattr(widget,method)()
+
+    def _edit_enabled(self,menu):
+        widget=QApplication.focusWidget()
+        for action in menu.actions(): action.setEnabled(widget is not None and hasattr(widget,'paste'))
+
+    def _preferences(self,**values):
+        self.presenter.update_preferences(**values)
+        self._settings_changed()  # Also roll back checkmarks if persistence failed.
+
+    def _accent(self,*args):
+        t=self.theme.tokens(); color=t[self.composer.service.value]
+        self.setStyleSheet(f'QPushButton#primary {{background:{color};color:{t["accent_text"]};border-color:{color};}}')
+        self.setWindowIcon(icon(color,t['accent_text'])); self.queue_view.viewport().update()
+
+    def retranslate(self):
+        self.heading.setText(self.tr.text(self._nav_key) if self._nav_key in CATALOG[self.tr.language] else self._nav_key)
+        self._update_counts(); self.queue_view.viewport().update()
+        if self.presenter.model.rowCount(): self.presenter.model.dataChanged.emit(self.presenter.model.index(0),self.presenter.model.index(self.presenter.model.rowCount()-1))
+        if self._error_code and self.error_label.isVisible(): self._show_error(self._error_code)
 
     def _settings_changed(self):
         self.composer.set_settings(self.presenter.settings)
+        self.theme.set_mode(self.presenter.settings.theme); self.tr.set_language(self.presenter.settings.language)
+        if hasattr(self,'theme_actions'):
+            self.theme_actions[self.presenter.settings.theme].setChecked(True)
+            self.language_actions[self.presenter.settings.language].setChecked(True)
         self.auto_start.blockSignals(True); self.auto_start.setChecked(self.presenter.settings.auto_start); self.auto_start.blockSignals(False)
 
     def _save_preset(self,service,options,limit):
@@ -130,7 +165,7 @@ class MainWindow(QMainWindow):
             if isinstance(dialog,BatchDialog) and dialog.isVisible(): dialog.raise_(); return
         if not self._commit_options(): return
         existing={request_key(job.request) for job in self.presenter.model.jobs}
-        dialog=BatchDialog(self.presenter.submission,self.presenter.settings.presets,self.composer.limit_box.currentData(),self,existing_keys=existing)
+        dialog=BatchDialog(self.presenter.submission,self.presenter.settings.presets,self.composer.limit_box.currentData(),self,existing_keys=existing,translator=self.tr)
         def confirm(preview):
             result=self.presenter.submit_preview(preview)
             if result is not None:
@@ -156,8 +191,8 @@ class MainWindow(QMainWindow):
 
     def _update_counts(self):
         count=self.presenter.model.rowCount()
-        word='задание' if count%10==1 and count%100!=11 else 'задания' if 2<=count%10<=4 and not 12<=count%100<=14 else 'заданий'
-        self.count_label.setText(f'Очередь  ·  {count} {word}')
+        key='job_one' if count%10==1 and count%100!=11 else 'job_few' if 2<=count%10<=4 and not 12<=count%100<=14 else 'job_many'
+        self.count_label.setText(self.tr.text('queue_count',count=count,word=self.tr.text(key)))
         self.empty.setVisible(self.proxy.rowCount()==0)
 
     def _row_action(self,identity,action):
@@ -165,37 +200,31 @@ class MainWindow(QMainWindow):
         else: self.presenter.toggle_job(identity)
 
     def _navigate(self,service,history,title):
-        for button in self.nav_buttons: button.setChecked(button.text()==title)
-        self.proxy.show_source(service,history); self.heading.setText(title); self.composer_host.setVisible(not history); self.composer.setVisible(not history)
+        for button in self.nav_buttons: button.setChecked(button.property('nav_key')==title)
+        self.proxy.show_source(service,history); self._nav_key=title; self.heading.setText(self.tr.text(title) if title in CATALOG[self.tr.language] else title); self.composer_host.setVisible(not history); self.composer.setVisible(not history)
         if service is not None:
             self.composer.set_service(Service(service))
         self._update_counts()
 
     def _show_error(self,code):
-        messages={'invalid_link':'Проверьте ссылку и выбранный режим.', 'already_queued':'Эта загрузка уже есть в списке.',
-                  'invalid_folder':'Укажите папку для скачивания.',
-                  'folder_missing':'Папка недоступна. Проверьте путь.', 'storage_busy':'Хранилище занято. Повторите действие позже.',
-                  'storage_read_only':'Нет доступа для записи в папку данных ClipFlow.',
-                  'queue_update_failed':'Не удалось сохранить очередь. Загрузки остановлены.',
-                  'source_changed':'Ссылка отличается от исходной. Добавьте её как новое задание.',
-                  'cooldown_active':'Срок ожидания ещё не истёк. Повторите позже.',
-                  'settings_reset':'Повреждённые настройки сохранены в резервной копии. Восстановлены начальные параметры.',
-                  'legacy_settings_reset':'Старые настройки не удалось прочитать. Восстановлены начальные параметры.',
-                  'app_closed':'Очередь закрыта. Перезапустите приложение.'}
-        self.error_label.setText(messages.get(code,'Не удалось выполнить действие. Проверьте доступ и повторите попытку.'))
+        self._error_code=code; key='error.'+code
+        self.error_label.setText(self.tr.text(key if key in CATALOG[self.tr.language] else 'error.generic'))
         self.error_label.setToolTip(code); self.error_label.show()
 
     def _select_dialog(self,identity,selection):
         if selection is None:
             self._show_error('selection_refresh_required')
             return
-        dialog=QDialog(self); dialog.setWindowTitle('Выберите видео урока'); dialog.resize(520,350)
-        layout=QVBoxLayout(dialog); layout.addWidget(QLabel('Какие материалы добавить в очередь?'))
+        dialog=QDialog(self); self.tr.bind(dialog,'select_lesson',setter='setWindowTitle'); dialog.resize(520,350)
+        layout=QVBoxLayout(dialog); layout.addWidget(self.tr.widget(QLabel,'select_materials'))
         items=QListWidget(); layout.addWidget(items)
         for number,code in enumerate(selection.ids):
-            title=selection.titles[number] if number<len(selection.titles) else f'Видео {number+1}'
+            title=selection.titles[number] if number<len(selection.titles) else self.tr.text('video_number',number=number+1)
             item=QListWidgetItem(title); item.setData(Qt.ItemDataRole.UserRole,code); item.setCheckState(Qt.CheckState.Checked); items.addItem(item)
+            if number>=len(selection.titles): self.tr.bind(item,'video_number',number=number+1)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel); layout.addWidget(buttons)
+        self.tr.bind(buttons.button(QDialogButtonBox.StandardButton.Cancel),'cancel')
+        self.tr.bind(buttons.button(QDialogButtonBox.StandardButton.Ok),'ok')
         buttons.rejected.connect(dialog.reject)
         def accept():
             ids=tuple(items.item(n).data(Qt.ItemDataRole.UserRole) for n in range(items.count()) if items.item(n).checkState()==Qt.CheckState.Checked)
@@ -203,16 +232,23 @@ class MainWindow(QMainWindow):
         buttons.accepted.connect(accept); self._track_dialog(dialog); dialog.open()
 
     def _source_dialog(self,identity):
-        dialog=QInputDialog(self); dialog.setWindowTitle('Восстановить источник')
-        dialog.setLabelText('Вставьте исходную ссылку этого задания:'); dialog.setInputMode(QInputDialog.InputMode.TextInput)
+        dialog=QInputDialog(self); self.tr.bind(dialog,'restore_source',setter='setWindowTitle')
+        self.tr.bind(dialog,'original_link',setter='setLabelText'); self.tr.bind(dialog,'cancel',setter='setCancelButtonText'); self.tr.bind(dialog,'ok',setter='setOkButtonText'); dialog.setInputMode(QInputDialog.InputMode.TextInput)
         dialog.textValueSelected.connect(lambda text:self.presenter.provide_source(identity,text))
         self._track_dialog(dialog); dialog.open()
 
     def _shutdown_finished(self):
         if self._closing_requested: self.close()
 
+    def dispose_ui(self):
+        if self._ui_disposed: return
+        self._ui_disposed=True
+        QApplication.instance().removeEventFilter(self._input_actions)
+        self.theme.close(); self.tr.close()
+
     def closeEvent(self,event):
         self._closing_requested=True
+        self.dispose_ui()
         for dialog in tuple(self._dialogs): dialog.reject()
         self.presenter.shutdown()
         if self.presenter.is_closed: event.accept()

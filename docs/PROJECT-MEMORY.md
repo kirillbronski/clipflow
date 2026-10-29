@@ -1,6 +1,6 @@
 # ClipFlow — текущая память проекта
 
-Обновлено 28 октября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
+Обновлено 29 октября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
 ## Что утверждено
 
@@ -10,7 +10,7 @@
 - План: [2026-10-27-clipflow-qt.md](superpowers/plans/2026-10-27-clipflow-qt.md), 16 этапов T1–T16.
 - Макет: HTML и три изображения в `docs/superpowers/specs/assets/`. Это демонстрация, не работающий Qt-клиент.
 - План прошёл авторскую самопроверку и утверждён владельцем. Выбран Native: один исполнитель по этапам и независимая проверка всей ветки в конце. Повторное согласование плана/способа исполнения не требуется.
-- Реализованы T1–T11: неизменяемые запросы, URL-маршрутизация, единое добавление, attempt-safe планировщик без виджетов, общий медиаконвейер, YouTube/Music, GetCourse и отдельные Instagram посты/Reels/карусели. T3 добавляет один активный worker, pause/resume/cancel/retry, новые attempt IDs, дедуп дочерних запросов, selection и rate-limit pause, подписки и отменяемые ожидания.
+- Реализованы T1–T12: неизменяемые запросы, URL-маршрутизация, единое добавление, attempt-safe планировщик без виджетов, общий медиаконвейер, YouTube/Music, GetCourse и отдельные Instagram посты/Reels/карусели. T3 добавляет один активный worker, pause/resume/cancel/retry, новые attempt IDs, дедуп дочерних запросов, selection и rate-limit pause, подписки и отменяемые ожидания.
 - T3: 28 тестов планировщика; всего 79 pytest-тестов и полный `scripts/check.py` (legacy regression scripts + self-test + pytest) прошли на macOS/Python 3.12.15. Покрытие нового ядра: 452/462 строк (97.84%), 140/150 ветвей (93.33%); scheduler — 100% строк, 70/72 ветвей. Это текущее ядро T1–T3, не покрытие будущего полного приложения. Windows/пакеты в этой сессии локально не проверялись.
 - T4 выполнен на Windows 11 x64 / Python 3.12.10 / FFmpeg и FFprobe 9.0.2: 47 новых тестов, 126 всего; полный `scripts/check.py` пройден. Domain/application: 521/532 строк (97.93%), 169/180 ветвей (93.89%); весь текущий `src/clipflow`: 768/791 строк (97.09%), 218/242 ветвей (90.08%). Это покрытие реализованной части T1–T4, не будущего полного Qt-приложения.
 - T4: безопасные Unicode/Windows-пути с резервом для временных файлов, исходные номера, уникальные папки/имена постов, отдельные коды с разным регистром; общие Provider/ExecutionContext/MediaItem/ProbeResult/DownloadResult. YoutubeDL скачивает во временный источник, FFmpeg обрабатывает и проверяет результат перед публикацией. Совместимый WebM remux без перекодирования, несовместимый — VP9/Opus; фото сохраняют байты/расширение. Повтор не перезаписывает готовое медиа; TXT/MD пишутся через fsync/atomic replace. Ошибки имеют безопасный MediaFailure.code, FilesSaved выдаётся только после успешного сохранения; отмена сохраняет partial/source и завершает дочерний процесс до возврата.
@@ -79,6 +79,16 @@
 - Native Windows run.py --qt-preview с isolated profile: расширенные параметры при880×680 и mixed batch, no horizontal clipping, clean shutdown/no Tk/no upstream requests. После offscreen RED минимальная ширина URL180px закреплена в UI и проверяется вместе с отсутствием горизонтальной прокрутки; это не native Mac/manual DPI/clipboard приёмка.
 - Legacy default/installed app/real sessions не менялись; новый установщик не создавался. Public-only preview auth остаётся до T13, темы/RU-EN/clipboard/DPI T12, полноценная история/файлы T14, final review/live/packages T16. Пауза после T11, перед T12; exact-SHA CI фиксируется в Agents snapshot/журнале.
 
+## T12 — темы, RU/EN и системная клавиатура
+
+- ThemeManager(app,settings) даёт dark/light/system, resolved_mode(), immutable tokens(). Тёмная по умолчанию; выбор темы/языка сохраняется через presenter/SettingsStore, storage failure возвращает прежнее оформление и checkmarks. System подписан на Qt styleHints colorSchemeChanged; фиксированная тема не меняется от системного события. Единая palette/QSS покрывает inputs, menus, dialogs, table/list, selection/focus, disabled/error/success. Все заданные пары обычного текста >=4.5:1. Сервис меняет только небольшие accent/icon, фон окна стабилен.
+- Translator с явным каталогом RU/EN, форматированными ключами и weak bindings; нет поиска/замены русских строк в пользовательских данных. Уже открытый batch/selection/source dialog, labels, quality modes, errors, queue fallback/status/speed обновляются; drafts, options, probe IDs и реальные заголовки/пути не меняются. Qt qtbase translations подключаются для стандартных системных Qt controls, при наличии; native OS folder dialog использует системное оформление/язык. При упаковке T15 сохранить нужные .qm.
+- Меню Загрузки/Правка/Вид/Настройки: batch, start queue, editing, темы и RU/EN. Используются QKeySequence.StandardKey (Qt сам отображает Command на macOS), не ручной выбор Ctrl/Meta по ОС. Cyrillic-layout copy/cut/paste/select-all/undo/redo, стандартные editing context actions; Clipboard QA сохраняет/восстанавливает все MIME-форматы, не пишет их на диск/в логи.
+- На узком окне кнопка основной команды остаётся крупной и переносится на следующую строку, combos допускают сжатие; у advanced form вертикальная прокрутка без горизонтального обрезания. Qt DPI применяется один раз, отдельные GUI-процессы QT_SCALE_FACTOR1/1.5/2 проверяют логические880×680 и DPR с учётом Retina/нативной базы. Нового пользовательского zoom нет.
+- 355 collected:354passed/1native-only skip в offline suite; полный scripts/check.py PASS Windows/Python3.12.10/FFmpeg9.0.2. Все19 T12 cases отдельно PASS в настоящей Windows GUI, включая clipboard/контекстные меню/русские сочетания/Ctrl+N и DPI1/1.5/2. Native run.py --qt-preview с isolated profile проверен/captured/viewed: обе темы, RU/EN, все сервисы, batch,880px,no upstream/Tk/jobs,clean shutdown. Старый initial native Ctrl+N RED был отсутствием реальной активации QApplication до посылки клавиш; проверка ждёт ApplicationActive/activeWindow, а не только флага QWidget. Не обходили реальный shortcut fake обработчиком.
+- Core700/720строк97.22%,229/250ветвей91.60%; src3128/3302строк94.73%,812/966ветвей84.06%. Тела QThread остаются консервативно missed, не исключены. Known legacy yt-dlp ResourceWarning exit0. В CI добавлены отдельные GUI steps windows/cocoa; их результат на точном SHA фиксируется в журнале/Agents snapshot, не выводится из offscreen pass.
+- Public-only preview auth до T13; полноценная settings/accounts page T13, история/файлы T14, installer/live/final review T16. Новый установщик не создавался; installed runtime/main/реальные LocalAppData sessions не менялись. Пауза после T12, перед T13.
+
 ## Исходная база
 
 Актуальный runtime — 1.8.7, коммит `5f9cc8f`. Он получен из GitHub на Mac. Ранее эта переписка закончилась 1.8.6, но Windows-работа добавила восстановление иконки и изоляцию DLL PATH для упаковки. Эти исправления необходимо сохранить.
@@ -113,4 +123,4 @@
 
 ## Следующий шаг
 
-Дождаться команды владельца продолжить T12 (темы, RU/EN и системная клавиатура). Затем исполнять один этап через executing-plans/TDD и журнал `.superpowers/sdd/2026-10-27-clipflow-qt/progress.md` (копия в Agents/ClipFlow/implementation/), обновить память/план/срез и снова остановиться. Не начинать повторный brainstorming и не запрашивать повторное утверждение уже принятой спецификации/плана. Исходная точка исполнения — ce1d84e; подробные rulings и результаты — в журнале.
+Дождаться команды владельца продолжить T13 (аккаунты, защита и перенос авторизационных процессов). Затем исполнять один этап через executing-plans/TDD и журнал `.superpowers/sdd/2026-10-27-clipflow-qt/progress.md` (копия в Agents/ClipFlow/implementation/), обновить память/план/срез и снова остановиться. Не начинать повторный brainstorming и не запрашивать повторное утверждение уже принятой спецификации/плана. Исходная точка исполнения — ce1d84e; подробные rulings и результаты — в журнале.

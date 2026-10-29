@@ -164,6 +164,9 @@ class WorkbenchPresenter(QObject):
     def set_auto_start(self,enabled):
         return self._command(lambda:self._save_settings(replace(self.settings,auto_start=enabled)))
 
+    def update_preferences(self,**values):
+        return self._command(lambda:self._save_settings(replace(self.settings,**values)))
+
     def _save_settings(self,settings):
         if self.settings_store: self.settings_store.save(settings)
         self.settings=settings; self.settings_changed.emit()

@@ -22,6 +22,7 @@ where = ["src"]
 testpaths = ["tests/unit", "tests/integration", "tests/ui", "tests/platform"]
 addopts = "-ra"
 qt_api = "pyside6"
+markers = ["native_gui: requires an explicitly enabled real Windows/Cocoa GUI session"]
 
 [tool.coverage.run]
 branch = true

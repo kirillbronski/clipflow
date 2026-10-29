@@ -4,8 +4,6 @@ from pathlib import Path
 import shutil
 import sys
 
-from PySide6.QtGui import QColor,QPalette,QIcon,QPixmap,QPainter,QPen
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication,QMessageBox
 
 from clipflow.application.scheduler import Scheduler
@@ -14,7 +12,7 @@ from clipflow.application.instagram_rate_policy import InstagramRatePolicy
 from clipflow.domain.models import Service,ContentKind
 from clipflow.infrastructure.executor import ThreadExecutor
 from clipflow.infrastructure.repository import SqliteJobRepository,RepositoryError
-from clipflow.infrastructure.settings import SettingsStore,SettingsError
+from clipflow.infrastructure.settings import SettingsStore,SettingsError,AppSettings
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
 from clipflow.providers.base import MediaFailure
 from clipflow.providers.media import MediaPipeline
@@ -24,6 +22,8 @@ from clipflow.providers.instagram_post import InstagramPostProvider
 from clipflow.providers.instagram_profile import InstagramProfileProvider,InstaloaderPageSource
 from clipflow.ui.presenter import WorkbenchPresenter
 from clipflow.ui.window import MainWindow
+from clipflow.ui.i18n import Translator,CATALOG
+from clipflow.ui.themes import ThemeManager
 
 
 class PublicAuthGateway:
@@ -47,30 +47,12 @@ def _binary(name):
     return shutil.which(executable)
 
 
-def _dark(app):
-    app.setStyle('Fusion')
-    palette=QPalette()
-    for role,color in [(QPalette.ColorRole.Window,'#1c1e25'),(QPalette.ColorRole.Base,'#1c1e25'),
-                       (QPalette.ColorRole.AlternateBase,'#24262f'),(QPalette.ColorRole.WindowText,'#eeedf5'),
-                       (QPalette.ColorRole.Text,'#eeedf5'),(QPalette.ColorRole.Button,'#24262f'),
-                       (QPalette.ColorRole.ButtonText,'#eeedf5'),(QPalette.ColorRole.Highlight,'#6752b2'),
-                       (QPalette.ColorRole.HighlightedText,'#ffffff')]: palette.setColor(role,QColor(color))
-    app.setPalette(palette)
-
-
-def _icon():
-    pixmap=QPixmap(64,64); pixmap.fill(Qt.GlobalColor.transparent); painter=QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing); painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor('#8975ed'))
-    painter.drawRoundedRect(2,2,60,60,14,14); painter.setPen(QPen(QColor('white'),5,Qt.PenStyle.SolidLine,Qt.PenCapStyle.RoundCap))
-    painter.drawLine(32,16,32,45); painter.drawLine(21,34,32,45); painter.drawLine(32,45,43,34); painter.end()
-    return QIcon(pixmap)
-
-
 def create_application(argv:list[str],data_dir:Path|None=None):
     app=QApplication.instance() or QApplication(argv)
-    app.setApplicationName('ClipFlow'); _dark(app); app.setWindowIcon(_icon())
+    app.setApplicationName('ClipFlow')
     directory=Path(data_dir) if data_dir is not None else data_directory()
     settings_store=SettingsStore(directory); settings=settings_store.load()
+    app.setProperty('clipflowLanguage',settings.language); app.setProperty('clipflowTheme',settings.theme)
     repository=SqliteJobRepository(directory/'queue.sqlite3')
     try:
         repository.recover()
@@ -96,14 +78,14 @@ def create_application(argv:list[str],data_dir:Path|None=None):
 def main(argv=None):
     try: app,window=create_application(list(sys.argv if argv is None else argv))
     except (RepositoryError,SettingsError) as error:
-        messages={'storage_read_only':'Нет доступа для записи в папку данных ClipFlow. Проверьте права доступа.',
-                  'storage_busy':'Хранилище ClipFlow занято. Закройте другую копию приложения и повторите запуск.',
-                  'queue_corrupt':'Файл очереди повреждён. Исходный файл сохранён; восстановите его из резервной копии.',
-                  'unsupported_queue_schema':'Данные очереди созданы другой версией ClipFlow. Используйте совместимую версию.',
-                  'unsupported_settings_schema':'Настройки созданы другой версией ClipFlow. Используйте совместимую версию.'}
-        QMessageBox.critical(None,'ClipFlow',messages.get(error.code,'Не удалось открыть данные ClipFlow. Проверьте папку данных.'))
+        app=QApplication.instance()
+        settings=AppSettings(language=app.property('clipflowLanguage') or 'ru',theme=app.property('clipflowTheme') or 'dark')
+        theme=ThemeManager(app,settings); translator=Translator(settings.language); translator.install_qt()
+        key='error.'+error.code
+        QMessageBox.critical(None,'ClipFlow',translator.text(key if key in CATALOG[translator.language] else 'error.generic'))
         return 1
     window.show()
     try: return app.exec()
     finally:
         window.presenter.shutdown(); window.presenter.executor.drain()
+        window.dispose_ui()
