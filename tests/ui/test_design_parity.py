@@ -139,3 +139,18 @@ def test_mode_caption_yields_space_to_wide_control_metrics(make_window, qtbot):
     qtbot.waitUntil(lambda: not caption.isVisible() and window.composer_host.horizontalScrollBar().maximum() == 0)
     assert not caption.isVisible()
     assert all(window.composer.mode_buttons[name].isVisible() for name in ('single', 'batch', 'playlist'))
+
+
+@pytest.mark.parametrize('mode', ['single', 'profile'])
+def test_instagram_options_use_full_panel_height_without_inner_scroll(make_window, qtbot, mode):
+    window, _ = make_window()
+    window.resize(880, 680)
+    window._navigate('instagram', False, 'Instagram')
+    window.composer.mode_buttons[mode].click()
+    window.composer.parameters_button.setChecked(True)
+    qtbot.waitUntil(lambda: window.composer_host.height() >= window.composer.sizeHint().height()
+                   and window.composer_host.verticalScrollBar().maximum() == 0)
+    folder_bottom=window.folder_input.mapTo(window.composer_host.viewport(), window.folder_input.rect().bottomRight()).y()
+    assert folder_bottom < window.composer_host.viewport().height()
+    assert window.height() == 680
+    assert window.queue_view.height() >= 96

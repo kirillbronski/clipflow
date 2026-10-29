@@ -32,32 +32,47 @@ jobs:
           QT_QPA_PLATFORM: offscreen
       - name: Native Qt clipboard DPI history and shutdown on Windows
         if: runner.os == 'Windows'
-        run: python -m pytest tests/ui/test_themes.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
+        run: python -m pytest tests/ui/test_themes.py tests/ui/test_design_parity.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
         env:
           QT_QPA_PLATFORM: windows
           CLIPFLOW_NATIVE_QA: '1'
       - name: Native Qt clipboard DPI history and shutdown on macOS
         if: runner.os == 'macOS'
-        run: python -m pytest tests/ui/test_themes.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
+        run: python -m pytest tests/ui/test_themes.py tests/ui/test_design_parity.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_NATIVE_QA: '1'
       - name: Native protected auth and embedded browser on Windows
         if: runner.os == 'Windows'
-        run: python -m pytest tests/platform/test_auth_compatibility.py tests/ui/test_accounts.py -q
+        run: python -m pytest tests/platform/test_auth_compatibility.py tests/ui/test_accounts.py -q --junitxml=work/native-auth.xml
         env:
           QT_QPA_PLATFORM: windows
           CLIPFLOW_AUTH_NATIVE: '1'
       - name: Native protected auth and embedded browser on macOS
         if: runner.os == 'macOS'
-        run: python -m pytest tests/platform/test_auth_compatibility.py tests/ui/test_accounts.py -q
+        run: python -m pytest tests/platform/test_auth_compatibility.py tests/ui/test_accounts.py -q --junitxml=work/native-auth.xml
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_AUTH_NATIVE: '1'
+      - name: Native auth diagnostics
+        if: always()
+        shell: python
+        run: |
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          report = Path('work/native-auth.xml')
+          if report.is_file():
+              for case in ET.parse(report).getroot().iter('testcase'):
+                  for failure in list(case.findall('failure')) + list(case.findall('error')):
+                      text = case.get('name', '') + ': ' + (failure.text or failure.get('message', ''))
+                      text = text[:12000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                      print('::error title=Native authentication test::' + text)
       - name: Coverage proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Coverage-${{ matrix.os }}
-          path: work/verification/*.json
+          path: |
+            work/verification/*.json
+            work/native-auth.xml
           retention-days: 14

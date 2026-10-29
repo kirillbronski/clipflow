@@ -22,6 +22,7 @@ class Composer(QFrame):
     batch_requested=Signal()
     preset_changed=Signal(object,object,object)
     service_changed=Signal(object)
+    layout_changed=Signal()
 
     def __init__(self,settings,parent=None,*,translator=None):
         super().__init__(parent); self.setObjectName('composer')
@@ -31,7 +32,7 @@ class Composer(QFrame):
         self._drafts={s:'' for s in Service}; self._modes={s:'lesson' if s==Service.GETCOURSE else 'single' for s in Service}
         self._post_preference=True; self._probe_id=''; self.quality_pending=False
         self._timer=QTimer(self); self._timer.setSingleShot(True); self._timer.setInterval(300); self._timer.timeout.connect(self._probe)
-        layout=QVBoxLayout(self); layout.setContentsMargins(20,16,20,16); layout.setSpacing(12)
+        layout=QVBoxLayout(self); layout.setContentsMargins(20,16,20,16); layout.setSpacing(10)
         top=QHBoxLayout(); self.download_label=self.tr.widget(QLabel,'download_label'); top.addWidget(self.download_label); top.addStretch()
         self.service_box=QComboBox()
         for service in Service: self.service_box.addItem(NAMES[service],service.value)
@@ -126,6 +127,7 @@ class Composer(QFrame):
 
     def _hint(self,key):
         self._hint_key=key; self.hint.setText(self.tr.text(key) if key else '')
+        self.layout_changed.emit()
 
     def _expand(self,expanded):
         self.parameters.setVisible(expanded)

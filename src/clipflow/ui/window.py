@@ -77,7 +77,10 @@ class MainWindow(QMainWindow):
         side.addSpacing(14); line=QFrame(); line.setObjectName('divider'); line.setFixedHeight(1); side.addWidget(line)
         local=self.tr.widget(QLabel,'local_note'); local.setObjectName('muted'); side.addWidget(local)
         layout.addWidget(sidebar)
-        main=QVBoxLayout(); main.setContentsMargins(36,32,36,18); main.setSpacing(20); layout.addLayout(main,1); self.main_layout=main
+        self.main_page=QScrollArea(); self.main_page.setWidgetResizable(True); self.main_page.setFrameShape(QFrame.Shape.NoFrame)
+        self.main_page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content=QWidget(); content.setObjectName('mainContent'); self.main_page.setWidget(content); layout.addWidget(self.main_page,1)
+        main=QVBoxLayout(content); main.setContentsMargins(36,32,36,18); main.setSpacing(20); self.main_layout=main
         header=QHBoxLayout(); titles=QVBoxLayout(); titles.setSpacing(5); self.heading=self.tr.widget(QLabel,'all_downloads'); self.heading.setObjectName('heading'); titles.addWidget(self.heading); header.addLayout(titles,1)
         self.batch_button=self.tr.widget(QPushButton,'batch_button'); self.batch_button.clicked.connect(self._open_batch); header.addWidget(self.batch_button); main.addLayout(header)
         subtitle=QLabel(); self.subtitle=subtitle; subtitle.setObjectName('muted'); titles.addWidget(subtitle)
@@ -88,6 +91,7 @@ class MainWindow(QMainWindow):
         self.composer_host=QScrollArea(); self.composer_host.setWidgetResizable(True); self.composer_host.setFrameShape(QFrame.Shape.NoFrame)
         self.composer_host.setWidget(self.composer)
         self.composer.parameters_button.toggled.connect(self._resize_composer)
+        self.composer.layout_changed.connect(self._resize_composer)
         for button in self.composer.mode_buttons.values(): button.clicked.connect(self._resize_composer)
         main.addWidget(self.composer_host)
         self.error_label=QLabel(); self.error_label.setObjectName('error'); self.error_label.setWordWrap(True); self.error_label.hide(); main.addWidget(self.error_label)
@@ -100,6 +104,7 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda checked=False,s=status:self._filter_status(s)); tab_layout.addWidget(button); self.status_buttons[status]=button
         tab_layout.addStretch(); main.addWidget(self.status_tabs)
         self.queue_view=QueueView(); self.queue_view.setObjectName('queue'); self.queue_view.setUniformItemSizes(True); self.queue_view.setSpacing(0)
+        self.queue_view.setMinimumHeight(96)
         self.proxy=QueueFilter(presenter.model,self); self.queue_view.setModel(self.proxy)
         delegate=QueueDelegate(self.queue_view,theme=self.theme,translator=self.tr); self.queue_view.setItemDelegate(delegate)
         delegate.action_requested.connect(self._row_action)
@@ -136,7 +141,10 @@ class MainWindow(QMainWindow):
 
     def _resize_composer(self,*args):
         def apply():
-            self.composer_host.setFixedHeight(min(max(170,self.composer.sizeHint().height()+2),min(380,int(self.height()*.48))))
+            instagram=self.composer.service==Service.INSTAGRAM
+            height=max(170,self.composer.sizeHint().height()+2)
+            self.composer_host.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff if instagram else Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            self.composer_host.setFixedHeight(height if instagram else min(height,380,int(self.height()*.44)))
         QTimer.singleShot(0,self,apply)
 
     def _filter_status(self,status):
