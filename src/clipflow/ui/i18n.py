@@ -87,6 +87,31 @@ MESSAGES={
  'error.unsupported_queue_schema':('Данные очереди созданы другой версией ClipFlow. Используйте совместимую версию.','Queue data was created by a different ClipFlow version. Use a compatible version.'),
  'error.unsupported_settings_schema':('Настройки созданы другой версией ClipFlow. Используйте совместимую версию.','Settings were created by a different ClipFlow version. Use a compatible version.'),
 }
+MESSAGES.update({
+ 'accounts':('Аккаунты','Accounts'), 'about':('О программе','About'),
+ 'accounts_note':('Сессии защищены для этого пользователя компьютера. Вход открывается в отдельном окне ClipFlow.','Sessions are protected for this computer user. Sign-in opens in a separate ClipFlow window.'),
+ 'sign_in':('Войти','Sign in'), 'sign_out':('Выйти','Sign out'), 'configure_access':('Настроить доступ','Configure access'),
+ 'not_signed_in':('Вход не выполнен','Not signed in'), 'session_saved':('Сессия сохранена','Session saved'),
+ 'account_configured':('Профиль сохранён для выбранной школы','Profile saved for the selected school'),
+ 'school_lesson_url':('Ссылка на урок вашей школы','Your school lesson link'), 'access_method':('Способ доступа','Access method'),
+ 'email':('Email','Email'), 'password':('Пароль','Password'), 'cookies_file':('Файл cookies','Cookies file'), 'browser':('Браузер','Browser'),
+ 'auth_email':('Email и пароль','Email and password'), 'auth_cookies':('Файл cookies Netscape','Netscape cookies file'), 'auth_browser':('Сессия браузера','Browser session'),
+ 'school_scope_note':('Доступ применяется только к школе из этой ссылки. Для браузера: войдите в школу и закройте браузер перед чтением сессии. Старый профиль импортируется только после явного выбора школы.','Access applies only to the school in this link. For browser access, sign into the school and close the browser before reading its session. Importing an old profile requires explicitly selecting a school.'),
+ 'import_old_profile':('Импортировать прежний профиль','Import previous profile'), 'save':('Сохранить','Save'),
+ 'about_description':('Видео, аудио и фотографии сохраняются локально. YouTube, Instagram и GetCourse. Предварительная версия нового интерфейса; доступ к материалам зависит от сервиса и вашего аккаунта.','Save videos, audio and photos locally. YouTube, Instagram and GetCourse. New-interface preview; access depends on the service and your account.'),
+ 'auth_window_title':('Вход в {service} · ClipFlow','{service} sign-in · ClipFlow'),
+ 'auth_embedded_note':('Введите данные на странице сервиса, затем откройте сервис и сохраните сессию. Сохранённая сессия будет доступна после перезапуска ClipFlow.','Enter your details on the provider page, then open the service and save the session. The saved session remains available after restarting ClipFlow.'),
+ 'auth_native_mode':('Обычный Qt WebEngine','Standard Qt WebEngine'), 'auth_ipad51':('Chrome на iPad · 51','Chrome on iPad · 51'), 'auth_ipad87':('Chrome на iPad · 87','Chrome on iPad · 87'),
+ 'open_service':('Открыть сервис','Open service'), 'save_session':('Сохранить сессию','Save session'),
+ 'auth_page_ready':('Страница загружена','Page loaded'), 'auth_page_failed':('Не удалось загрузить страницу','Page did not load'),
+ 'auth_session_missing':('Сессия ещё не обнаружена. Откройте сервис после входа.','Session not detected yet. Open the service after signing in.'),
+ 'error.auth_invalid_settings':('Проверьте школу, способ доступа и заполненные поля.','Check the school, access method and required fields.'),
+ 'error.auth_invalid_school':('Вставьте ссылку на урок выбранной школы GetCourse.','Paste a lesson link from your chosen GetCourse school.'),
+ 'error.auth_storage_failed':('Не удалось сохранить защищённый профиль.','Could not save the protected profile.'),
+ 'error.auth_required':('Сохранённый вход недоступен. Откройте «Аккаунты» и войдите заново.','Saved sign-in is unavailable. Open Accounts and sign in again.'),
+ 'error.auth_launch_failed':('Не удалось открыть окно входа.','Could not open the sign-in window.'),
+ 'error.auth_scope_mismatch':('Этот профиль не относится к выбранному сервису или школе.','This profile belongs to another service or school.'),
+})
 CATALOG={language:{key:pair[index] for key,pair in MESSAGES.items()} for index,language in enumerate(('ru','en'))}
 
 

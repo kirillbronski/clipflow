@@ -15,6 +15,8 @@ from clipflow.ui.batch_dialog import BatchDialog
 from clipflow.ui.i18n import Translator,CATALOG
 from clipflow.ui.themes import ThemeManager,icon
 from clipflow.ui.input import InputActions
+from clipflow.ui.accounts import AccountsPage
+from clipflow.ui.settings_page import SettingsPage
 
 
 
@@ -36,7 +38,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('ClipFlow · Qt preview'); self.setMinimumSize(880,680); self.resize(1180,800)
         self.tr=Translator(presenter.settings.language,self); self.tr.install_qt()
         self.theme=ThemeManager(QApplication.instance(),presenter.settings,self)
-        self._nav_key='all_downloads'; self._error_code=None
+        self._nav_key='all_downloads'; self._error_code=None; self._section='downloads'
         self._input_actions=InputActions(self,self.tr); QApplication.instance().installEventFilter(self._input_actions)
         QApplication.instance().aboutToQuit.connect(self.dispose_ui)
         root=QWidget(); root.setObjectName('root'); self.setCentralWidget(root); layout=QHBoxLayout(root); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
@@ -50,6 +52,10 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda checked=False,s=service,h=history,t=label:self._navigate(s,h,t))
             side.addWidget(button); self.nav_buttons.append(button)
         self.nav_buttons[0].setChecked(True)
+        self.accounts_button=self.tr.widget(QPushButton,'accounts'); self.accounts_button.setObjectName('nav'); side.addWidget(self.accounts_button)
+        self.settings_button=self.tr.widget(QPushButton,'menu_settings'); self.settings_button.setObjectName('nav'); side.addWidget(self.settings_button)
+        self.accounts_button.setCheckable(True); self.settings_button.setCheckable(True)
+        self.accounts_button.clicked.connect(lambda:self._show_section('accounts')); self.settings_button.clicked.connect(lambda:self._show_section('settings'))
         side.addStretch(); local=self.tr.widget(QLabel,'local_note'); local.setObjectName('muted'); side.addWidget(local)
         layout.addWidget(sidebar)
         main=QVBoxLayout(); main.setContentsMargins(28,28,28,18); main.setSpacing(16); layout.addLayout(main,1)
@@ -75,9 +81,13 @@ class MainWindow(QMainWindow):
         main.addWidget(self.queue_view,1)
         self.empty=self.tr.widget(QLabel,'empty'); self.empty.setObjectName('muted'); main.addWidget(self.empty)
         footer=self.tr.widget(QLabel,'footer'); footer.setObjectName('muted'); main.addWidget(footer)
+        self._download_widgets=(self.composer_host,self.count_label,self.start_button,self.queue_view,self.empty,footer,subtitle)
+        self.accounts_page=AccountsPage(presenter,self.tr,self); self.settings_page=SettingsPage(presenter,self.tr,self)
+        main.addWidget(self.accounts_page,1); main.addWidget(self.settings_page,1); self.accounts_page.hide(); self.settings_page.hide()
         self.composer.submit_requested.connect(self._submit)
         self.composer.probe_requested.connect(self._request_probe); self.composer.batch_requested.connect(self._open_batch)
         self.composer.preset_changed.connect(self._save_preset); presenter.probe_ready.connect(self.composer.apply_probe)
+        presenter.auth_changed.connect(self.composer._invalidate)
         presenter.input_accepted.connect(self._input_accepted); presenter.jobs_changed.connect(self._update_counts)
         presenter.error_raised.connect(self._show_error); presenter.settings_changed.connect(self._settings_changed)
         presenter.selection_requested.connect(self._select_dialog); presenter.source_requested.connect(self._source_dialog)
@@ -193,18 +203,30 @@ class MainWindow(QMainWindow):
         count=self.presenter.model.rowCount()
         key='job_one' if count%10==1 and count%100!=11 else 'job_few' if 2<=count%10<=4 and not 12<=count%100<=14 else 'job_many'
         self.count_label.setText(self.tr.text('queue_count',count=count,word=self.tr.text(key)))
-        self.empty.setVisible(self.proxy.rowCount()==0)
+        self.empty.setVisible(self._section=='downloads' and self.proxy.rowCount()==0)
 
     def _row_action(self,identity,action):
         if action=='cancel': self.presenter.cancel_job(identity)
         else: self.presenter.toggle_job(identity)
 
     def _navigate(self,service,history,title):
+        self.accounts_button.setChecked(False); self.settings_button.setChecked(False)
+        self._section='downloads'; self.accounts_page.hide(); self.settings_page.hide()
+        for widget in self._download_widgets: widget.show()
         for button in self.nav_buttons: button.setChecked(button.property('nav_key')==title)
         self.proxy.show_source(service,history); self._nav_key=title; self.heading.setText(self.tr.text(title) if title in CATALOG[self.tr.language] else title); self.composer_host.setVisible(not history); self.composer.setVisible(not history)
         if service is not None:
             self.composer.set_service(Service(service))
         self._update_counts()
+
+    def _show_section(self,section):
+        self._section=section
+        self.accounts_button.setChecked(section=='accounts'); self.settings_button.setChecked(section=='settings')
+        for widget in self._download_widgets: widget.hide()
+        for button in self.nav_buttons: button.setChecked(False)
+        self.accounts_page.setVisible(section=='accounts'); self.settings_page.setVisible(section=='settings')
+        self._nav_key='accounts' if section=='accounts' else 'menu_settings'; self.heading.setText(self.tr.text(self._nav_key))
+        self.accounts_page.refresh(); self.settings_page.refresh()
 
     def _show_error(self,code):
         self._error_code=code; key='error.'+code

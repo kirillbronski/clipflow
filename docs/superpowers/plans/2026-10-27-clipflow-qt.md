@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T12 завершён; пауза перед T13.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T13 завершён; пауза перед T14.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -233,11 +233,13 @@ T10 CI correction: initial 9540e90 passed Windows but macOS failed Return activa
 
 **Interfaces:** Produces `NativeAuthGateway(data_dir)` implementing AuthGateway; `.sign_in(service: Service, language: str)->AuthProcessHandle`, `.logout(auth_profile: str)->None`, `.status(service)->AuthStatus`; `AuthProcessHandle.poll()->AuthStatus`, `.close()->None`; `PlatformServices.reveal(path: Path)->None`, `.choose_folder(parent, initial: Path)->Path|None`, `.protect(data: bytes, decrypt: bool=False)->bytes`.
 
-- [ ] Red: `test_old_encrypted_session_readable`, `test_youtube_instagram_isolation`, `test_logout_only_selected_service`, `test_auth_process_single_instance`, `test_close_parent_handles_child`, `test_no_secret_in_errors_db_or_support_export`, `test_windows_icon_retained_after_delayed_startup`, `test_macos_data_and_keychain_namespace_unchanged`.
-- [ ] `python -m pytest tests/platform/test_auth_compatibility.py tests/ui/test_accounts.py -q`: FAIL.
-- [ ] Перенести защиту и отдельный QtWebEngine auth process без смены key namespace/формата snapshot. Bootstrap распознаёт прежние `--youtube-login`, `--instagram-login`, `--auth-self-test`, `--instagram-auth-self-test` до создания основного окна. GetCourse auth references дают доступ к проверенной школе, не наследуют другой аккаунт.
-- [ ] Tests: PASS in isolated profiles. На каждой реальной ОС DPAPI/Keychain round-trip и запуски auth self-test; не читать/печать реальные secrets. Отсутствующий доступ пользователя фиксируется отдельно.
-- [ ] Commit `refactor: preserve native security and authentication in Qt`.
+- [x] Red: `test_old_encrypted_session_readable`, `test_youtube_instagram_isolation`, `test_logout_only_selected_service`, `test_auth_process_single_instance`, `test_close_parent_handles_child`, `test_no_secret_in_errors_db_or_support_export`, `test_windows_icon_retained_after_delayed_startup`, `test_macos_data_and_keychain_namespace_unchanged`.
+- [x] `python -m pytest tests/platform/test_auth_compatibility.py tests/ui/test_accounts.py -q`: FAIL.
+- [x] Перенести защиту и отдельный QtWebEngine auth process без смены key namespace/формата snapshot. Bootstrap распознаёт прежние `--youtube-login`, `--instagram-login`, `--auth-self-test`, `--instagram-auth-self-test` до создания основного окна. GetCourse auth references дают доступ к проверенной школе, не наследуют другой аккаунт.
+- [x] Tests: PASS in isolated profiles. На каждой реальной ОС DPAPI/Keychain round-trip и запуски auth self-test; не читать/печать реальные secrets. Отсутствующий доступ пользователя фиксируется отдельно.
+- [x] Commit `refactor: preserve native security and authentication in Qt`.
+
+> T13: NativeAuthGateway/PlatformServices and separate managed QtWebEngine process are connected to the preview. Preserve deployed DPAPI flags/format, ClipFlow/profile-encryption-key-v1 Keychain namespace, service directories/session.dat list payload, Chromium profile name/storage paths and exact application names. Isolated tests use ClipFlow Tests/hash-root namespace only. GetCourse requires explicit school-lesson binding/import; protected profiles keyed by school, browser/export jars filtered, shared direct players receive no school credentials. Unbound legacy protected source remains untouched on import/logout; no silent reuse. Accounts hides sign-in when a session is saved, supports scoped logout/configuration and saved GetCourse email; Settings uses persistent T12 themes/languages/About. Parent imports no WebEngine/Tk; source entry flags dispatch early. QLockFile + one handle per service, resource teardown/ACK before parent completion; per-launch nonce close markers avoid startup races, bounded nonblocking terminate/kill fallback. 384 collected:379passed/5native-only skips in full offline scripts/check.py; separately29/29 T13 native Windows cases PASS, including DPAPI/legacy roundtrip, both real local-only WebEngine self-tests, child singleton/immediate-close, clipboard credentials and delayed icons. Actual source run.py preview accounts/settings captures verified with generated protected profiles; no real accounts/upstream requests. CI now adds equivalent native Windows/Cocoa auth suites. Core 700/720 lines 97.22%, 229/250 branches 91.60%; all own runtime 3545/3969 lines 89.32%, 908/1174 branches 77.34%. Explicit report includes every src .py, conservatively0 for untraced child UI/QThread bodies; no hidden omission. No live sign-in/closed-content/package claim; they remain T15/T16. Installed runtime/main unchanged; pause beforeT14.
 
 ### Task 14: История, операции с файлами и безопасный жизненный цикл
 

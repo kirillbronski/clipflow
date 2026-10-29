@@ -42,3 +42,15 @@ jobs:
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_NATIVE_QA: '1'
+      - name: Native protected auth and embedded browser on Windows
+        if: runner.os == 'Windows'
+        run: python -m pytest tests/platform/test_auth_compatibility.py tests/ui/test_accounts.py -q
+        env:
+          QT_QPA_PLATFORM: windows
+          CLIPFLOW_AUTH_NATIVE: '1'
+      - name: Native protected auth and embedded browser on macOS
+        if: runner.os == 'macOS'
+        run: python -m pytest tests/platform/test_auth_compatibility.py tests/ui/test_accounts.py -q
+        env:
+          QT_QPA_PLATFORM: cocoa
+          CLIPFLOW_AUTH_NATIVE: '1'

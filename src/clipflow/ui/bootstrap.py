@@ -14,7 +14,6 @@ from clipflow.infrastructure.executor import ThreadExecutor
 from clipflow.infrastructure.repository import SqliteJobRepository,RepositoryError
 from clipflow.infrastructure.settings import SettingsStore,SettingsError,AppSettings
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
-from clipflow.providers.base import MediaFailure
 from clipflow.providers.media import MediaPipeline
 from clipflow.providers.youtube import YouTubeProvider
 from clipflow.providers.getcourse import GetCourseProvider
@@ -24,19 +23,8 @@ from clipflow.ui.presenter import WorkbenchPresenter
 from clipflow.ui.window import MainWindow
 from clipflow.ui.i18n import Translator,CATALOG
 from clipflow.ui.themes import ThemeManager
-
-
-class PublicAuthGateway:
-    """Real protected-storage adapters are T13; do not pretend a login succeeded."""
-    def options_for(self,profile,url):
-        if profile is not None: raise MediaFailure('auth_required')
-        return {}
-
-
-def data_directory():
-    if os.environ.get('CLIPFLOW_DATA_DIR'): return Path(os.environ['CLIPFLOW_DATA_DIR']).expanduser().resolve()
-    if sys.platform=='darwin': return Path.home()/'Library'/'Application Support'/'ClipFlow'
-    return Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'ClipFlow'
+from clipflow.infrastructure.auth import NativeAuthGateway
+from clipflow.infrastructure.platform import data_directory
 
 
 def _binary(name):
@@ -64,9 +52,11 @@ def create_application(argv:list[str],data_dir:Path|None=None):
         registry[(Service.INSTAGRAM,ContentKind.POST)]=InstagramPostProvider(pipeline)
         registry[(Service.INSTAGRAM,ContentKind.PROFILE)]=InstagramProfileProvider(source)
         policy=InstagramRatePolicy(RateLimitStore(directory/'instagram-rate.sqlite3'))
-        executor=ThreadExecutor(registry,PublicAuthGateway(),instagram_rate=policy,cleanup=source.close)
+        auth=NativeAuthGateway(directory)
+        executor=ThreadExecutor(registry,auth,instagram_rate=policy,cleanup=source.close)
         scheduler=Scheduler(repository,executor)
         presenter=WorkbenchPresenter(SubmissionService(repository),scheduler,settings,repository,settings_store=settings_store)
+        presenter.set_auth_gateway(auth)
         window=MainWindow(presenter)
         if settings_store.last_warning: window._show_error(settings_store.last_warning)
         app.aboutToQuit.connect(presenter.shutdown)
@@ -76,7 +66,12 @@ def create_application(argv:list[str],data_dir:Path|None=None):
 
 
 def main(argv=None):
-    try: app,window=create_application(list(sys.argv if argv is None else argv))
+    arguments=list(sys.argv if argv is None else argv)
+    from clipflow.infrastructure.auth_process.__main__ import FLAGS
+    if any(flag in arguments for flag in FLAGS):
+        from clipflow.infrastructure.auth_process.__main__ import main as auth_main
+        return auth_main(arguments[1:])
+    try: app,window=create_application(arguments)
     except (RepositoryError,SettingsError) as error:
         app=QApplication.instance()
         settings=AppSettings(language=app.property('clipflowLanguage') or 'ru',theme=app.property('clipflowTheme') or 'dark')
@@ -88,4 +83,6 @@ def main(argv=None):
     try: return app.exec()
     finally:
         window.presenter.shutdown(); window.presenter.executor.drain()
+        if window.presenter.auth_gateway is not None:
+            window.presenter.auth_gateway.drain(); window.presenter._finish_shutdown()
         window.dispose_ui()

@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject,QTimer,Signal,Slot,QUrl
 from PySide6.QtGui import QDesktopServices
 
 from clipflow.domain.events import RequestsDiscovered,SelectionRequired
-from clipflow.domain.models import JobState,TERMINAL_STATES
+from clipflow.domain.models import JobState,TERMINAL_STATES,Service
 from clipflow.domain.urls import parse_url
 from clipflow.ui.queue_model import JobListModel
 
@@ -23,6 +23,7 @@ class WorkbenchPresenter(QObject):
     settings_changed=Signal()
     shutdown_finished=Signal()
     probe_ready=Signal(str,object,str)
+    auth_changed=Signal()
 
     def __init__(self,submission,scheduler,settings,repository,*,settings_store=None):
         super().__init__()
@@ -32,6 +33,9 @@ class WorkbenchPresenter(QObject):
         self.model=JobListModel(repository.list(),self)
         self._closing=False; self.is_closed=False; self._selections={}
         self._probe_id=''; self._probe_cache={}
+        self.auth_gateway=None; self._auth_snapshot=None
+        self._auth_timer=QTimer(self); self._auth_timer.setInterval(1000); self._auth_timer.timeout.connect(self._poll_auth)
+        self._close_timer=QTimer(self); self._close_timer.setInterval(50); self._close_timer.timeout.connect(self._finish_shutdown)
         self._unsubscribe=scheduler.subscribe(self._on_event)
         self.executor.closed.connect(self._finish_shutdown)
         self.executor.error.connect(self._executor_error)
@@ -167,6 +171,51 @@ class WorkbenchPresenter(QObject):
     def update_preferences(self,**values):
         return self._command(lambda:self._save_settings(replace(self.settings,**values)))
 
+    def set_auth_gateway(self,gateway):
+        self.auth_gateway=gateway; self.executor.auth=gateway
+        gateway.activate_profile(Service.GETCOURSE,self.settings.presets[Service.GETCOURSE].auth_profile)
+        self._poll_auth(); self._auth_timer.start()
+
+    def _poll_auth(self):
+        if self._closing or self.auth_gateway is None: return
+        def action():
+            self.auth_gateway.poll()
+            snapshot=tuple(self.auth_gateway.status(service) for service in Service)
+            if snapshot==self._auth_snapshot: return
+            self.clear_probe_cache()
+            presets=dict(self.settings.presets)
+            for status in snapshot: presets[status.service]=replace(presets[status.service],auth_profile=status.profile if status.connected else None)
+            if presets!=dict(self.settings.presets): self._save_settings(replace(self.settings,presets=presets))
+            self._auth_snapshot=snapshot
+            self.auth_changed.emit()
+        self._command(action)
+
+    def sign_in_account(self,service):
+        if self.auth_gateway is not None:
+            return self._command(lambda:self.auth_gateway.sign_in(service,self.settings.language))
+
+    def logout_account(self,service):
+        def action():
+            if self.auth_gateway is None: return
+            status=self.auth_gateway.status(service)
+            if status.profile is None: return
+            for job in self.repository.list():
+                if job.request.options.auth_profile==status.profile and job.state in {JobState.PROBING,JobState.DOWNLOADING,JobState.PROCESSING}: self.scheduler.pause(job.id)
+            self.auth_gateway.logout(status.profile); self._poll_auth()
+        return self._command(action)
+
+    def configure_getcourse(self,url,method,**values):
+        def action():
+            if self.auth_gateway is None: return None
+            profile=self.auth_gateway.configure_getcourse(url,method,**values); self._poll_auth(); return profile
+        return self._command(action)
+
+    def import_getcourse(self,url):
+        def action():
+            if self.auth_gateway is None: return None
+            profile=self.auth_gateway.import_legacy_getcourse(url); self._poll_auth(); return profile
+        return self._command(action)
+
     def _save_settings(self,settings):
         if self.settings_store: self.settings_store.save(settings)
         self.settings=settings; self.settings_changed.emit()
@@ -192,13 +241,18 @@ class WorkbenchPresenter(QObject):
 
     def shutdown(self):
         if self._closing: return
-        self._closing=True; self._timer.stop()
+        self._closing=True; self._timer.stop(); self._auth_timer.stop()
+        if self.auth_gateway is not None: self.auth_gateway.close()
         try: self.scheduler.shutdown()
         except Exception: self.error_raised.emit('queue_update_failed')
         self.executor.shutdown()
 
     @Slot()
     def _finish_shutdown(self):
+        if self.is_closed: return
+        if self.auth_gateway is not None and not self.auth_gateway.is_closed:
+            self._close_timer.start(); return
+        self._close_timer.stop()
         self._unsubscribe()
         close=getattr(self.repository,'close',None)
         if close: close()
