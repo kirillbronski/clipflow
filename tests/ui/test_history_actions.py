@@ -210,8 +210,9 @@ def test_clear_all_button_confirms_then_stops_and_clears_across_services(make_wi
 @pytest.mark.parametrize('language',['ru','en'])
 def test_queue_bulk_controls_fit_and_hide_in_settings(make_window,qtbot,language):
     window,_=make_window(); window.language_actions[language].trigger(); window.resize(880,680)
-    qtbot.waitUntil(lambda:window.main_page.viewport().width()>500)
-    for button in (window.start_button,window.cancel_queue_button,window.clear_all_button):
+    buttons=(window.start_button,window.cancel_queue_button,window.clear_all_button)
+    qtbot.waitUntil(lambda:window.width()==880 and all(button.isVisible() and button.width()>=button.fontMetrics().horizontalAdvance(button.text())+10 for button in buttons))
+    for button in buttons:
         assert button.isVisible()
         assert button.width()>=button.fontMetrics().horizontalAdvance(button.text())+10
     window.settings_button.click()

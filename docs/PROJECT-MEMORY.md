@@ -2,6 +2,25 @@
 
 Обновлено 29 октября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Уточнение тестовой проверки и Mac Keychain
+
+Полный Parallels прогон того же runtime bfd5726 дал457PASS/6skips и1FAIL:
+RU toolbar test считывал width205 до отложенного Qt layout, тогда как glyph
+требовал270px. Условие viewport>500 было истинным ещё до завершения resize.
+Тест теперь ожидает ровно880px и те же прежние требования readable button width;
+строгие assertions/timeout сохранены. Windows targeted6PASS и Mac native2PASS.
+Runtime/assets/packaging по git diff идентичны clean compiled bfd5726; новая
+проверка не требует ещё одной перекомпиляции неизменённого продукта. CI и тесты
+имеют отдельный verification head; source artifact SHA всегда остаётся реальным.
+
+Обе установки уже обновлены до bfd5726, обе frozen smoke PASS, Windows responsive
+через Desktop shortcut. Mac normal profile ждёт системное разрешение Keychain:
+SecItemCopyMatching на старом ключе профиля, не ошибка synthetic smoke. Никакие
+ключи/ACL не сбрасывались. Старое ожидание чтения остановлено после backup и
+проверки отсутствия active jobs; новая app установлена с сохранением профиля.
+Владелец должен подтвердить системный доступ, чтобы normal GUI завершил запуск.
+Pending native foreground Command+N/личные live gates не считать PASS.
+
 ## Проверка адаптации панели
 
 Mac full458PASS/6 explicit skips; core97.26%/91.67%, runtime87.97%.
