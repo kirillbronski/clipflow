@@ -2,6 +2,22 @@
 
 Обновлено 29 октября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Итог текущей задачи — 30 октября
+
+Все изменения кода/README/тестов отправлены в dev. Compiled source `bfd5726`;
+verification head `d09a1dc` — GitHub checks Windows и macOS completed SUCCESS.
+После сборки изменились только CI и ожидание settled layout в тесте; shipping
+src/assets/packaging/runtime requirements/build scripts идентичны по git diff.
+Пакеты не пересобирались без изменения продукта; provenance source SHA не подменён.
+Итоговый [отчёт](releases/2.0.0-candidate-2026-10-30.md), SHA256 и verification.json
+в согласованной папке владельца. DMG/EXE/APP ZIP/portable ZIP обновлены, обе установки
+обновлены; Mac одна app, Windows Desktop shortcut responsive. Профили сохранены.
+
+На Mac остаётся системное разрешение Keychain для существующего профиля; вопрос
+владельцу задан, доступа за него не подтверждать. Native foreground Command+N и
+личные/live acceptance остаются открыты. main не мержился. После сохранения
+Agents/ClipFlow — ПАУЗА; не начинать новую функциональность без запроса владельца.
+
 ## Уточнение тестовой проверки и Mac Keychain
 
 Полный Parallels прогон того же runtime bfd5726 дал457PASS/6skips и1FAIL:
