@@ -1,8 +1,9 @@
 """One application palette and semantic tokens. Service changes only small accents."""
 from types import MappingProxyType
+from pathlib import Path
 import sys
 from PySide6.QtCore import QObject,Signal,Qt
-from PySide6.QtGui import QColor,QPalette,QIcon,QPixmap,QPainter,QPen
+from PySide6.QtGui import QColor,QPalette,QIcon
 
 PALETTES={
  'dark':dict(background='#1b1c23',surface='#23252e',sidebar='#17181f',hover='#30323e',
@@ -21,12 +22,9 @@ TEXT_PAIRS=tuple((fg,bg) for fg in ('text','muted','disabled','success','error')
  ('youtube','surface'),('instagram','surface'),('getcourse','surface'))
 
 
-def icon(color,foreground):
-    pixmap=QPixmap(64,64); pixmap.fill(Qt.GlobalColor.transparent); painter=QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing); painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(color))
-    painter.drawRoundedRect(2,2,60,60,14,14); painter.setPen(QPen(QColor(foreground),5,Qt.PenStyle.SolidLine,Qt.PenCapStyle.RoundCap))
-    painter.drawLine(32,16,32,45); painter.drawLine(21,34,32,45); painter.drawLine(32,45,43,34); painter.end()
-    return QIcon(pixmap)
+def application_icon():
+    root=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[3]))
+    return QIcon(str(root/'assets/icons/clipflow.png'))
 
 
 class ThemeManager(QObject):

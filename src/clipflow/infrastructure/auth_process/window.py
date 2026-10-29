@@ -11,7 +11,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from clipflow.domain.models import Service
 from clipflow.infrastructure.auth_process.sessions import DOMAINS,AUTH_NAMES,SessionStore
-from clipflow.ui.themes import icon
+from clipflow.ui.themes import application_icon
 
 USER_AGENTS={
  'Обычный Qt WebEngine':None,
@@ -46,7 +46,7 @@ class AuthWindow(QMainWindow):
         chosen=settings.get('mode') if isinstance(settings,dict) else None
         self.service_name='YouTube' if service==Service.YOUTUBE else 'Instagram'
         self.setWindowTitle(self.tr.text('auth_window_title',service=self.service_name)); self.resize(1100,800); self.setMinimumSize(800,600)
-        t=theme.tokens(); self.setWindowIcon(icon(t[service.value],t['accent_text']))
+        self.setWindowIcon(application_icon())
         root=QWidget(); root.setObjectName('root'); self.setCentralWidget(root); layout=QVBoxLayout(root)
         heading=QLabel(self.tr.text('auth_window_title',service=self.service_name)); layout.addWidget(heading)
         note=self.tr.widget(QLabel,'auth_embedded_note'); note.setWordWrap(True); layout.addWidget(note)

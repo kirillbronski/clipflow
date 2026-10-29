@@ -74,6 +74,7 @@ def main(argv=None):
                 probe=pipeline._probe(job.result_files[0],context)
                 assert {'audio','video'} <= {s['codec_type'] for s in probe['streams']}
                 assert APP_VERSION in window.windowTitle() and presenter.executor.is_idle
+                assert not window.windowIcon().isNull()
                 window.resize(880,680); app.processEvents()
                 assert window.queue_view.width()>300
                 window.grab().save(str(root/'ui.png'))

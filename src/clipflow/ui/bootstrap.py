@@ -24,7 +24,7 @@ from clipflow.providers.instagram_profile import InstagramProfileProvider,Instal
 from clipflow.ui.presenter import WorkbenchPresenter
 from clipflow.ui.window import MainWindow
 from clipflow.ui.i18n import Translator,CATALOG
-from clipflow.ui.themes import ThemeManager
+from clipflow.ui.themes import ThemeManager,application_icon
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.infrastructure.platform import data_directory
 
@@ -48,6 +48,7 @@ def installer_language(directory):
 def create_application(argv:list[str],data_dir:Path|None=None):
     app=QApplication.instance() or QApplication(argv)
     app.setApplicationName('ClipFlow')
+    app.setWindowIcon(application_icon())
     directory=Path(data_dir) if data_dir is not None else data_directory()
     language=installer_language(directory)
     settings_store=SettingsStore(directory); settings=settings_store.load()

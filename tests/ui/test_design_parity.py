@@ -13,7 +13,7 @@ def test_collapsed_composer_leaves_queue_space_and_discloses_folder(make_window,
     window, _ = make_window()
     window._navigate('instagram', False, 'Instagram')
     window.resize(1240, 792)
-    qtbot.waitUntil(lambda: window.composer.width() > 500)
+    qtbot.waitUntil(lambda: window.composer.width() > 500 and window.composer.height() <= 220)
     assert window.composer.height() <= 220
     assert not window.folder_input.isVisible()
     assert not window.composer.service_box.isVisible()
@@ -90,3 +90,52 @@ def test_design_disclosure_and_navigation_fit_minimum_window(make_window, qtbot,
         assert window.url_input.width() >= 180
         assert window.queue_view.height() >= 70
         assert window.composer.add_button.width() >= window.composer.add_button.fontMetrics().horizontalAdvance(window.composer.add_button.text()) + 12
+
+
+@pytest.mark.parametrize('language', ['ru', 'en'])
+@pytest.mark.parametrize('theme', ['light', 'dark'])
+def test_checked_mode_text_has_full_bold_content_width(make_window, qtbot, language, theme):
+    from PySide6.QtWidgets import QStyleOptionButton, QStyle
+    window, _ = make_window()
+    window.language_actions[language].trigger()
+    window.theme_actions[theme].trigger()
+    window.resize(880, 680)
+    for service in Service:
+        window.composer.set_service(service)
+        for mode, button in window.composer.mode_buttons.items():
+            if mode == 'batch' or not button.isVisible():
+                continue
+            qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
+            window.composer.layout().activate()
+            option = QStyleOptionButton()
+            button.initStyleOption(option)
+            content = button.style().subElementRect(QStyle.SubElement.SE_PushButtonContents, option, button)
+            text_width = button.fontMetrics().horizontalAdvance(button.text())
+            assert content.width() >= text_width + 2, (service, mode, button.text(), content.width(), text_width)
+
+
+@pytest.mark.parametrize('section', ['accounts', 'settings'])
+def test_batch_button_only_visible_in_download_sections(make_window, qtbot, section):
+    window, _ = make_window()
+    getattr(window, section+'_button').click()
+    assert not window.batch_button.isVisible()
+    window.nav_buttons[1].click()
+    assert window.batch_button.isVisible()
+    window.nav_buttons[0].click()
+    assert window.batch_button.isVisible()
+
+
+def test_mode_caption_yields_space_to_wide_control_metrics(make_window, qtbot):
+    from PySide6.QtWidgets import QLabel
+    window, _ = make_window()
+    window.resize(880, 680)
+    window.language_actions['en'].trigger()
+    caption=next(label for label in window.composer.findChildren(QLabel) if label.text()=='Download')
+    caption.setMinimumWidth(130)
+    # Actual fallback-font widths observed on Windows offscreen, with safe ink padding.
+    for name, width in [('single', 174), ('batch', 198), ('playlist', 126)]:
+        window.composer.mode_buttons[name].setMinimumWidth(width)
+    window.composer._arrange_entry()
+    qtbot.waitUntil(lambda: not caption.isVisible() and window.composer_host.horizontalScrollBar().maximum() == 0)
+    assert not caption.isVisible()
+    assert all(window.composer.mode_buttons[name].isVisible() for name in ('single', 'batch', 'playlist'))

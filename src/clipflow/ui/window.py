@@ -13,7 +13,7 @@ from clipflow.ui.queue_delegate import QueueDelegate,SOURCE_NAMES
 from clipflow.ui.composer import Composer
 from clipflow.ui.batch_dialog import BatchDialog
 from clipflow.ui.i18n import Translator,CATALOG
-from clipflow.ui.themes import ThemeManager,icon
+from clipflow.ui.themes import ThemeManager,application_icon
 from clipflow.ui.input import InputActions
 from clipflow.ui.accounts import AccountsPage
 from clipflow.ui.settings_page import SettingsPage
@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
         self.presenter=presenter; presenter.setParent(self)
         self._closing_requested=False; self._ui_disposed=False; self._dialogs=[]; self._service=Service.YOUTUBE
         self.setWindowTitle(f'ClipFlow {APP_VERSION}'); self.setMinimumSize(880,680); self.resize(1180,800)
+        self.setWindowIcon(application_icon())
         self.tr=Translator(presenter.settings.language,self); self.tr.install_qt()
         self.theme=ThemeManager(QApplication.instance(),presenter.settings,self)
         self._nav_key='all_downloads'; self._error_code=None; self._section='downloads'
@@ -57,7 +58,7 @@ class MainWindow(QMainWindow):
         root=QWidget(); root.setObjectName('root'); self.setCentralWidget(root); layout=QHBoxLayout(root); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
         sidebar=QFrame(); sidebar.setObjectName('sidebar'); sidebar.setFixedWidth(205); self.sidebar=sidebar
         side=QVBoxLayout(sidebar); side.setContentsMargins(14,22,14,20); side.setSpacing(8)
-        brand_row=QHBoxLayout(); logo=QLabel(); logo.setPixmap(icon('#6754df','#ffffff').pixmap(32,32)); brand_row.addWidget(logo)
+        brand_row=QHBoxLayout(); logo=QLabel(); logo.setPixmap(application_icon().pixmap(32,32)); brand_row.addWidget(logo)
         brand=QLabel('ClipFlow'); brand.setObjectName('brand'); brand_row.addWidget(brand); brand_row.addStretch(); side.addLayout(brand_row); side.addSpacing(20)
         self.nav_buttons=[]
         for label,service,history in [('all_downloads',None,False),('history',None,True),('YouTube','youtube',False),
@@ -109,7 +110,7 @@ class MainWindow(QMainWindow):
         main.addWidget(self.queue_view,1)
         self.empty=self.tr.widget(QLabel,'empty'); self.empty.setObjectName('muted'); main.addWidget(self.empty)
         footer=self.tr.widget(QLabel,'footer'); footer.setObjectName('muted'); main.addWidget(footer)
-        self._download_widgets=(self.composer_host,self.count_label,self.start_button,self.status_tabs,self.queue_view,self.empty,footer,subtitle)
+        self._download_widgets=(self.batch_button,self.composer_host,self.count_label,self.start_button,self.status_tabs,self.queue_view,self.empty,footer,subtitle)
         self.accounts_page=AccountsPage(presenter,self.tr,self); self.settings_page=SettingsPage(presenter,self.tr,self)
         main.addWidget(self.accounts_page,1); main.addWidget(self.settings_page,1); self.accounts_page.hide(); self.settings_page.hide()
         self.composer.submit_requested.connect(self._submit)
@@ -191,7 +192,7 @@ class MainWindow(QMainWindow):
             start='#a93d85' if self.theme.resolved_mode()=='light' else '#f3aed9'
             background=f'qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {start},stop:1 {color})'
         self.setStyleSheet(f'QPushButton#primary {{background:{background};color:{t["accent_text"]};border-color:{color};}} QPushButton#statusTab:checked {{border-bottom-color:{color};}}')
-        self.setWindowIcon(icon(color,t['accent_text'])); self.queue_view.viewport().update()
+        self.queue_view.viewport().update()
         for button in self.nav_buttons:
             service=button.property('nav_key').lower()
             if service in {'youtube','instagram','getcourse'}:

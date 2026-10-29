@@ -89,7 +89,8 @@ def test_service_only_changes_accent_not_global_palette(make_window):
         assert dict(window.theme.tokens())==baseline
         assert window.palette().color(QPalette.ColorRole.Window)==palette
         icons.append(window.windowIcon().cacheKey())
-    assert len(set(icons))==3
+    assert len(set(icons))==1  # App identity stays stable; service accents remain separate.
+    assert not window.windowIcon().isNull()
 
 
 def test_translation_catalog_and_language_change_preserve_drafts(make_window,qtbot):

@@ -34,6 +34,7 @@ def spec_inputs(root,system):
     from PyInstaller.utils.hooks import collect_data_files,collect_submodules,copy_metadata
     root=Path(root)
     data=[(str(root/'THIRD-PARTY-NOTICES.md'),'licenses')]
+    data += [(str(root/'assets/icons/clipflow.png'),'assets/icons')]
     data += [(str(path),'licenses') for path in sorted((root/'assets/licenses').glob('*')) if path.is_file()]
     data += [(str(path),'licenses') for path in sorted((root/'work/package-licenses').glob('*.txt'))]
     data += [(str(root/'work/package-build-info.json'),'.')]

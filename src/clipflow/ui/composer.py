@@ -3,6 +3,7 @@ from dataclasses import replace
 from uuid import uuid4
 
 from PySide6.QtCore import Qt,QTimer,Signal
+from PySide6.QtGui import QFont,QFontMetrics
 from PySide6.QtWidgets import (
     QFrame,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,QPushButton,QToolButton,
     QLineEdit,QComboBox,QCheckBox,QFileDialog,QApplication,
@@ -31,11 +32,11 @@ class Composer(QFrame):
         self._post_preference=True; self._probe_id=''; self.quality_pending=False
         self._timer=QTimer(self); self._timer.setSingleShot(True); self._timer.setInterval(300); self._timer.timeout.connect(self._probe)
         layout=QVBoxLayout(self); layout.setContentsMargins(20,16,20,16); layout.setSpacing(12)
-        top=QHBoxLayout(); top.addWidget(self.tr.widget(QLabel,'download_label')); top.addStretch()
+        top=QHBoxLayout(); self.download_label=self.tr.widget(QLabel,'download_label'); top.addWidget(self.download_label); top.addStretch()
         self.service_box=QComboBox()
         for service in Service: self.service_box.addItem(NAMES[service],service.value)
         self.service_box.hide()
-        modes=QHBoxLayout(); modes.setSpacing(4); self.mode_buttons={}
+        modes=QHBoxLayout(); self._modes_layout=modes; modes.setSpacing(4); self.mode_buttons={}
         for mode in ('single','batch','profile','playlist','lesson'):
             button=QPushButton(); button.setObjectName('mode'); button.setCheckable(mode!='batch'); self.mode_buttons[mode]=button; modes.addWidget(button)
             button.clicked.connect(lambda checked=False,m=mode:self._set_mode(m))
@@ -94,6 +95,12 @@ class Composer(QFrame):
         super().resizeEvent(event); self._arrange_entry()
 
     def _arrange_entry(self):
+        parent=self.parentWidget()
+        available=min(self.width(),parent.width() if parent is not None else self.width())
+        margins=self.layout().contentsMargins()
+        caption_width=max(self.download_label.minimumWidth(),self.download_label.minimumSizeHint().width())
+        needed=self._modes_layout.minimumSize().width()+caption_width+16+margins.left()+margins.right()
+        self.download_label.setVisible(needed<=available)
         self.add_button.ensurePolished(); self.paste_button.ensurePolished()
         self.add_button.setMinimumWidth(max(170,self.add_button.fontMetrics().horizontalAdvance(self.add_button.text())+24))
         needed=self.url_input.minimumWidth()+self.add_button.minimumWidth()+48
@@ -169,6 +176,15 @@ class Composer(QFrame):
                 'profile':self.tr.text('profile'),'playlist':self.tr.text('playlist'),'lesson':self.tr.text('lesson_player')}
         for mode,button in self.mode_buttons.items():
             button.setText(labels[mode]); button.setVisible(mode in allowed); button.setChecked(mode==self.mode)
+            # Qt's stylesheet size hint uses the unchecked font. Reserve the
+            # semibold ink bounds too, so checking a mode cannot clip its text.
+            button.ensurePolished()
+            font=QFont(button.font()); font.setWeight(QFont.Weight.DemiBold)
+            metrics=QFontMetrics(font)
+            width=max(metrics.horizontalAdvance(button.text()),metrics.boundingRect(button.text()).width())
+            button.setMinimumWidth(width+30)
+            button.setMinimumHeight(metrics.height()+20)
+        self._arrange_entry()
         ig=self.service==Service.INSTAGRAM; profile=ig and self.mode=='profile'
         self.instagram_options.setVisible(ig); self.filter_box.setVisible(ig); self.filter_label.setVisible(ig); self.profile_row.setVisible(profile)
         self.post_folder.setChecked(True if profile else self._post_preference); self.post_folder.setEnabled(not profile)

@@ -2,6 +2,50 @@
 
 Обновлено 29 октября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## 29 октября — новая иконка, исправления и обе поставки (текущая задача)
+
+После design parity b789685 владелец разрешил Mac native checks, новый DMG и
+установку поверх прежней версии. Mac27.0.1/arm64: 428 offline PASS/6 skips,
+73 native PASS/1 Windows-only skip, frozen UI/local media + оба protected
+WebEngine self-tests PASS. B789685 DMG проверен codesign/hdiutil, запущен через
+Launch Services с read-only DMG и после установки в /Applications; 477 прежних
+файлов профиля сохранились byte-identical. Это ad-hoc подпись без notarization:
+spctl rejects, локальный запуск через LS фактически прошёл, защита не отключалась.
+
+Затем владелец попросил Windows EXE в той же папке Мой диск/ClipFlow и проверку
+в уже запущенном Parallels. VM Windows11 ARM64, x64 Python3.12.10 в эмуляции;
+создан изолированный clone вне Drive. Не выдавать это за физический x64 Mac/PC.
+Автопауза VM временно выключена для сборки, исходное Pause idle=on восстановить
+после работы; личный Windows checkout/программу не заменять без отдельной команды.
+
+Новые уточнения владельца в ходе задачи:
+- Сохранить первый сгенерированный вариант и дать ещё пять; все6 PNG сохранены в
+  assets/icon-concepts/2026-10-29 и личной папке выдачи. Выбран **1 — фиолетовый поток**.
+  Производные1024 PNG, ICNS и multi-size ICO заменяют старую YouTube-похожую иконку.
+  Одна иконка у приложения/side-brand/auth child/обоих установщиков; цвет площадки
+  остаётся только в accents/индикаторах, app identity не меняется при смене сервиса.
+- Обрезанные подписи режимов на всех площадках: ширина резервируется по semibold
+  ink bounds и высоте; при широком fallback-шрифте caption «Скачать» уступает место
+  режимам. Windows CI b789685 failed из-за EN880px горизонтального overflow;
+  он воспроизведён в Parallels (composer646/viewport643) и исправлен без skip или
+  ослабления ограничения. Windows UI suite35 PASS/1 native-only skip на рабочей
+  копии патча; полный старый check в эмуляции превышал360s, это не success.
+- «Несколько ссылок» скрыта в Settings/Accounts, видна в Downloads/History.
+
+Финальные исходники: 435 offline PASS/6 explicit skips, core97.24% строк/91.60%
+ветвей, runtime87.76%; native controls36 PASS и native auth21 PASS на Mac.
+Windows patched UI35 PASS/1 native-only skip в Parallels, в том числе прежняя
+EN880/DPI ошибка; последняя адаптация учитывает и explicit minimum caption width.
+Новые тесты ожидают settled Qt layout, не меняя требований по ширине/высоте.
+Иконка source/frozen/auth-child загружается из общего PNG, ресурс включён в specs;
+frozen smoke требует non-null window icon.
+
+Эти правки ещё требуют чистых сборок нового source SHA, frozen/native проверок
+и повторной установки на Mac: установленный b789685 их пока не содержит.
+Личные login/закрытые материалы GetCourse и IG profile10/50/all не проверены;
+YouTube/Music public metadata PASS, выбранная публичная playlist fixture unavailable.
+Соблюдать policy429, не создавать массовых профильных запросов ради отчёта.
+
 ## Актуальное уточнение — 29 октября: восстановление дизайна
 
 Получен dev `bd2e049` с Windows-частью T16. Предыдущая память этого чата про T11
