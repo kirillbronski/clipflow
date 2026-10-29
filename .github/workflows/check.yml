@@ -30,15 +30,15 @@ jobs:
       - run: python scripts/check.py
         env:
           QT_QPA_PLATFORM: offscreen
-      - name: Native Qt clipboard and DPI on Windows
+      - name: Native Qt clipboard DPI history and shutdown on Windows
         if: runner.os == 'Windows'
-        run: python -m pytest tests/ui/test_themes.py tests/platform/test_qt_clipboard.py -q
+        run: python -m pytest tests/ui/test_themes.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
         env:
           QT_QPA_PLATFORM: windows
           CLIPFLOW_NATIVE_QA: '1'
-      - name: Native Qt clipboard and DPI on macOS
+      - name: Native Qt clipboard DPI history and shutdown on macOS
         if: runner.os == 'macOS'
-        run: python -m pytest tests/ui/test_themes.py tests/platform/test_qt_clipboard.py -q
+        run: python -m pytest tests/ui/test_themes.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_NATIVE_QA: '1'

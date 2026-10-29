@@ -3,7 +3,7 @@ from PySide6.QtCore import Qt,QSize
 from PySide6.QtGui import QAction,QActionGroup,QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,QLabel,QPushButton,QLineEdit,QComboBox,
-    QListView,QFrame,QFileDialog,QCheckBox,QDialog,QDialogButtonBox,QListWidget,QListWidgetItem,QInputDialog,QScrollArea,QApplication,
+    QListView,QFrame,QFileDialog,QCheckBox,QDialog,QDialogButtonBox,QListWidget,QListWidgetItem,QInputDialog,QScrollArea,QApplication,QMenu,QMessageBox,QAbstractItemView,
 )
 
 from clipflow.domain.models import Service,JobState
@@ -78,6 +78,9 @@ class MainWindow(QMainWindow):
         delegate=QueueDelegate(self.queue_view,theme=self.theme,translator=self.tr); self.queue_view.setItemDelegate(delegate)
         delegate.action_requested.connect(self._row_action)
         self.queue_view.activated.connect(lambda index:presenter.toggle_job(index.data(JobListModel.JobIdRole)))
+        self.queue_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.queue_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.queue_view.customContextMenuRequested.connect(self._history_menu)
         main.addWidget(self.queue_view,1)
         self.empty=self.tr.widget(QLabel,'empty'); self.empty.setObjectName('muted'); main.addWidget(self.empty)
         footer=self.tr.widget(QLabel,'footer'); footer.setObjectName('muted'); main.addWidget(footer)
@@ -102,6 +105,9 @@ class MainWindow(QMainWindow):
         downloads=bar.addMenu(''); self.tr.bind(downloads,'menu_downloads',setter='setTitle')
         action=downloads.addAction(''); self.tr.bind(action,'batch'); action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.New)); action.triggered.connect(self._open_batch); self.addAction(action)
         action=downloads.addAction(''); self.tr.bind(action,'start_queue'); action.triggered.connect(self.presenter.start_queue)
+        downloads.addSeparator()
+        for key,command in [('clear_queue',self.presenter.clear_queue),('clear_history',self.presenter.clear_history)]:
+            action=downloads.addAction(''); self.tr.bind(action,key); action.triggered.connect(command)
         edit=bar.addMenu(''); self.tr.bind(edit,'menu_edit',setter='setTitle')
         for key,method,standard in [('undo','undo','Undo'),('redo','redo','Redo'),('cut','cut','Cut'),('copy','copy','Copy'),('paste','paste','Paste'),('select_all','selectAll','SelectAll')]:
             action=edit.addAction(''); self.tr.bind(action,key); action.setShortcuts(QKeySequence.keyBindings(getattr(QKeySequence.StandardKey,standard)))
@@ -200,14 +206,49 @@ class MainWindow(QMainWindow):
             self.auto_start.blockSignals(True); self.auto_start.setChecked(self.presenter.settings.auto_start); self.auto_start.blockSignals(False)
 
     def _update_counts(self):
-        count=self.presenter.model.rowCount()
+        count=self.proxy.rowCount()
         key='job_one' if count%10==1 and count%100!=11 else 'job_few' if 2<=count%10<=4 and not 12<=count%100<=14 else 'job_many'
-        self.count_label.setText(self.tr.text('queue_count',count=count,word=self.tr.text(key)))
+        self.count_label.setText(self.tr.text('history_count',count=count) if self.proxy.history else self.tr.text('queue_count',count=count,word=self.tr.text(key)))
+        self.start_button.setVisible(self._section=='downloads' and not self.proxy.history)
         self.empty.setVisible(self._section=='downloads' and self.proxy.rowCount()==0)
 
     def _row_action(self,identity,action):
         if action=='cancel': self.presenter.cancel_job(identity)
         else: self.presenter.toggle_job(identity)
+
+    def _history_menu(self,position):
+        index=self.queue_view.indexAt(position)
+        if not index.isValid(): return
+        if not self.queue_view.selectionModel().isSelected(index): self.queue_view.setCurrentIndex(index)
+        identities=tuple(i.data(JobListModel.JobIdRole) for i in self.queue_view.selectionModel().selectedRows())
+        jobs=tuple(self.presenter.repository.get(identity) for identity in identities)
+        menu=QMenu(self)
+        action=menu.addAction(self.tr.text('open_folder')); action.triggered.connect(lambda:self.presenter.open_result(identities[0]))
+        terminal=all(j.state in {JobState.COMPLETED,JobState.CANCELLED,JobState.FAILED} for j in jobs)
+        action=menu.addAction(self.tr.text('repeat_job')); action.setEnabled(terminal)
+        action.triggered.connect(lambda:[self.presenter.repeat_job(identity) for identity in identities])
+        menu.addSeparator()
+        action=menu.addAction(self.tr.text('remove_list')); action.setEnabled(terminal and self.presenter.executor.is_idle)
+        action.triggered.connect(lambda:self.presenter.remove_jobs(identities))
+        action=menu.addAction(self.tr.text('delete_files')); action.setEnabled(terminal and self.presenter.executor.is_idle and any(j.result_files for j in jobs))
+        action.triggered.connect(lambda:self._confirm_delete(identities))
+        menu.aboutToHide.connect(menu.deleteLater)
+        menu.popup(self.queue_view.viewport().mapToGlobal(position))
+
+    def _confirm_delete(self,identities):
+        jobs=tuple(self.presenter.repository.get(identity) for identity in identities)
+        count=len({path for job in jobs for path in job.result_files})
+        if not count: return
+        dialog=QMessageBox(self)
+        self.tr.bind(dialog,'delete_files',setter='setWindowTitle')
+        self.tr.bind(dialog,'delete_confirmation',count=count)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        dialog.setDefaultButton(QMessageBox.StandardButton.No)
+        self.tr.bind(dialog.button(QMessageBox.StandardButton.Yes),'delete_files')
+        self.tr.bind(dialog.button(QMessageBox.StandardButton.No),'cancel')
+        dialog.finished.connect(lambda result:self.presenter.delete_files(identities,True) if result==QMessageBox.StandardButton.Yes else None)
+        self._track_dialog(dialog); dialog.open()
 
     def _navigate(self,service,history,title):
         self.accounts_button.setChecked(False); self.settings_button.setChecked(False)

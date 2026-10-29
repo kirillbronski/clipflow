@@ -163,7 +163,7 @@ class GetCourseProvider:
                 options['js_runtimes'] = {'node':{'path':self.pipeline.node}}
             if self.pipeline.ffmpeg:
                 options['ffmpeg_location'] = self.pipeline.ffmpeg
-            with open_downloader(options) as ydl:
+            with open_downloader(options,context=context) as ydl:
                 ydl.add_info_extractor(LessonExtractor())
                 ydl.add_info_extractor(PlayerExtractor())
                 yield ydl, access

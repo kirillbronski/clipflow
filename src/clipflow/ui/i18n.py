@@ -3,6 +3,19 @@ import weakref
 from PySide6.QtCore import QObject,Signal,QLibraryInfo,QLocale,QTranslator
 
 MESSAGES={
+ 'history_count':('История  ·  {count}','History  ·  {count}'),
+ 'open_folder':('Открыть папку файла','Open file folder'),
+ 'clear_queue':('Очистить очередь (файлы останутся)','Clear queue (keep files)'),
+ 'clear_history':('Очистить историю (файлы останутся)','Clear history (keep files)'),
+ 'repeat_job':('Скачать повторно','Download again'),
+ 'remove_list':('Убрать из списка','Remove from list'),
+ 'delete_files':('Удалить файлы с диска','Delete files from disk'),
+ 'delete_confirmation':('Удалить записанные файлы ({count}) с диска? Это действие нельзя отменить. История останется.','Delete recorded files ({count}) from disk? This cannot be undone. History will remain.'),
+ 'files_missing':('Файлы отсутствуют','Files missing'),
+ 'error.files_missing':('Файлы удалены или перемещены. Можно скачать повторно.','Files were deleted or moved. You can download again.'),
+ 'error.unsafe_result_path':('Удаление отменено: файл находится вне исходной папки загрузки или путь изменился.','Deletion cancelled: a file is outside the original download folder or its path changed.'),
+ 'error.job_busy':('Дождитесь завершения активной загрузки перед этим действием.','Wait for the active download to finish before this action.'),
+ 'error.file_delete_failed':('Не удалось удалить все файлы. Проверьте права доступа и повторите.','Some files could not be deleted. Check access permissions and try again.'),
  'all_downloads':('Все загрузки','All downloads'), 'history':('История','History'),
  'local_note':('Файлы остаются\nна этом компьютере','Files stay\non this computer'),
  'batch_button':('+  Несколько ссылок','+  Multiple links'),

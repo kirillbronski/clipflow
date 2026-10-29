@@ -7,6 +7,7 @@ from clipflow.domain.models import JobState,TERMINAL_STATES
 from clipflow.ui.queue_model import JobListModel
 from clipflow.ui.i18n import Translator
 from clipflow.ui.themes import PALETTES
+from clipflow.ui.history import result_status
 
 SOURCE_NAMES={'youtube':'YouTube','instagram':'Instagram','getcourse':'GetCourse'}
 
@@ -48,6 +49,7 @@ class QueueDelegate(QStyledItemDelegate):
                          painter.fontMetrics().elidedText(meta,Qt.TextElideMode.ElideRight,available))
         progress=index.data(JobListModel.ProgressRole)
         label=self.tr.text('state_'+job.state.value)
+        if result_status(job)=='files_missing': label=self.tr.text('files_missing')
         if job.source_required: label=self.tr.text('source_needed')
         elif job.pause_reason=='selection_required': label=self.tr.text('selection_needed')
         elif job.pause_reason in {'rate_limit','rate_spacing'}:
@@ -57,7 +59,7 @@ class QueueDelegate(QStyledItemDelegate):
             label=(f'{min(99,int(progress.downloaded_bytes/progress.total_bytes*100))}%' if progress.total_bytes else
                    f'{progress.downloaded_bytes/1048576:.1f} '+self.tr.text('mb'))
             if progress.speed_bytes_per_second: label+=f' · {progress.speed_bytes_per_second/1048576:.1f} '+self.tr.text('mb_s')
-        painter.setPen(QColor(foreground if selected else t['success'] if job.state==JobState.COMPLETED else t['error'] if job.state==JobState.FAILED else t['muted']))
+        painter.setPen(QColor(foreground if selected else t['muted'] if result_status(job)=='files_missing' else t['success'] if job.state==JobState.COMPLETED else t['error'] if job.state==JobState.FAILED else t['muted']))
         painter.drawText(QRect(rect.right()-235,rect.top()+25,146,32),Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter,label)
         if progress and progress.total_bytes and job.state in {JobState.DOWNLOADING,JobState.PROCESSING,JobState.PAUSED}:
             bar=QRect(left,rect.top()+67,max(20,rect.width()-170),3)

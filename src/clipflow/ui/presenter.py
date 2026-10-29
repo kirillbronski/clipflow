@@ -10,6 +10,7 @@ from clipflow.domain.events import RequestsDiscovered,SelectionRequired
 from clipflow.domain.models import JobState,TERMINAL_STATES,Service
 from clipflow.domain.urls import parse_url
 from clipflow.ui.queue_model import JobListModel
+from clipflow.ui.history import deletion_paths,result_status,HistoryError
 
 _UNSET=object()
 
@@ -33,6 +34,7 @@ class WorkbenchPresenter(QObject):
         self.model=JobListModel(repository.list(),self)
         self._closing=False; self.is_closed=False; self._selections={}
         self._probe_id=''; self._probe_cache={}
+        self._clear_pending=set()
         self.auth_gateway=None; self._auth_snapshot=None
         self._auth_timer=QTimer(self); self._auth_timer.setInterval(1000); self._auth_timer.timeout.connect(self._poll_auth)
         self._close_timer=QTimer(self); self._close_timer.setInterval(50); self._close_timer.timeout.connect(self._finish_shutdown)
@@ -153,9 +155,70 @@ class WorkbenchPresenter(QObject):
     def open_result(self,identity):
         def action():
             job=self.repository.get(identity)
+            if result_status(job)=='files_missing':
+                raise HistoryError('files_missing')
             directory=job.result_files[0].parent if job.result_files else job.request.options.folder
             if not directory.is_dir(): self.error_raised.emit('folder_missing'); return
             if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))): self.error_raised.emit('folder_missing')
+        return self._command(action)
+
+    def _reload_jobs(self):
+        self.model.set_jobs(self.repository.list()); self.jobs_changed.emit()
+
+    def repeat_job(self,identity):
+        def action():
+            job=self.repository.get(identity)
+            if job.source_required:
+                self.source_requested.emit(identity); return
+            if job.state in {JobState.FAILED,JobState.CANCELLED}:
+                self.scheduler.retry(identity)
+            else:
+                self.submission.repeat(identity)
+            self._reload_jobs()
+            if self.settings.auto_start: self._start()
+        return self._command(action)
+
+    def remove_jobs(self,identities):
+        def action():
+            jobs=tuple(self.repository.get(identity) for identity in identities)
+            if not self.executor.is_idle or any(j.state not in TERMINAL_STATES for j in jobs):
+                raise HistoryError('job_busy')
+            self.repository.remove(identities); self._reload_jobs()
+        return self._command(action)
+
+    def clear_history(self):
+        def action():
+            if not self.executor.is_idle: raise HistoryError('job_busy')
+            self.repository.clear_history(); self._reload_jobs()
+        return self._command(action)
+
+    def clear_queue(self):
+        def action():
+            self._clear_pending.update(self.scheduler.clear_queue())
+            self._flush_clear()
+        return self._command(action)
+
+    def _flush_clear(self):
+        if not self._clear_pending or not self.executor.is_idle: return
+        jobs=self.repository.list(); targets=self._clear_pending.copy()
+        # A completed child may still need its original parent; retain ancestors.
+        while True:
+            parents={j.parent_id for j in jobs if j.id not in targets}
+            smaller=targets-parents
+            if smaller==targets: break
+            targets=smaller
+        self.repository.remove(tuple(targets)); self._clear_pending.clear(); self._reload_jobs()
+
+    def delete_files(self,job_ids,confirmed=False):
+        if confirmed is not True: return
+        def action():
+            if not self.executor.is_idle: raise HistoryError('job_busy')
+            jobs=tuple(self.repository.get(identity) for identity in job_ids)
+            paths=deletion_paths(jobs,self.repository.list())
+            try:
+                for path in paths: path.unlink(missing_ok=True)
+            except OSError: raise HistoryError('file_delete_failed') from None
+            finally: self._reload_jobs()
         return self._command(action)
 
     def update_folder(self,service,path):
@@ -232,7 +295,9 @@ class WorkbenchPresenter(QObject):
 
     @Slot()
     def _tick(self):
-        if not self._closing: self._command(self.scheduler.tick)
+        if not self._closing:
+            self._command(self._flush_clear)
+            self._command(self.scheduler.tick)
 
     @Slot(str)
     def _executor_error(self,code):

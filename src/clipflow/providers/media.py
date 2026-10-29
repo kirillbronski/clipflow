@@ -55,6 +55,7 @@ class MediaPipeline:
                     raise MediaFailure('invalid_media')
                 context.emit(StageChanged(JobState.DOWNLOADING))
                 with open_downloader(self._options(item, request, context, target),
+                                     context=context,
                                      instagram_context=context if request.link.service == Service.INSTAGRAM else None,
                                      instagram_kind='cdn') as ydl:
                     if item.kind == 'photo':
@@ -179,23 +180,23 @@ class MediaPipeline:
         raise MediaFailure('missing_output')
 
     @staticmethod
-    def _run(args, context, *, capture=False):
+    def _run(args, context, *, capture=False, capture_error=False, expected_retcodes=(0,)):
         context.cancel.raise_if_cancelled()
         try:
             with subprocess.Popen(args, stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                                  stderr=subprocess.DEVNULL,
+                                  stderr=subprocess.PIPE if capture_error else subprocess.DEVNULL,
                                   creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0) as process:
                 try:
                     while True:
                         try:
-                            output, _ = process.communicate(timeout=.1)
+                            output, errors = process.communicate(timeout=.1)
                             break
                         except subprocess.TimeoutExpired:
                             context.cancel.raise_if_cancelled()
                     context.cancel.raise_if_cancelled()
-                    if process.returncode:
+                    if process.returncode not in expected_retcodes:
                         raise MediaFailure('processing_failed')
-                    return output
+                    return errors if capture_error else output
                 except BaseException:
                     if process.poll() is None:
                         process.terminate()

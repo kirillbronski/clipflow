@@ -102,7 +102,7 @@ class YouTubeProvider:
                 options['js_runtimes'] = {'node': {'path': self.pipeline.node}}
             if self.pipeline.ffmpeg:
                 options['ffmpeg_location'] = self.pipeline.ffmpeg
-            with open_downloader(options) as ydl:
+            with open_downloader(options,context=context) as ydl:
                 info = ydl.extract_info(request.link.canonical_url, download=False)
                 if isinstance(info, dict) and request.link.kind == ContentKind.PLAYLIST:
                     # yt-dlp pages can be lazy and perform requests during iteration.

@@ -223,6 +223,16 @@ class SqliteJobRepository:
             db.executemany('DELETE FROM jobs WHERE id=?',((identity,) for identity in removed))
         for identity in removed: self._volatile.pop(identity,None)
 
+    def remove(self, identities):
+        identities=set(identities)
+        with self._transaction() as db:
+            jobs=self.list()
+            if identities-{j.id for j in jobs}: raise KeyError('unknown_job')
+            if any(j.parent_id in identities and j.id not in identities for j in jobs):
+                raise ValueError('Parent still has children')
+            db.executemany('DELETE FROM jobs WHERE id=?',((identity,) for identity in identities))
+        for identity in identities: self._volatile.pop(identity,None)
+
     def close(self):
         if self._connection is not None:
             self._connection.close(); self._connection=None

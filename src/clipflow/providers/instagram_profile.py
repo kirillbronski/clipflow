@@ -157,7 +157,7 @@ class InstaloaderPageSource:
         try:
             options=dict(context.auth.options_for(request.options.auth_profile,request.link.canonical_url))
             options.update(quiet=True,no_warnings=True,logger=_QuietLogger())
-            with open_downloader(options) as ydl:
+            with open_downloader(options,context=context) as ydl:
                 cookies=[copy(c) for c in ydl.cookiejar]
             digest=hashlib.sha256(repr([(c.domain,c.path,c.name,c.value) for c in cookies]).encode()).digest()
             fingerprint=(digest,id(context.instagram_rate))

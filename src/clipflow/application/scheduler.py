@@ -234,6 +234,12 @@ class Scheduler:
                 self._save(replace(job, state=JobState.PAUSED, pause_reason='shutdown'))
             self._stop(job.id, 'shutdown')
 
+    def clear_queue(self) -> tuple[str, ...]:
+        self._running=False
+        identities=tuple(j.id for j in self.repository.list() if j.state not in TERMINAL_STATES)
+        for identity in identities: self.cancel(identity)
+        return identities
+
     def handle(self, event: JobEvent) -> None:
         if (event.job_id, event.attempt_id) != self._active:
             return

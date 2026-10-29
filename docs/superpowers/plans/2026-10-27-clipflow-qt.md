@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T13 завершён; пауза перед T14.
+- Прямое уточнение владельца 27 октября: после каждого завершённого этапа — пауза. Сохранить тесты/коммит/память и ждать команды продолжить; автоматический переход к следующей task запрещён. Текущая граница: T14 завершён; пауза перед T15.
 - Одна Python-кодовая база; Windows x64 и macOS Apple Silicon, текущий минимум macOS 27; Python 3.12.
 - Тёмная тема включена при первом запуске; доступны светлая и системная. Выбор сохраняется.
 - Одновременно скачивается одно задание; остальные стоят в очереди. Автозапуск выключен по умолчанию.
@@ -247,11 +247,13 @@ T10 CI correction: initial 9540e90 passed Windows but macOS failed Return activa
 
 **Interfaces:** Produces Presenter commands `.clear_queue()`, `.clear_history()`, `.delete_files(job_ids: tuple[str,...], confirmed: bool)`, `.shutdown()->None`, `.open_result(job_id)->None`. Повторы идут через SubmissionService.repeat/Scheduler.retry, не через текст URL поля.
 
-- [ ] Red: `test_clear_keeps_files`, `test_delete_requires_confirmation_and_containment`, `test_open_uses_resolved_post_folder`, `test_restart_does_not_autostart`, `test_close_during_network_processing_or_auth`, `test_recovery_after_file_written_before_db_commit`, `test_deleted_file_history_is_honest`.
-- [ ] `python -m pytest tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q`: FAIL.
-- [ ] Реализовать реальную историю/папки/подтверждения и bounded shutdown: отменяемое ожидание сетевого timeout, join worker/process, транзакционное сохранение. Очистка списка и удаление файлов имеют разные команды. Незавершённые jobs после restart paused; исходные файлы не стираются.
-- [ ] Tests: PASS with actual temp files/processes. Активный FFmpeg не остаётся сиротой после закрытия; teardown не вызывает Qt slots после уничтожения окна.
-- [ ] Commit `feat: add history file actions and safe queue recovery`.
+- [x] Red: `test_clear_keeps_files`, `test_delete_requires_confirmation_and_containment`, `test_open_uses_resolved_post_folder`, `test_restart_does_not_autostart`, `test_close_during_network_processing_or_auth`, `test_recovery_after_file_written_before_db_commit`, `test_deleted_file_history_is_honest`.
+- [x] `python -m pytest tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q`: FAIL.
+- [x] Реализовать реальную историю/папки/подтверждения и bounded shutdown: отменяемое ожидание сетевого timeout, join worker/process, транзакционное сохранение. Очистка списка и удаление файлов имеют разные команды. Незавершённые jobs после restart paused; исходные файлы не стираются.
+- [x] Tests: PASS with actual temp files/processes. Активный FFmpeg не остаётся сиротой после закрытия; teardown не вызывает Qt slots после уничтожения окна.
+- [x] Commit `feat: add history file actions and safe queue recovery`.
+
+> T14 implemented: transactional list/history actions, confirmation and recorded-output containment, missing-file history, repeat via immutable request, teardown-ACK clear and parent preservation. Local 401 passed, 6 skipped in 109.61s (0:01:49); real HTTP, FFmpeg and yt-dlp internal processor, DB publication recovery and supervised auth process. Native history/confirmation captures inspected; CI adds native T14 Windows/Cocoa suite. Core 705/725 lines (97.24%), 229/250 branches (91.60%), all own runtime 3738/4169 lines (89.66%), 956/1234 branches (77.47%). Exact-SHA CI recorded in ledger/continuation pack; no release/install/main merge. Pause beforeT15.
 
 ### Task 15: Покрытие, CI и нативные пакеты обеих ОС
 

@@ -1,11 +1,11 @@
 """Scoped yt-dlp transport; a lease covers the response body, not every chunk."""
-from yt_dlp import YoutubeDL
 from yt_dlp.networking.common import Response
 from yt_dlp.networking.exceptions import HTTPError, RequestError
 from yt_dlp.networking._urllib import UrllibRH, RedirectHandler
 
 from clipflow.application.instagram_rate_policy import gated_request, InstagramDeferred
 from clipflow.domain.events import WorkCancelled
+from clipflow.providers.access import _CancellableDownloader
 
 
 class _CancelledRequest(RequestError):
@@ -30,7 +30,7 @@ class LeasedResponse(Response):
             if not data or amt is None or self.fp.closed: self.close()
             return data
         except BaseException:
-            self.close(); raise
+            self.close(); self.cancel.raise_if_cancelled(); raise
 
     def close(self):
         try: super().close()
@@ -40,13 +40,13 @@ class LeasedResponse(Response):
                 self.lease=None; lease.__exit__(None,None,None)
 
 
-class InstagramDownloader(YoutubeDL):
+class InstagramDownloader(_CancellableDownloader):
     def __init__(self,options,context,kind):
         if context.instagram_rate is None:
             from clipflow.providers.base import MediaFailure
             raise MediaFailure('instagram_rate_policy_required')
         self.instagram_context=context; self.instagram_kind=kind; self._responses=[]
-        super().__init__(options)
+        super().__init__(options,context.cancel)
 
     def build_request_director(self,handlers,preferences=None):
         # The default requests/curl clients follow redirects below urlopen.
@@ -94,7 +94,7 @@ class InstagramDownloader(YoutubeDL):
                 raise
             finally: lease.__exit__(None,None,None)
         except BaseException:
-            lease.__exit__(None,None,None); raise
+            lease.__exit__(None,None,None); context.cancel.raise_if_cancelled(); raise
         wrapped=LeasedResponse(response,lease,renew,context.cancel)
         self._responses.append(wrapped)
         return wrapped
