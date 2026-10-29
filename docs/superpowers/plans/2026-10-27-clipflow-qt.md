@@ -253,7 +253,7 @@ T10 CI correction: initial 9540e90 passed Windows but macOS failed Return activa
 - [x] Tests: PASS with actual temp files/processes. Активный FFmpeg не остаётся сиротой после закрытия; teardown не вызывает Qt slots после уничтожения окна.
 - [x] Commit `feat: add history file actions and safe queue recovery`.
 
-> T14 implemented: transactional list/history actions, confirmation and recorded-output containment, missing-file history, repeat via immutable request, teardown-ACK clear and parent preservation. Local 401 passed, 6 skipped in 109.61s (0:01:49); real HTTP, FFmpeg and yt-dlp internal processor, DB publication recovery and supervised auth process. Native history/confirmation captures inspected; CI adds native T14 Windows/Cocoa suite. Core 705/725 lines (97.24%), 229/250 branches (91.60%), all own runtime 3738/4169 lines (89.66%), 956/1234 branches (77.47%). Exact-SHA CI recorded in ledger/continuation pack; no release/install/main merge. Pause beforeT15.
+> T14 implemented: transactional list/history actions, confirmation and recorded-output containment, missing-file history, repeat via immutable request, teardown-ACK clear and parent preservation. Local 402 passed, 6 skipped in 112.41s (0:01:52); real HTTP, FFmpeg and yt-dlp internal processor, DB publication recovery and supervised auth process. Native history/confirmation captures inspected; CI adds native T14 Windows/Cocoa suite. Core 705/725 lines (97.24%), 229/250 branches (91.60%), all own runtime 3746/4180 lines (89.62%), 957/1236 branches (77.43%). Exact-SHA CI recorded in ledger/continuation pack; no release/install/main merge. Pause beforeT15.
 
 ### Task 15: Покрытие, CI и нативные пакеты обеих ОС
 

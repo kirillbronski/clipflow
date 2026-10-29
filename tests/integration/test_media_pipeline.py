@@ -356,7 +356,7 @@ def test_cancellation_reaps_processing_child(context, monkeypatch):
         timer.cancel()
         timer.join()
     assert time.monotonic()-start < 3
-    assert len(children) == 1 and children[0].poll() is not None
+    assert children and all(child.poll() is not None for child in children)
 
 
 def test_photo_uses_extractor_required_headers(tmp_path, context, media_server):

@@ -1,4 +1,8 @@
 from threading import Event
+import os
+import signal
+import sys
+import pytest
 
 from clipflow.domain.events import StageChanged
 from clipflow.domain.models import JobState, Service
@@ -76,6 +80,33 @@ def test_close_interrupts_ytdlp_internal_postprocessor(make_window,qtbot,media_s
         for process in processes:
             if process.poll() is None: process.kill()
             process.wait(3)
+        window.presenter.shutdown(); qtbot.waitUntil(lambda:window.presenter.is_closed,timeout=5000)
+
+
+@pytest.mark.skipif(os.name!='nt',reason='Windows executable shim regression')
+def test_close_reaps_wrapper_and_child_holding_stderr(make_window,qtbot,tmp_path):
+    import ctypes
+    script=tmp_path/'shim.py'; pid_file=tmp_path/'child.pid'
+    script.write_text('import subprocess,sys\nfrom pathlib import Path\n'
+        'p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(600)"])\n'
+        'Path(sys.argv[1]).write_text(str(p.pid))\np.wait()\n',encoding='utf-8')
+    class Provider:
+        def execute(self,request,context):
+            MediaPipeline._run([sys.executable,str(script),str(pid_file)],context,capture_error=True)
+    window,_=make_window(Provider()); add(window,qtbot); window.presenter.start_queue()
+    qtbot.waitUntil(pid_file.exists,timeout=3000); child_pid=int(pid_file.read_text())
+    kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+    kernel.OpenProcess.restype=ctypes.c_void_p; kernel.OpenProcess.argtypes=[ctypes.c_ulong,ctypes.c_int,ctypes.c_ulong]
+    kernel.WaitForSingleObject.argtypes=[ctypes.c_void_p,ctypes.c_ulong]
+    kernel.CloseHandle.argtypes=[ctypes.c_void_p]
+    handle=kernel.OpenProcess(0x00100000,False,child_pid)
+    assert handle
+    try:
+        window.close(); qtbot.waitUntil(lambda:window.presenter.is_closed,timeout=5000)
+        assert kernel.WaitForSingleObject(handle,0)==0
+    finally:
+        if kernel.WaitForSingleObject(handle,0)!=0: os.kill(child_pid,signal.SIGTERM)
+        kernel.CloseHandle(handle)
         window.presenter.shutdown(); qtbot.waitUntil(lambda:window.presenter.is_closed,timeout=5000)
 
 

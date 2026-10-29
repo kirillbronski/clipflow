@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 from tempfile import NamedTemporaryFile
 import time
@@ -185,6 +186,7 @@ class MediaPipeline:
         try:
             with subprocess.Popen(args, stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
                                   stderr=subprocess.PIPE if capture_error else subprocess.DEVNULL,
+                                  start_new_session=os.name!='nt',
                                   creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0) as process:
                 try:
                     while True:
@@ -199,15 +201,32 @@ class MediaPipeline:
                     return errors if capture_error else output
                 except BaseException:
                     if process.poll() is None:
-                        process.terminate()
+                        MediaPipeline._stop_process_tree(process)
                         try:
-                            process.wait(timeout=2)
+                            process.communicate(timeout=2)
                         except subprocess.TimeoutExpired:
-                            process.kill()
-                            process.wait()
+                            MediaPipeline._stop_process_tree(process,force=True)
+                            process.communicate(timeout=2)
                     raise
         except FileNotFoundError:
             raise MediaFailure('tool_missing') from None
+
+    @staticmethod
+    def _stop_process_tree(process,force=False):
+        if os.name=='nt':
+            # Chocolatey and user launchers can own the actual FFmpeg child.
+            # Kill the tree while its root still exists, then drain inherited
+            # pipes: killing just the shim can leave communicate() blocked.
+            taskkill=Path(os.environ.get('SystemRoot','C:/Windows'))/'System32/taskkill.exe'
+            try:
+                subprocess.run([str(taskkill),'/PID',str(process.pid),'/T','/F'],
+                    stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=2,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+            except (OSError,subprocess.TimeoutExpired): pass
+            if process.poll() is None: process.kill()
+        else:
+            try: os.killpg(process.pid,signal.SIGKILL if force else signal.SIGTERM)
+            except ProcessLookupError: pass
 
     def _probe(self, path, context):
         if not self.ffprobe:
