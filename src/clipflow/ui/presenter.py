@@ -34,7 +34,7 @@ class WorkbenchPresenter(QObject):
         self.model=JobListModel(repository.list(),self)
         self._closing=False; self.is_closed=False; self._selections={}
         self._probe_id=''; self._probe_cache={}
-        self._clear_pending=set()
+        self._clear_pending=set(); self._clear_delete_ids=set()
         self.auth_gateway=None; self._auth_snapshot=None
         self._auth_timer=QTimer(self); self._auth_timer.setInterval(1000); self._auth_timer.timeout.connect(self._poll_auth)
         self._close_timer=QTimer(self); self._close_timer.setInterval(50); self._close_timer.timeout.connect(self._finish_shutdown)
@@ -198,6 +198,23 @@ class WorkbenchPresenter(QObject):
             self._flush_clear()
         return self._command(action)
 
+    def cancel_queue(self):
+        # Scheduler cancels every service and stops pumping before worker ACK.
+        return self._command(self.scheduler.clear_queue)
+
+    def clear_all(self, *, delete_files=False):
+        def action():
+            identities={job.id for job in self.repository.list()}
+            if not identities: return
+            self._clear_pending.update(identities)
+            # A later confirmation applies only to its own target snapshot.
+            # In particular an unchecked dialog revokes deletion for those IDs.
+            self._clear_delete_ids.difference_update(identities)
+            if delete_files: self._clear_delete_ids.update(identities)
+            self.scheduler.clear_queue()
+            self._flush_clear()
+        return self._command(action)
+
     def _flush_clear(self):
         if not self._clear_pending or not self.executor.is_idle: return
         jobs=self.repository.list(); targets=self._clear_pending.copy()
@@ -207,7 +224,18 @@ class WorkbenchPresenter(QObject):
             smaller=targets-parents
             if smaller==targets: break
             targets=smaller
-        self.repository.remove(tuple(targets)); self._clear_pending.clear(); self._reload_jobs()
+        delete_ids=targets & self._clear_delete_ids
+        # Never retry destructive IO on the periodic tick after an error.
+        self._clear_pending.clear(); self._clear_delete_ids=set()
+        if delete_ids:
+            selected=tuple(job for job in jobs if job.id in delete_ids)
+            paths=deletion_paths(selected,jobs)
+            try:
+                for path in paths: path.unlink(missing_ok=True)
+            except OSError:
+                self._reload_jobs()
+                raise HistoryError('file_delete_failed') from None
+        self.repository.remove(tuple(targets)); self._reload_jobs()
 
     def delete_files(self,job_ids,confirmed=False):
         if confirmed is not True: return

@@ -174,3 +174,110 @@ def test_delete_during_cancel_ack_keeps_files(make_window,tmp_path,qtbot):
     window.presenter.cancel_job('active'); window.presenter.delete_files(('active',),True)
     assert target.exists()
     qtbot.waitUntil(lambda:window.presenter.executor.is_idle)
+
+
+def test_visible_cancel_queue_stops_all_workers_and_keeps_files(make_window,tmp_path,qtbot):
+    window,provider=make_window(); job,target=completed(window,tmp_path)
+    repo=window.presenter.repository
+    for identity in ('active','next'):
+        repo.add(replace(job,id=identity,state=JobState.QUEUED,result_files=()))
+    window.presenter._reload_jobs(); window.presenter.start_queue(); qtbot.waitUntil(provider.started.is_set)
+    window.cancel_queue_button.click()
+    qtbot.waitUntil(lambda:window.presenter.executor.is_idle)
+    assert all(j.state in {JobState.CANCELLED,JobState.COMPLETED} for j in repo.list())
+    assert len(repo.list())==3 and target.read_bytes()==b'finished media'
+    assert provider.torn_down.is_set()
+
+
+def test_clear_all_button_confirms_then_stops_and_clears_across_services(make_window,tmp_path,qtbot):
+    window,provider=make_window(); job,target=completed(window,tmp_path)
+    repo=window.presenter.repository
+    child=replace(job,id='child',parent_id=job.id,state=JobState.QUEUED,result_files=())
+    repo.add(child); repo.add(replace(child,id='instagram',parent_id=None,request=replace(child.request,link=parse_url('https://instagram.com/p/ABC/'))))
+    window.presenter._reload_jobs(); window.presenter.start_queue(); qtbot.waitUntil(provider.started.is_set)
+    window._navigate('instagram',False,'Instagram')
+    window.clear_all_button.click(); dialog=window._dialogs[-1]
+    dialog.button(QMessageBox.StandardButton.No).click()
+    assert len(repo.list())==3
+    window.clear_all_button.click(); dialog=window._dialogs[-1]
+    dialog.button(QMessageBox.StandardButton.Yes).click()
+    qtbot.waitUntil(lambda:not repo.list())
+    assert window.presenter.executor.is_idle and provider.torn_down.is_set()
+    assert target.read_bytes()==b'finished media'
+    assert window.presenter.model.rowCount()==0
+
+
+@pytest.mark.parametrize('language',['ru','en'])
+def test_queue_bulk_controls_fit_and_hide_in_settings(make_window,qtbot,language):
+    window,_=make_window(); window.language_actions[language].trigger(); window.resize(880,680)
+    qtbot.waitUntil(lambda:window.main_page.viewport().width()>500)
+    for button in (window.start_button,window.cancel_queue_button,window.clear_all_button):
+        assert button.isVisible()
+        assert button.width()>=button.fontMetrics().horizontalAdvance(button.text())+10
+    window.settings_button.click()
+    assert not window.cancel_queue_button.isVisible() and not window.clear_all_button.isVisible()
+    window._navigate(None,True,'history')
+    assert window.clear_all_button.isVisible() and not window.cancel_queue_button.isVisible()
+
+
+def test_clear_all_optional_file_deletion_waits_for_worker(make_window,tmp_path,qtbot):
+    window,provider=make_window(); job,target=completed(window,tmp_path)
+    window.presenter.repository.add(replace(job,id='active',state=JobState.QUEUED,result_files=()))
+    window.presenter._reload_jobs(); window.presenter.start_queue(); qtbot.waitUntil(provider.started.is_set)
+    window.clear_all_button.click(); dialog=window._dialogs[-1]
+    assert not dialog.checkBox().isChecked()
+    dialog.checkBox().setChecked(True)
+    dialog.button(QMessageBox.StandardButton.Yes).click()
+    qtbot.waitUntil(lambda:not window.presenter.repository.list())
+    assert provider.torn_down.is_set() and window.presenter.executor.is_idle
+    assert not target.exists()
+
+
+def test_clear_all_delete_failure_keeps_records_and_does_not_retry(make_window,tmp_path,monkeypatch,qtbot):
+    from pathlib import Path
+    window,_=make_window(); job,target=completed(window,tmp_path)
+    errors=[]; attempts=[]; window.presenter.error_raised.connect(errors.append)
+    original=Path.unlink
+    def fail(path,*args,**kwargs):
+        if path==target: attempts.append(path); raise PermissionError('locked')
+        return original(path,*args,**kwargs)
+    monkeypatch.setattr(Path,'unlink',fail)
+    window.presenter.clear_all(delete_files=True)
+    window.presenter._tick(); window.presenter._tick()
+    assert errors==['file_delete_failed'] and len(attempts)==1
+    assert target.exists() and len(window.presenter.repository.list())==1
+
+
+def test_clear_all_rejects_escaped_recorded_file(make_window,tmp_path):
+    window,_=make_window(); outside=tmp_path/'outside.mp4'; outside.write_bytes(b'keep')
+    job,target=completed(window,tmp_path,files=(outside,))
+    errors=[]; window.presenter.error_raised.connect(errors.append)
+    window.presenter.clear_all(delete_files=True)
+    assert errors==['unsafe_result_path']
+    assert outside.exists() and window.presenter.repository.list()
+
+
+def test_empty_clear_does_not_arm_later_file_deletion(make_window,tmp_path):
+    window,_=make_window()
+    window.presenter.clear_all(delete_files=True)
+    job,target=completed(window,tmp_path)
+    window.presenter.repository.update(replace(job,state=JobState.PAUSED))
+    window.presenter.clear_queue()
+    assert target.exists()
+
+
+@pytest.mark.parametrize('delete_second',[False,True])
+def test_overlapping_clear_commands_keep_deletion_consent_per_snapshot(make_window,tmp_path,monkeypatch,delete_second):
+    window,_=make_window(); first,first_file=completed(window,tmp_path)
+    executor=window.presenter.executor
+    with monkeypatch.context() as patch:
+        patch.setattr(type(executor),'is_idle',property(lambda self:False))
+        window.presenter.clear_all(delete_files=True)
+        second_root=tmp_path/'second'; second_root.mkdir()
+        second,second_file=completed(window,second_root,identity='second')
+        window.presenter.clear_all(delete_files=delete_second)
+        assert first_file.exists() and second_file.exists()
+    window.presenter._tick()
+    assert not window.presenter.repository.list()
+    assert first_file.exists() is (not delete_second)
+    assert second_file.exists() is (not delete_second)

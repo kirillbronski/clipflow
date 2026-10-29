@@ -58,14 +58,16 @@ def test_reserved_names_are_portable(tmp_path, title):
 
 def test_playlist_number_and_postprocessed_extension(tmp_path):
     req = request(tmp_path, url='https://youtube.com/playlist?list=PL_test', format='webm')
-    assert output_path(req, MediaItem('v', 12, 'video', 'Название — ролика', {'ext': 'mp4'}), None, None) == tmp_path/'YouTube/012 - Название - ролика.webm'
+    path = output_path(req, MediaItem('v', 12, 'video', 'Название — ролика', {'ext': 'mp4'}), None, None)
+    assert path.parent == tmp_path/'YouTube'
+    assert path.name.startswith('012 - Название - ролика [') and path.suffix == '.webm'
 
 
 def test_getcourse_complete_title(tmp_path):
     req = request(tmp_path, url='https://school.getcourse.ru/pl/teach/control/lesson/view?id=123')
     path = output_path(req, MediaItem('v', 1, 'video', 'Урок 1 — Основы звука', {}), None, None)
     assert path.is_relative_to(tmp_path/'GetCourse')
-    assert path.name == 'Урок 1 - Основы звука.mp4'
+    assert path.name.startswith('Урок 1 - Основы звука [') and path.suffix == '.mp4'
 
 
 @pytest.mark.parametrize('code', ['../bad', '', 'ABC/xyz', 'CON'])
@@ -125,3 +127,27 @@ def test_post_codes_differing_only_in_case_cannot_collide(tmp_path, post_folder)
     req = request(tmp_path, post_folder=post_folder)
     paths = [output_path(req, photo(), None, PostIdentity(code, None, None)) for code in ('ABC', 'abc', 'Abc')]
     assert len({str(p).casefold() for p in paths}) == 3
+
+
+@pytest.mark.parametrize('url', ['https://youtu.be/AAAAAAAAAAA', 'https://school.getcourse.ru/pl/teach/control/lesson/view?id=123'])
+def test_same_title_different_media_and_quality_cannot_reuse_output(tmp_path, url):
+    from dataclasses import replace
+    req = request(tmp_path, url=url)
+    items = [MediaItem(identity, 1, 'video', 'Introduction', {}) for identity in ('AAAAAAAAAAA', 'BBBBBBBBBBB', 'aaaaaaaaaaa')]
+    paths = [output_path(req, media, None, None) for media in items]
+    assert len({str(p).casefold() for p in paths}) == 3
+    assert output_path(req, items[0], None, None) == paths[0]
+    low = replace(req, options=replace(req.options, max_height=360))
+    assert output_path(low, items[0], None, None) != paths[0]
+    # Title truncation must never discard the identity suffix.
+    long_items = [replace(media, title='A' * 200) for media in items]
+    assert len({str(output_path(req, media, None, None)).casefold() for media in long_items}) == 3
+
+
+def test_tight_generic_path_budget_rejects_instead_of_clipping_identity(tmp_path):
+    from pathlib import Path
+    # Choose an absolute folder for a deterministic 18-unit filename budget.
+    root=Path('/')/('x'*168)
+    req=request(root,url='https://youtu.be/AAAAAAAAAAA')
+    with pytest.raises(UnsafePath):
+        output_path(req,MediaItem('v',1,'video','A'*100,{}),None,None)

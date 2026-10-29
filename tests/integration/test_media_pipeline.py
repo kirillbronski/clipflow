@@ -314,7 +314,7 @@ def test_adaptive_video_and_audio_merge_and_height_limit(tmp_path, context, medi
     ]})
     req = DownloadRequest(parse_url('https://youtu.be/BaW_jenozKc'), DownloadOptions(tmp_path, max_height=64))
     final, = MediaPipeline().save(media, req, ctx)
-    assert final.name == 'Adaptive streams.mp4'
+    assert final.name.startswith('Adaptive streams [') and final.suffix == '.mp4'
     assert {s['codec_name'] for s in probe(final, tools)['streams']} == {'h264', 'aac'}
     limited = replace(req, options=replace(req.options, folder=tmp_path/'limited', max_height=32))
     with pytest.raises(MediaFailure):
@@ -365,3 +365,23 @@ def test_photo_uses_extractor_required_headers(tmp_path, context, media_server):
     media = item(base+'/protected.png', 'photo', 'png', http_headers={'Referer':'https://www.instagram.com/'})
     final, = MediaPipeline().save(media, request(tmp_path), ctx)
     assert final.read_bytes() == (root/'photo.png').read_bytes()
+
+
+def test_same_title_videos_publish_separate_media_and_captions(media_server, tmp_path, context, tools):
+    base, source, _ = media_server
+    ctx, events = context
+    pipeline = MediaPipeline(ffmpeg=tools[0], ffprobe=tools[1])
+    first = MediaItem('AAAAAAAAAAA', 1, 'video', 'Introduction', {'url':base+'/sample.mp4','ext':'mp4','description':'First video'})
+    second = replace(first, id='BBBBBBBBBBB', info=dict(first.info, description='Second video'))
+    req = DownloadRequest(parse_url('https://youtu.be/AAAAAAAAAAA'), DownloadOptions(tmp_path, description='txt'))
+    old = tmp_path/'YouTube/Introduction.mp4'; old.parent.mkdir()
+    shutil.copy2(source/'sample.mp4',old)  # Untagged legacy output belongs to an unknown source.
+    original = old.read_bytes()
+    a = pipeline.save(first, req, ctx)
+    b = pipeline.save(second, replace(req,link=parse_url('https://youtu.be/BBBBBBBBBBB')), ctx)
+    assert a[0] != b[0] and a[0] != old and b[0] != old
+    assert a[1].read_text(encoding='utf-8-sig').strip()=='First video'
+    assert b[1].read_text(encoding='utf-8-sig').strip()=='Second video'
+    assert old.read_bytes()==original
+    assert pipeline.save(first,req,ctx)==a
+    assert a[0].is_file() and b[0].is_file()

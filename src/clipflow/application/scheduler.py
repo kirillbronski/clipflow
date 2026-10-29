@@ -259,7 +259,13 @@ class Scheduler:
             self.repository.update(replace(job, result_files=tuple(dict.fromkeys(job.result_files + payload.files))))
         elif isinstance(payload, RequestsDiscovered):
             self._discovered = self._discovered or bool(payload.requests)
-            keys = {request_key(j.request) for j in self.repository.list()}
+            # Historical cancelled/failed jobs must not suppress a new explicit
+            # collection retry. Completed children deduplicate only while their
+            # published outputs still exist; deleted media can be restored.
+            keys = {request_key(j.request) for j in self.repository.list()
+                    if j.state not in {JobState.CANCELLED, JobState.FAILED}
+                    and (j.state != JobState.COMPLETED
+                         or (j.result_files and all(path.is_file() for path in j.result_files)))}
             for request in payload.requests:
                 key = request_key(request)
                 if key not in keys:

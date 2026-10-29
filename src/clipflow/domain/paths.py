@@ -69,6 +69,7 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
         ext = request.options.format
     else:
         raise UnsafePath('Unsupported media kind')
+    identity_suffix = ""
     root = request.options.folder
     service = {Service.YOUTUBE: 'YouTube', Service.INSTAGRAM: 'Instagram', Service.GETCOURSE: 'GetCourse'}[request.link.service]
     directory = root/service
@@ -101,6 +102,11 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
         position = request.playlist.index if request.playlist else item.index
         prefix = f'{position:03d} - ' if request.link.kind == ContentKind.PLAYLIST or request.playlist else ''
         stem = prefix + safe_name(item.title, 56 - len(prefix))
+        # Titles can collide after sanitizing/truncation or case folding. Keep a
+        # stable identity and requested-quality marker outside the clipped title
+        # so retries reuse their own partials, never another video's bytes.
+        identity = f'{item.id}\0{request.options.max_height}'
+        identity_suffix = ' [' + hashlib.sha256(identity.encode('utf-8')).hexdigest()[:16] + ']'
     # Reserve 40 UTF-16 units for downloader/FFmpeg temporary suffixes. Root
     # folders are never shortened or redirected to make an overlong path fit.
     budget = min(56, 200 - _units(str(directory)) - 1 - len(ext) - 1)
@@ -108,7 +114,9 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
         raise UnsafePath('Output directory is too long')
     if budget < 8:
         raise UnsafePath('Output directory is too long')
-    target = directory/(_clip(stem, budget) + '.' + ext)
+    if identity_suffix and budget <= len(identity_suffix):
+        raise UnsafePath('Output directory is too long')
+    target = directory/(_clip(stem, budget - len(identity_suffix)) + identity_suffix + '.' + ext)
     if not target.resolve().is_relative_to(root.resolve()):
         raise UnsafePath('Output path escapes download root')
     return target

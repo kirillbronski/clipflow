@@ -63,7 +63,8 @@ def test_real_single_video_or_music_track(tmp_path, monkeypatch, server, fmt):
     host='music.youtube.com' if fmt=='mp3' else 'www.youtube.com'
     req=DownloadRequest(parse_url(f'https://{host}/watch?v=track_A'),DownloadOptions(tmp_path,format=fmt,auth_profile='youtube'))
     result=YouTubeProvider(MediaPipeline()).execute(req,ctx)
-    assert [p.name for p in result.files] == ['Название ролика.'+fmt]
+    assert len(result.files)==1
+    assert result.files[0].name.startswith('Название ролика [') and result.files[0].suffix=='.'+fmt
     data=json.loads(subprocess.check_output([ffprobe,'-v','error','-show_streams','-of','json',str(result.files[0])]))
     assert {s['codec_type'] for s in data['streams']} == ({'audio'} if fmt=='mp3' else {'video','audio'})
     states=[e.state for e in events if isinstance(e,StageChanged)]
@@ -89,7 +90,7 @@ def test_playlist_children_save_with_original_001_numbers(tmp_path, monkeypatch,
     assert parent.files == () and parent.discovered_count == 2
     children=[r for e in events if isinstance(e,RequestsDiscovered) for r in e.requests]
     results=[provider.execute(r,ctx) for r in children]
-    assert [r.files[0].name for r in results] == ['001 - Название ролика.mp3','003 - Название ролика.mp3']
+    assert all(result.files[0].name.startswith(prefix+' - Название ролика [') and result.files[0].suffix=='.mp3' for result,prefix in zip(results,('001','003')))
     for r in results:
         modified=r.files[0].stat().st_mtime_ns
         child=children[results.index(r)]

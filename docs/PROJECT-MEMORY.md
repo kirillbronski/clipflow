@@ -2,6 +2,51 @@
 
 Обновлено 29 октября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Проверенный исходный срез — 30 октября
+
+После final review fixes и bulk controls: полный Mac check455PASS/6 explicit
+skips, core97.26% строк/91.67% ветвей, runtime87.92%; native Cocoa bulk/layout44PASS.
+Отдельная foreground-проверка Command+N не принята: тестовое окно не получило
+активацию (59 native PASS/1 FAIL в расширенном прогоне). Не скрывать этот gate.
+Новые Windows native проверки и clean builds/install ещё выполняются; итоговый
+source SHA/артефакты в последнем verification report и Agents snapshot.
+
+## Последнее дополнение — массовая отмена и очистка
+
+Владелец30 октября запросил видимые bulk buttons и optional physical deletion:
+«Отменить очередь» останавливает все сервисы без удаления записей/файлов;
+«Очистить всё» подтверждает очистку всех очередей/истории, с выключенной по
+умолчанию галочкой удаления записанных файлов. Дождаться idle worker; путь
+проверяется существующим deletion_paths, folders recursively не удаляются.
+Deletion consent хранится по IDs: повторный диалог без галочки отзывает
+удаление для своего снимка, прежний флаг не распространяется на новые jobs.
+На IO/containment error сохраняются записи и показывается ошибка; destructive
+операция не повторяется каждые500ms. Источник требований/проверки:
+[план bulk queue](superpowers/plans/2026-10-30-bulk-queue.md).
+
+## Предыдущий срез — 30 октября: установки, README и final review
+
+Обе clean-сборки4ce2c97 установлены и проверены: Mac27 Launch Services из DMG
+и /Applications, сохранены582 существовавших файла профиля; Windows11 ARM64
+Parallels (x64 runtime under emulation), Inno в Program Files и ярлык Desktop,
+installed frozen UI/media/tools/protected-auth smoke PASS. Точные4ce CI Windows
+и macOS15 PASS. Установщики с проверенными SHA256 доставлены в Мой диск/ClipFlow.
+Старые собственные Mac app/test build copies удалены, пользовательские файлы не тронуты.
+
+Независимый whole-branch review нашёл2 дефекта: generic title collision и
+потерянные child jobs при retry коллекции. Добавлены regression tests RED→GREEN:
+имя YouTube/GetCourse сохраняет стабильный identity+quality suffix вне усечения;
+Instagram01.mp4/01.txt не меняются. Discovery не дедуплицирует cancelled/failed
+или completed child без существующих файлов, активные jobs/существующие outputs
+сохраняют дедупликацию. Старые неидентифицированные медиа не удаляются и не
+присваиваются новому видео. Требуется новый clean build/install этих исправлений;
+4ce артефакты в Drive не считать содержащими последующие правки review.
+
+README переработан: реальные Qt screenshots dark/light, Windows и полный IG
+блок, режимы/папки/архитектура/разработка/пороги тестов. GitHub Releases пока нет.
+Личные auth/закрытый GetCourse и live IGprofile10/50/all остаются непринятыми,
+Mac подпись ad-hoc без notarization. Это не скрывать при дальнейшей передаче.
+
 ## Последнее уточнение: Instagram без внутреннего скролла и обе установки
 
 Владелец просит более высокую панель Instagram: все раскрытые параметры,

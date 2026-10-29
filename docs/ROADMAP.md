@@ -6,7 +6,7 @@
 
 ## Experimental / требуется подтверждение
 
-Live доступ к площадкам и закрытым материалам, IG profile10/50/all и лимиты upstream. Сетевые блокировки и отсутствие сессии не являются успехом. Windows T16 в работе; Mac T15 native acceptance и T16a **открыты**. GitHub macOS15 и запуск binary не доказывают установку через Launch Services на macOS27.
+Live доступ к площадкам и закрытым материалам, IG profile10/50/all и лимиты upstream. Сетевые блокировки и отсутствие сессии не являются успехом. Windows установка и Mac native/package/Launch Services приёмка выполнены; личные/live пункты T16a **открыты**. GitHub macOS15 и запуск binary не доказывают установку через Launch Services на macOS27.
 
 ## T16a — на Mac
 

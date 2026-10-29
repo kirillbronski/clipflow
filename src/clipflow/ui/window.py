@@ -97,6 +97,8 @@ class MainWindow(QMainWindow):
         self.error_label=QLabel(); self.error_label.setObjectName('error'); self.error_label.setWordWrap(True); self.error_label.hide(); main.addWidget(self.error_label)
         queue_header=QHBoxLayout(); self.count_label=QLabel(); queue_header.addWidget(self.count_label,1)
         self.start_button=self.tr.widget(QPushButton,'start_queue'); self.start_button.clicked.connect(presenter.start_queue); queue_header.addWidget(self.start_button)
+        self.cancel_queue_button=self.tr.widget(QPushButton,'cancel_queue'); self.cancel_queue_button.clicked.connect(presenter.cancel_queue); queue_header.addWidget(self.cancel_queue_button)
+        self.clear_all_button=self.tr.widget(QPushButton,'clear_all'); self.clear_all_button.clicked.connect(self._confirm_clear_all); queue_header.addWidget(self.clear_all_button)
         main.addLayout(queue_header)
         self.status_tabs=QWidget(); tab_layout=QHBoxLayout(self.status_tabs); tab_layout.setContentsMargins(0,0,0,0); tab_layout.setSpacing(16); self.status_buttons={}
         for status in ('all','active','completed','failed'):
@@ -115,7 +117,7 @@ class MainWindow(QMainWindow):
         main.addWidget(self.queue_view,1)
         self.empty=self.tr.widget(QLabel,'empty'); self.empty.setObjectName('muted'); main.addWidget(self.empty)
         footer=self.tr.widget(QLabel,'footer'); footer.setObjectName('muted'); main.addWidget(footer)
-        self._download_widgets=(self.batch_button,self.composer_host,self.count_label,self.start_button,self.status_tabs,self.queue_view,self.empty,footer,subtitle)
+        self._download_widgets=(self.batch_button,self.composer_host,self.count_label,self.start_button,self.cancel_queue_button,self.clear_all_button,self.status_tabs,self.queue_view,self.empty,footer,subtitle)
         self.accounts_page=AccountsPage(presenter,self.tr,self); self.settings_page=SettingsPage(presenter,self.tr,self)
         main.addWidget(self.accounts_page,1); main.addWidget(self.settings_page,1); self.accounts_page.hide(); self.settings_page.hide()
         self.composer.submit_requested.connect(self._submit)
@@ -158,7 +160,7 @@ class MainWindow(QMainWindow):
         action=downloads.addAction(''); self.tr.bind(action,'batch'); action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.New)); action.triggered.connect(self._open_batch); self.addAction(action)
         action=downloads.addAction(''); self.tr.bind(action,'start_queue'); action.triggered.connect(self.presenter.start_queue)
         downloads.addSeparator()
-        for key,command in [('clear_queue',self.presenter.clear_queue),('clear_history',self.presenter.clear_history)]:
+        for key,command in [('cancel_queue',self.presenter.cancel_queue),('clear_all',self._confirm_clear_all),('clear_queue',self.presenter.clear_queue),('clear_history',self.presenter.clear_history)]:
             action=downloads.addAction(''); self.tr.bind(action,key); action.triggered.connect(command)
         edit=bar.addMenu(''); self.tr.bind(edit,'menu_edit',setter='setTitle')
         for key,method,standard in [('undo','undo','Undo'),('redo','redo','Redo'),('cut','cut','Cut'),('copy','copy','Copy'),('paste','paste','Paste'),('select_all','selectAll','SelectAll')]:
@@ -279,6 +281,8 @@ class MainWindow(QMainWindow):
         key='job_one' if count%10==1 and count%100!=11 else 'job_few' if 2<=count%10<=4 and not 12<=count%100<=14 else 'job_many'
         self.count_label.setText(self.tr.text('history_count',count=count) if self.proxy.history else self.tr.text('queue_count',count=count,word=self.tr.text(key)))
         self.start_button.setVisible(self._section=='downloads' and not self.proxy.history)
+        self.cancel_queue_button.setVisible(self._section=='downloads' and not self.proxy.history)
+        self.clear_all_button.setVisible(self._section=='downloads')
         self.empty.setVisible(self._section=='downloads' and self.proxy.rowCount()==0)
         jobs=self.presenter.model.jobs
         for button in self.nav_buttons:
@@ -310,6 +314,22 @@ class MainWindow(QMainWindow):
         action.triggered.connect(lambda:self._confirm_delete(identities))
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(self.queue_view.viewport().mapToGlobal(position))
+
+    def _confirm_clear_all(self):
+        count=len(self.presenter.repository.list())
+        if not count: return
+        dialog=QMessageBox(self)
+        self.tr.bind(dialog,'clear_all',setter='setWindowTitle')
+        self.tr.bind(dialog,'clear_all_confirmation',count=count)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        checkbox=self.tr.widget(QCheckBox,'clear_all_delete_files')
+        checkbox.setChecked(False); dialog.setCheckBox(checkbox)
+        dialog.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)
+        dialog.setDefaultButton(QMessageBox.StandardButton.No)
+        self.tr.bind(dialog.button(QMessageBox.StandardButton.Yes),'clear_all')
+        self.tr.bind(dialog.button(QMessageBox.StandardButton.No),'cancel')
+        dialog.finished.connect(lambda result:self.presenter.clear_all(delete_files=checkbox.isChecked()) if result==QMessageBox.StandardButton.Yes else None)
+        self._track_dialog(dialog); dialog.open()
 
     def _confirm_delete(self,identities):
         jobs=tuple(self.presenter.repository.get(identity) for identity in identities)

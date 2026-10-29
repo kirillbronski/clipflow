@@ -2,7 +2,7 @@
 
 ### Task 16a: Завершение выпуска и нативная приёмка на Mac
 
-**Статус: НЕ ВЫПОЛНЕНО. Выполнять на физическом Mac; Windows-проверки и runner macOS 15 не заменяют приёмку на macOS 27.0.1.**
+**Статус: native/package/install выполнены для4ce2c97; личная/live приёмка открыта. Выполнять на физическом Mac; Windows-проверки и runner macOS 15 не заменяют приёмку на macOS 27.0.1.**
 
 **Предусловия:** получить актуальную ветку dev и Windows T16 commit; прочитать PROJECT-MEMORY и последний Agents/ClipFlow snapshot. Сохранить локальные изменения. Создать собственное Python 3.12 arm64 окружение, не переносить .venv, ключи или сессии между компьютерами.
 
@@ -18,3 +18,20 @@
 - [ ] Только после фактических Mac gate результатов завершить Mac-часть T15/T16a и межплатформенную приёмку. Не маркировать всё завершённым по одному Windows выпуску. Слияние/публикация следуют текущим правилам репозитория; никаких bypass failed checks.
 
 **Результат:** воспроизводимая проверенная Mac поставка того же исходного релиза, отчёт с реальными результатами и явно перечисленными ограничениями. T16 Windows может завершаться независимо; T16a остаётся открытым до выполнения чек-листа на Mac.
+
+## Фактический срез 30 октября
+
+- Mac27.0.1 arm64/Python3.12.15:437PASS/6 explicit skips, core97.24%/91.60%, runtime87.79%; native Cocoa59PASS.
+- Native clipboard/Command/RU, themes/RU/EN/DPI/min880×680 и auth synthetic self-tests пройдены; реальные screenshots в docs/screenshots.
+- Clean4ce2c97 DMG/APP ZIP: codesign/hdiutil и frozen media/tool/auth checks PASS. Launch Services из read-only DMG и /Applications PASS;582 прежних profile files сохранены при замене.
+- Одна installed app; собственные test app/build/archive copies очищены. Подпись ad-hoc, notarization нет; Gatekeeper не отключался.
+- Public YouTube video/Music metadata PASS, playlist fixture unavailable. Личный вход, закрытые GetCourse и live IGprofile10/50/all не приняты.
+- Final review обнаружил generic filename collision и collection-retry dedup; исправления требуют пересборки, дальнейший verification report определяет финальный source SHA.
+
+Чек-лист выше сохраняет исходные условия приёмки; synthetic/network-mock checks
+не закрывают личные/live пункты. Не называть публичным stable release до их оценки.
+
+После добавления bulk buttons native controls проверены отдельно. Повторный
+Cocoa suite:59PASS/1FAIL — foreground prerequisite в Command+N не выполнен
+(тестовое окно не активировалось). Результат не считать PASS; закрыть ручной
+приёмкой foreground shortcut. Это не падение нового clear/cancel теста.

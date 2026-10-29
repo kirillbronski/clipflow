@@ -395,3 +395,30 @@ def test_discovery_already_in_queue_finishes_parent_without_duplicate_download(q
     assert repo.get('one').state == JobState.COMPLETED
     assert len(repo.list()) == 2
     assert repo.get('two').state == JobState.PROBING
+
+
+@pytest.mark.parametrize('state', [JobState.CANCELLED, JobState.FAILED, JobState.COMPLETED])
+def test_collection_retry_rediscovery_restores_terminal_children_without_outputs(tmp_path, state):
+    from dataclasses import replace
+    repo=MemoryJobRepository()
+    parent=DownloadRequest(parse_url('https://youtube.com/playlist?list=PL_test'),DownloadOptions(tmp_path))
+    repo.add(Job('parent',parent,state=JobState.CANCELLED))
+    child=request('child')
+    repo.add(Job('old-child',child,state=state,parent_id='parent',result_files=(tmp_path/'deleted.mp4',) if state==JobState.COMPLETED else ()))
+    worker=ControlledExecutor(); scheduler=Scheduler(repo,worker)
+    scheduler.retry('parent'); scheduler.start()
+    worker.emit(RequestsDiscovered((child,child)))
+    worker.emit(WorkFinished())
+    restored=[job for job in repo.list() if job.id!='old-child' and job.parent_id=='parent']
+    assert len(restored)==1
+    assert worker.runs[-1][0].id==restored[0].id
+    assert repo.get(restored[0].id).state==JobState.PROBING
+
+
+def test_rediscovery_keeps_verified_completed_output_and_active_work(tmp_path):
+    repo=MemoryJobRepository(); repo.add(Job('parent',request('parent')))
+    child=request('child'); saved=tmp_path/'saved.mp4'; saved.write_bytes(b'kept')
+    repo.add(Job('done',child,state=JobState.COMPLETED,result_files=(saved,)))
+    worker=ControlledExecutor(); scheduler=Scheduler(repo,worker); scheduler.start()
+    worker.emit(RequestsDiscovered((child,child)))
+    assert len(repo.list())==2

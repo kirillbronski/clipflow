@@ -10,4 +10,10 @@ Mac arm64: `python scripts/build.py` на Apple Silicon; FFmpeg/FFprobe/Node в 
 
 Smoke выполняет реальный frozen Qt UI/local media и оба protected auth self-tests на synthetic profiles. Windows EXE дополнительно проверить innounp integrity; metadata build-report source_commit/dirty=False, размеры и SHA256SUMS. Dirty-сборки диагностические. CI workflow Build native Qt candidates принимает target all/windows/macos; общий source CI обеих ОС сохраняется.
 
-Выдача владельцу: D:/Gdrive/ClipFlow, EXE/portable ZIP, SHA256SUMS и verification report. Предыдущие проверенные кандидаты сохранять отдельно, не перезаписывать неизвестный файл. Mac DMG до T16a обозначать T15 candidate. GitHub Release и установка приложения — отдельные действия, не следствие появления файла в Drive.
+Выдача владельцу: D:/Gdrive/ClipFlow, EXE/portable ZIP, SHA256SUMS и verification report. Предыдущие проверенные кандидаты сохранять отдельно, не перезаписывать неизвестный файл. Mac DMG обозначать acceptance candidate до личной/live приёмки T16a. GitHub Release и установка приложения — отдельные действия, не следствие появления файла в Drive.
+
+30 октября: clean4ce2c97 кандидаты проверены на Mac27 через Launch Services и
+после установки в /Applications с сохранением профиля, а EXE — в Parallels
+Windows11 ARM64/x64 emulation, Program Files + Desktop shortcut. После final
+review исправлены имена generic outputs/повтор коллекций: для выдачи всегда
+сверять новый source SHA в verification report, не только номер2.0.0.

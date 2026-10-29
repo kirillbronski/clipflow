@@ -183,7 +183,7 @@ def test_recovery_after_file_written_before_db_commit(make_window,qtbot,media_se
     repo.update=interrupted
     window.presenter.start_queue()
     qtbot.waitUntil(lambda:window.presenter.executor.is_idle,timeout=15000)
-    files=tuple((tmp_path/'downloads').rglob('Crash recovery.mp4'))
+    files=tuple((tmp_path/'downloads').glob('YouTube/Crash recovery *.mp4'))
     assert len(files)==1 and files[0].stat().st_size>0
     before=files[0].stat().st_mtime_ns; path=repo.path
     repo.update=original; window.close(); qtbot.waitUntil(lambda:window.presenter.is_closed)

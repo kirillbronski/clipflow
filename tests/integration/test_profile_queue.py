@@ -45,7 +45,9 @@ def test_partial_profile_jobs_survive_scheduler_failure_and_retry_dedup(tmp_path
             try:
                 if job.request.link.kind==ContentKind.PROFILE:
                     provider.execute(job.request,ExecutionContext(CancellationToken(),send,Auth(),Gate()))
-                else: send(FilesSaved((tmp_path/'synthetic.png',)))
+                else:
+                    output=tmp_path/(job.request.link.canonical_id+'.png'); output.write_bytes(b'synthetic')
+                    send(FilesSaved((output,)))
                 send(WorkFinished())
             except MediaFailure as error: send(WorkFailed(error.code))
         def stop(self,*args): pass
