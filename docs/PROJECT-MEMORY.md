@@ -2,6 +2,51 @@
 
 Обновлено 29 октября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Проверка адаптации панели
+
+Mac full458PASS/6 explicit skips; core97.26%/91.67%, runtime87.97%.
+Native Cocoa bulk/layout47PASS. Windows offscreen targeted4PASS: исходный
+failing caption case + RU/EN wide metrics + vertical fallback. Длинные labels
+могут переноситься; кнопки не перекрываются, min880px и требования читаемости
+не изменены. Требуются clean builds этого исходного среза и exact-SHA CI.
+
+## Разбор Windows CI и адаптивная панель очереди
+
+a25553e diagnostic подтвердил точную причину d422 Windows FAIL:
+`test_mode_caption_yields_space_to_wide_control_metrics`. Три queue buttons
+в одной строке вместе с count расширяли minimum width на Windows fallback fonts;
+окно вместо880 становилось шире, composer оставлял Download caption видимым.
+Новые RU/EN tests с wide metrics воспроизводят это RED→GREEN. Панель очереди
+теперь переносит actions ниже счётчика, а при очень широких кнопках — вертикально;
+её width hint не расширяет окно. Подсказки пустой очереди, subtitle и footer переносят длинный текст, а не
+расширяют main content на Windows offscreen fallback fonts. После переноса
+Win targeted4PASS, включая исходный failing caption case и RU/EN/narrow cases.
+Min880×680 и все font/visibility assertions
+сохранены, не ослаблять тест ради Windows CI. Новые final installers нужны,
+установленные d422 пока не содержат эту адаптацию.
+
+Внешний watchdog full check поднят360→600s (без пропусков/ослабления assertions):
+реальные Mac CI full354s, Windows Parallels full474s уже превышали прежний запас.
+Job budget20min; JUnit annotations сохраняются. a255 Mac CI PASS, Windows FAIL
+по тому же конкретному layout test; main не мержить до нового exact-SHA GREEN.
+
+## Установки и поставка — source d422da9
+
+DMG/APP ZIP и Windows EXE/portable ZIP собраны из clean d422da9. Обе установки
+обновлены, frozen UI/media/tools/auth checks PASS, Mac27 Launch Services из DMG
+и /Applications PASS;582 Mac profile files и3 Windows profile files сохранены.
+Windows Program Files/ClipFlow + public Desktop shortcut, окно responsive.
+Артефакты/SHA256/verification.json в Мой диск/ClipFlow. У Mac одна .app;
+собственные test app/build/archive копии очищены, production Keychain не тронут;
+удалены236 synthetic test key entries. README Windows screenshot обновлён из
+actual installed executable. Личные/live acceptance и notarization не закрыты.
+
+ВАЖНО: GitHub d422da9 macOS15 PASS, Windows full offline step FAIL. Локальные
+Parallels158PASS/1symlink skip и final bulk24PASS/1symlink skip не подменяют CI.
+Без API log auth добавлен diagnostic workflow a25553e: JUnit full suite → public
+error annotations. Его результат требуется разобрать. main не мержился.
+Не называть source d422da9 fully accepted stable из-за этого открытого gate.
+
 ## Проверенный исходный срез — 30 октября
 
 После final review fixes и bulk controls: полный Mac check455PASS/6 explicit

@@ -2,7 +2,7 @@
 from PySide6.QtCore import Qt,QSize,QTimer
 from PySide6.QtGui import QAction,QActionGroup,QKeySequence,QPainter,QColor,QPixmap,QIcon
 from PySide6.QtWidgets import (
-    QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,QLabel,QPushButton,QLineEdit,QComboBox,
+    QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,QGridLayout,QBoxLayout,QSizePolicy,QLabel,QPushButton,QLineEdit,QComboBox,
     QListView,QFrame,QFileDialog,QCheckBox,QDialog,QDialogButtonBox,QListWidget,QListWidgetItem,QInputDialog,QScrollArea,QApplication,QMenu,QMessageBox,QAbstractItemView,
 )
 
@@ -83,7 +83,7 @@ class MainWindow(QMainWindow):
         main=QVBoxLayout(content); main.setContentsMargins(36,32,36,18); main.setSpacing(20); self.main_layout=main
         header=QHBoxLayout(); titles=QVBoxLayout(); titles.setSpacing(5); self.heading=self.tr.widget(QLabel,'all_downloads'); self.heading.setObjectName('heading'); titles.addWidget(self.heading); header.addLayout(titles,1)
         self.batch_button=self.tr.widget(QPushButton,'batch_button'); self.batch_button.clicked.connect(self._open_batch); header.addWidget(self.batch_button); main.addLayout(header)
-        subtitle=QLabel(); self.subtitle=subtitle; subtitle.setObjectName('muted'); titles.addWidget(subtitle)
+        subtitle=QLabel(); self.subtitle=subtitle; subtitle.setObjectName('muted'); subtitle.setWordWrap(True); titles.addWidget(subtitle)
         self.composer=Composer(presenter.settings,self,translator=self.tr)
         self.url_input=self.composer.url_input; self.add_button=self.composer.add_button
         self.folder_input=self.composer.folder_input; self.summary=self.composer.summary; self.auto_start=self.composer.auto_start
@@ -95,11 +95,17 @@ class MainWindow(QMainWindow):
         for button in self.composer.mode_buttons.values(): button.clicked.connect(self._resize_composer)
         main.addWidget(self.composer_host)
         self.error_label=QLabel(); self.error_label.setObjectName('error'); self.error_label.setWordWrap(True); self.error_label.hide(); main.addWidget(self.error_label)
-        queue_header=QHBoxLayout(); self.count_label=QLabel(); queue_header.addWidget(self.count_label,1)
-        self.start_button=self.tr.widget(QPushButton,'start_queue'); self.start_button.clicked.connect(presenter.start_queue); queue_header.addWidget(self.start_button)
-        self.cancel_queue_button=self.tr.widget(QPushButton,'cancel_queue'); self.cancel_queue_button.clicked.connect(presenter.cancel_queue); queue_header.addWidget(self.cancel_queue_button)
-        self.clear_all_button=self.tr.widget(QPushButton,'clear_all'); self.clear_all_button.clicked.connect(self._confirm_clear_all); queue_header.addWidget(self.clear_all_button)
-        main.addLayout(queue_header)
+        self.queue_toolbar=QWidget(); self.queue_toolbar.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred)
+        self.queue_header=QGridLayout(self.queue_toolbar); self.queue_header.setContentsMargins(0,0,0,0); self.queue_header.setSpacing(8); self.queue_header.setColumnStretch(0,1)
+        self.count_label=QLabel(); self.queue_header.addWidget(self.count_label,0,0)
+        self.queue_actions=QWidget(); self.queue_actions_layout=QHBoxLayout(self.queue_actions); self.queue_actions_layout.setContentsMargins(0,0,0,0); self.queue_actions_layout.setSpacing(8)
+        self.start_button=self.tr.widget(QPushButton,'start_queue'); self.start_button.clicked.connect(presenter.start_queue); self.queue_actions_layout.addWidget(self.start_button)
+        self.cancel_queue_button=self.tr.widget(QPushButton,'cancel_queue'); self.cancel_queue_button.clicked.connect(presenter.cancel_queue); self.queue_actions_layout.addWidget(self.cancel_queue_button)
+        self.clear_all_button=self.tr.widget(QPushButton,'clear_all'); self.clear_all_button.clicked.connect(self._confirm_clear_all); self.queue_actions_layout.addWidget(self.clear_all_button)
+        # Begin wrapped; the toolbar must never impose a wider window minimum.
+        self.queue_header.addWidget(self.queue_actions,1,0,1,2,Qt.AlignmentFlag.AlignRight)
+        self._queue_wrap_state=None
+        main.addWidget(self.queue_toolbar)
         self.status_tabs=QWidget(); tab_layout=QHBoxLayout(self.status_tabs); tab_layout.setContentsMargins(0,0,0,0); tab_layout.setSpacing(16); self.status_buttons={}
         for status in ('all','active','completed','failed'):
             button=QPushButton(); button.setObjectName('statusTab'); button.setCheckable(True); button.setChecked(status=='all')
@@ -115,9 +121,9 @@ class MainWindow(QMainWindow):
         self.queue_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.queue_view.customContextMenuRequested.connect(self._history_menu)
         main.addWidget(self.queue_view,1)
-        self.empty=self.tr.widget(QLabel,'empty'); self.empty.setObjectName('muted'); main.addWidget(self.empty)
-        footer=self.tr.widget(QLabel,'footer'); footer.setObjectName('muted'); main.addWidget(footer)
-        self._download_widgets=(self.batch_button,self.composer_host,self.count_label,self.start_button,self.cancel_queue_button,self.clear_all_button,self.status_tabs,self.queue_view,self.empty,footer,subtitle)
+        self.empty=self.tr.widget(QLabel,'empty'); self.empty.setObjectName('muted'); self.empty.setWordWrap(True); main.addWidget(self.empty)
+        footer=self.tr.widget(QLabel,'footer'); footer.setObjectName('muted'); footer.setWordWrap(True); main.addWidget(footer)
+        self._download_widgets=(self.batch_button,self.composer_host,self.queue_toolbar,self.count_label,self.start_button,self.cancel_queue_button,self.clear_all_button,self.status_tabs,self.queue_view,self.empty,footer,subtitle)
         self.accounts_page=AccountsPage(presenter,self.tr,self); self.settings_page=SettingsPage(presenter,self.tr,self)
         main.addWidget(self.accounts_page,1); main.addWidget(self.settings_page,1); self.accounts_page.hide(); self.settings_page.hide()
         self.composer.submit_requested.connect(self._submit)
@@ -139,7 +145,24 @@ class MainWindow(QMainWindow):
             self.sidebar.setFixedWidth(180 if self.width()<1000 else 205)
             margin=24 if self.width()<1000 else 36
             self.main_layout.setContentsMargins(margin,32,margin,18)
-            self._resize_composer()
+            self._resize_composer(); self._arrange_queue_controls()
+
+    def _arrange_queue_controls(self):
+        def apply():
+            if self._section!='downloads': return
+            available=self.main_page.viewport().width()-self.main_layout.contentsMargins().left()-self.main_layout.contentsMargins().right()
+            buttons=[b for b in (self.start_button,self.cancel_queue_button,self.clear_all_button) if not b.isHidden()]
+            horizontal=sum(max(b.minimumWidth(),b.minimumSizeHint().width()) for b in buttons)+8*max(0,len(buttons)-1)
+            count=max(self.count_label.minimumWidth(),self.count_label.minimumSizeHint().width())
+            vertical=horizontal>available
+            wrapped=vertical or count+horizontal+8>available
+            state=(wrapped,vertical)
+            if state==self._queue_wrap_state: return
+            self._queue_wrap_state=state
+            self.queue_actions_layout.setDirection(QBoxLayout.Direction.TopToBottom if vertical else QBoxLayout.Direction.LeftToRight)
+            self.queue_header.removeWidget(self.queue_actions)
+            self.queue_header.addWidget(self.queue_actions,1 if wrapped else 0,0 if wrapped else 1,1,2 if wrapped else 1,Qt.AlignmentFlag.AlignRight)
+        QTimer.singleShot(0,self,apply)
 
     def _resize_composer(self,*args):
         def apply():
@@ -283,6 +306,7 @@ class MainWindow(QMainWindow):
         self.start_button.setVisible(self._section=='downloads' and not self.proxy.history)
         self.cancel_queue_button.setVisible(self._section=='downloads' and not self.proxy.history)
         self.clear_all_button.setVisible(self._section=='downloads')
+        self._arrange_queue_controls()
         self.empty.setVisible(self._section=='downloads' and self.proxy.rowCount()==0)
         jobs=self.presenter.model.jobs
         for button in self.nav_buttons:

@@ -48,3 +48,9 @@ operation, поэтому timer не повторяет destructive IO; запи
 Итог исходников после всех исправлений: Mac455PASS/6 explicit skips,
 core97.26%/91.67%, runtime87.92%; native bulk/layout44PASS.
 Foreground prerequisite Command+N отдельно не принят; подробности MAC-T16A.
+
+Windows CI diagnostic a25553e выявил реальную регрессию minimum width после
+добавления3 queue buttons. Адаптивный toolbar переносит controls и не расширяет
+880px окно. Новые RU/EN wide-metrics tests RED→GREEN; исходный failing caption
+тест сохранён. Full-check watchdog600s основан на измеренных354s CI Mac/474s VM,
+тестовые условия/пороги и platform coverage не ослаблены.

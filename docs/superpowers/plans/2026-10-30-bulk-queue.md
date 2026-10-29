@@ -17,3 +17,7 @@
    по таймеру. Новые задания после команды не удалять по старому снимку.
 4. Full checks+native Windows/macOS, screenshots, clean installers, обновить
    обе установки и Drive artifacts, commit/push dev, память/Agents и пауза.
+
+Windows CI refinement: bulk toolbar must wrap actions below count at narrow
+widths, and stack buttons only if their horizontal sum cannot fit. Never grow
+minimum window beyond880px to fit the toolbar. Keep exact font/geometry tests.

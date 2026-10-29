@@ -43,7 +43,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix='clipflow-qt-check-') as isolated:
         result=subprocess.run([sys.executable,'-m','pytest','--cov=src/clipflow','--cov-report=',
             '--cov-config='+str(ROOT/'pyproject.toml')],cwd=ROOT,
-            env=dict(os.environ,CLIPFLOW_DATA_DIR=isolated),timeout=360)
+            env=dict(os.environ,CLIPFLOW_DATA_DIR=isolated),timeout=600)
     if result.returncode: return result.returncode
     coverage=Coverage(config_file=str(ROOT/'pyproject.toml')); coverage.load()
     coverage.json_report(morfs=[str(p) for p in (ROOT/'src/clipflow').rglob('*.py')],outfile=str(OUTPUT/'coverage.json'))

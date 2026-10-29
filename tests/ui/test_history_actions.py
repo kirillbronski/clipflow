@@ -281,3 +281,30 @@ def test_overlapping_clear_commands_keep_deletion_consent_per_snapshot(make_wind
     assert not window.presenter.repository.list()
     assert first_file.exists() is (not delete_second)
     assert second_file.exists() is (not delete_second)
+
+
+@pytest.mark.parametrize('language',['ru','en'])
+def test_bulk_toolbar_wraps_wide_metrics_without_growing_minimum_window(make_window,qtbot,language):
+    window,_=make_window(); window.language_actions[language].trigger()
+    window.count_label.setMinimumWidth(180)
+    for button in (window.start_button,window.cancel_queue_button,window.clear_all_button):
+        button.setMinimumWidth(180)
+    window.resize(880,680)
+    qtbot.wait(60)  # Let native minimum-size propagation settle before assertions.
+    qtbot.waitUntil(lambda:window.width()==880 and window.main_page.horizontalScrollBar().maximum()==0)
+    # The actions may also stack if the real fallback font needs more than
+    # 180px per label; readable non-overlapping controls are the contract.
+    rectangles=[b.geometry() for b in (window.start_button,window.cancel_queue_button,window.clear_all_button)]
+    assert all(not a.intersects(b) for i,a in enumerate(rectangles) for b in rectangles[i+1:])
+    assert window.clear_all_button.isVisible()
+
+
+def test_bulk_toolbar_very_wide_buttons_stack_without_horizontal_scroll(make_window,qtbot):
+    window,_=make_window()
+    for button in (window.start_button,window.cancel_queue_button,window.clear_all_button):
+        button.setMinimumWidth(300)
+    window.resize(880,680)
+    qtbot.waitUntil(lambda:window.cancel_queue_button.y()>window.start_button.y())
+    assert window.width()==880
+    assert window.clear_all_button.y()>window.cancel_queue_button.y()
+    assert window.main_page.horizontalScrollBar().maximum()==0

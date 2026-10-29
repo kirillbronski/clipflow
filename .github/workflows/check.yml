@@ -13,7 +13,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-15]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
@@ -67,7 +67,7 @@ jobs:
                   for failure in list(case.findall('failure')) + list(case.findall('error')):
                       text = case.get('name', '') + ': ' + (failure.text or failure.get('message', ''))
                       text = text[:12000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-                      print('::error title=Native authentication test::' + text)
+                      print('::error title=Test failure::' + text)
       - name: Coverage proof
         if: always()
         uses: actions/upload-artifact@v4
