@@ -16,19 +16,24 @@ _GROUPS = {
         'auth_required',
         'auth_unavailable',
         'instagram_access_required',
+        'instagram_access_denied',
         'getcourse_auth_failed',
+        'getcourse_school_login_required',
     ),
     'access': (
         'unavailable_media',
         'instagram_unavailable_media',
         'getcourse_access_denied',
         'getcourse_no_media',
+        'getcourse_invalid_player',
     ),
     'network': (
         'download_failed',
         'incomplete_download',
         'probe_failed',
         'getcourse_probe_failed',
+        'instagram_probe_failed',
+        'instagram_rate_limited',
         'instagram_profile_failed',
         'instagram_profile_incomplete',
     ),
@@ -89,10 +94,10 @@ def error_tooltip(code: str | None, service: Service, translator: Translator) ->
 def meta_text(job: Job, translator: Translator) -> str:
     options = job.request.options
     service = job.request.link.service
-    if options.format == 'mp3':
-        parts = ['MP3', translator.text('meta.mp3_quality')]
-    elif service is Service.INSTAGRAM and options.media_filter == 'photo':
+    if service is Service.INSTAGRAM and options.media_filter == 'photo':
         parts = [translator.text('photo'), translator.text('original_format')]
+    elif options.format == 'mp3':
+        parts = ['MP3', translator.text('meta.mp3_quality')]
     elif service is Service.INSTAGRAM and options.media_filter == 'all':
         parts = [translator.text('meta.photos_videos'), options.format.upper()]
     elif options.max_height:

@@ -37,17 +37,28 @@ def en(qapp):
     return Translator('en')
 
 
+# Error codes reach job.error as literals raised directly, raised through SchoolAccessError,
+# or picked by Instagram's _network_reason (its fallback argument and its returns).
+CODE_PATTERNS = (
+    re.compile(r"(?:MediaFailure|WorkFailed|SchoolAccessError)\(\s*'([a-z_]+)'"),
+    re.compile(r"_network_reason\([^,()]+,\s*'([a-z_]+)'"),
+    re.compile(r"return '((?:instagram|getcourse|youtube)_[a-z_]+)'"),
+)
+
+
 def source_error_codes():
-    pattern = re.compile(r"(?:MediaFailure|WorkFailed)\(\s*'([a-z_]+)'")
     codes = {'no_output'}
     for path in SOURCE.rglob('*.py'):
-        codes.update(pattern.findall(path.read_text(encoding='utf-8')))
+        text = path.read_text(encoding='utf-8')
+        for pattern in CODE_PATTERNS:
+            codes.update(pattern.findall(text))
     return codes
 
 
 def test_every_source_error_code_has_specific_text():
     codes = source_error_codes()
     assert len(codes) > 20
+    assert {'instagram_rate_limited', 'getcourse_school_login_required'} <= codes
     missing = sorted(
         code for code in codes if code not in ERROR_GROUPS.keys() | AUTH_SETTINGS_CODES
     )
@@ -170,6 +181,12 @@ INSTAGRAM = 'https://www.instagram.com/p/ABC/'
         (
             INSTAGRAM,
             {'media_filter': 'photo'},
+            'Instagram  ·  Фото  ·  Исходный формат',
+            'Instagram  ·  Photos  ·  Original format',
+        ),
+        (
+            INSTAGRAM,
+            {'media_filter': 'photo', 'format': 'mp3'},
             'Instagram  ·  Фото  ·  Исходный формат',
             'Instagram  ·  Photos  ·  Original format',
         ),
