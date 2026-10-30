@@ -15,6 +15,12 @@ AUTH_NAMES = {
     Service.INSTAGRAM: ('sessionid',),
 }
 FOLDERS = {Service.YOUTUBE: 'YouTubeAuth', Service.INSTAGRAM: 'InstagramAuth'}
+# Sign-in browser modes: the saved key (also the USER_AGENTS key) and its label key.
+AUTH_MODES = (
+    ('Обычный Qt WebEngine', 'auth_native_mode'),
+    ('Chrome на iPad · 51', 'auth_ipad51'),
+    ('Chrome на iPad · 87', 'auth_ipad87'),
+)
 
 
 def atomic_protected(path, payload, protect):

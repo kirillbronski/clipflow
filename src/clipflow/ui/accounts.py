@@ -140,6 +140,7 @@ class GetCourseDialog(QDialog):
         choose = self.tr.widget(QPushButton, 'choose')
         choose.clicked.connect(self._choose)
         previous = self.tr.widget(QPushButton, 'import_old_profile')
+        self.tr.bind(previous, 'import_old_profile_hint', setter='setToolTip')
         previous.clicked.connect(self._import)
         row.addWidget(choose)
         row.addWidget(previous)

@@ -24,7 +24,12 @@ from PySide6.QtWidgets import (
 )
 
 from clipflow.domain.models import Service
-from clipflow.infrastructure.auth_process.sessions import AUTH_NAMES, DOMAINS, SessionStore
+from clipflow.infrastructure.auth_process.sessions import (
+    AUTH_MODES,
+    AUTH_NAMES,
+    DOMAINS,
+    SessionStore,
+)
 from clipflow.ui.themes import application_icon
 
 USER_AGENTS = {
@@ -100,11 +105,7 @@ class AuthWindow(QMainWindow):
         layout.addWidget(note)
         controls = QHBoxLayout()
         self.mode = QComboBox()
-        for key, label in [
-            ('Обычный Qt WebEngine', 'auth_native_mode'),
-            ('Chrome на iPad · 51', 'auth_ipad51'),
-            ('Chrome на iPad · 87', 'auth_ipad87'),
-        ]:
+        for key, label in AUTH_MODES:
             self.mode.addItem(self.tr.text(label), key)
         self.mode.setCurrentIndex(max(0, self.mode.findData(chosen)))
         controls.addWidget(self.mode)

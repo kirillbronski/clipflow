@@ -6,7 +6,7 @@ from PySide6.QtCore import QLibraryInfo, QLocale, QObject, QTranslator, Signal
 
 MESSAGES = {
     'download_label': ('Скачать', 'Download'),
-    'sources_label': ('И С Т О Ч Н И К И', 'S O U R C E S'),
+    'sources_label': ('Источники', 'Sources'),
     'filter_all': ('Все', 'All'),
     'filter_active': ('В работе', 'Active'),
     'filter_completed': ('Готово', 'Done'),
@@ -17,12 +17,12 @@ MESSAGES = {
         'One link downloads the whole carousel. Photos and videos keep their original order.',
     ),
     'youtube_hint': (
-        'Видео, треки и плейлисты YouTube Music — в вашу коллекцию.',
-        'Videos, tracks and YouTube Music playlists — in your collection.',
+        'Видео, музыка и плейлисты YouTube. Ссылки YouTube Music сохраняются в MP3.',
+        'YouTube videos, music and playlists. YouTube Music links are saved as MP3.',
     ),
     'getcourse_hint': (
         'Скачиваются только материалы, к которым у вас есть доступ.',
-        'Download materials you have access to.',
+        'Only materials you have access to are downloaded.',
     ),
     'instagram_subtitle': (
         'Посты, Reels и карусели — в вашей коллекции.',
@@ -85,10 +85,6 @@ MESSAGES = {
         'Здесь пока нет заданий. Добавьте первую ссылку.',
         'No downloads yet. Add your first link.',
     ),
-    'footer': (
-        'Файлы сохраняются локально  ·  ClipFlow 2.0',
-        'Files are saved locally  ·  ClipFlow 2.0',
-    ),
     'queue_count': ('Очередь  ·  {count} {word}', 'Queue  ·  {count} {word}'),
     'job_one': ('задание', 'job'),
     'job_few': ('задания', 'jobs'),
@@ -112,12 +108,12 @@ MESSAGES = {
     'content': ('Содержимое', 'Content'),
     'author_folder': ('Папка автора', 'Author folder'),
     'post_folder': ('Папка каждого поста', 'Folder per post'),
-    'description_beside': ('Описание рядом с файлом', 'Save description'),
+    'description_beside': ('Описание рядом с файлом', 'Save description beside file'),
     'folder': ('Папка', 'Folder'),
     'download_folder': ('Папка загрузок', 'Download folder'),
     'choose': ('Выбрать…', 'Choose…'),
     'recent': ('Недавние', 'Recent'),
-    'auto_start': ('Автозапуск', 'Auto-start'),
+    'auto_start': ('Скачивать сразу', 'Start immediately'),
     'single_post': ('Один пост', 'Single post'),
     'single_video': ('Одно видео', 'Single video'),
     'batch': ('Несколько ссылок', 'Multiple links'),
@@ -146,16 +142,16 @@ MESSAGES = {
         'Choose Playlist mode for this link.',
     ),
     'quality_pending': (
-        'Проверка доступного качества… Добавление в очередь доступно.',
-        'Checking available quality… You can still add to the queue.',
+        'Проверяем доступное качество… Добавить в очередь можно уже сейчас.',
+        'Checking available quality… You can add to the queue now.',
     ),
     'probe_cancelled': (
-        'Проверка остановлена при запуске загрузки. Добавление в очередь доступно.',
-        'Quality check stopped to start a download. You can still add to the queue.',
+        'Проверка остановлена, чтобы начать загрузку. Добавить в очередь можно уже сейчас.',
+        'Quality check stopped to start a download. You can add to the queue now.',
     ),
     'probe_unavailable': (
-        'Проверка временно недоступна. Можно добавить в очередь.',
-        'Quality check is unavailable. You can still add to the queue.',
+        'Проверка качества сейчас недоступна. Добавить в очередь можно.',
+        'Quality check is unavailable right now. You can still add to the queue.',
     ),
     'best_selected': ('Выбрано лучшее доступное качество.', 'Best available quality is selected.'),
     'quality_per_item': (
@@ -229,7 +225,6 @@ MESSAGES = {
     'redo': ('Повторить ввод', 'Redo'),
     'cut': ('Вырезать', 'Cut'),
     'copy': ('Копировать', 'Copy'),
-    'delete': ('Удалить', 'Delete'),
     'select_all': ('Выделить всё', 'Select all'),
     'error.invalid_link': (
         'Проверьте ссылку и выбранный режим.',
@@ -320,10 +315,14 @@ MESSAGES.update(
         'auth_cookies': ('Файл cookies Netscape', 'Netscape cookies file'),
         'auth_browser': ('Сессия браузера', 'Browser session'),
         'school_scope_note': (
-            'Доступ применяется только к школе из этой ссылки. Для браузера: войдите в школу и закройте браузер перед чтением сессии. Старый профиль импортируется только после явного выбора школы.',
-            'Access applies only to the school in this link. For browser access, sign into the school and close the browser before reading its session. Importing an old profile requires explicitly selecting a school.',
+            'Доступ — только к школе из этой ссылки. Для «Сессии браузера» войдите в школу и закройте браузер.',
+            'Access applies only to the school in this link. For a browser session, sign into the school and close the browser.',
         ),
         'import_old_profile': ('Импортировать прежний профиль', 'Import previous profile'),
+        'import_old_profile_hint': (
+            'Старый профиль импортируется только для выбранной школы.',
+            'An old profile is imported only for the selected school.',
+        ),
         'save': ('Сохранить', 'Save'),
         'about_description': (
             'Видео, аудио и фотографии сохраняются локально. YouTube, Instagram и GetCourse. Доступ к материалам зависит от сервиса и вашего аккаунта.',
@@ -334,9 +333,9 @@ MESSAGES.update(
             'Введите данные на странице сервиса, затем откройте сервис и сохраните сессию. Сохранённая сессия будет доступна после перезапуска ClipFlow.',
             'Enter your details on the provider page, then open the service and save the session. The saved session remains available after restarting ClipFlow.',
         ),
-        'auth_native_mode': ('Обычный Qt WebEngine', 'Standard Qt WebEngine'),
-        'auth_ipad51': ('Chrome на iPad · 51', 'Chrome on iPad · 51'),
-        'auth_ipad87': ('Chrome на iPad · 87', 'Chrome on iPad · 87'),
+        'auth_native_mode': ('Обычный', 'Standard'),
+        'auth_ipad51': ('Совместимость 1', 'Compatibility 1'),
+        'auth_ipad87': ('Совместимость 2', 'Compatibility 2'),
         'open_service': ('Открыть сервис', 'Open service'),
         'save_session': ('Сохранить сессию', 'Save session'),
         'auth_page_ready': ('Страница загружена', 'Page loaded'),

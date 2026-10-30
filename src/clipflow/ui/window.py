@@ -1,7 +1,7 @@
 """Qt workbench following the approved desktop composition and shared commands."""
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPixmap
+from PySide6.QtGui import QActionGroup, QColor, QFont, QIcon, QKeySequence, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -134,6 +134,10 @@ class MainWindow(QMainWindow):
                 side.addSpacing(22)
                 sources = self.tr.widget(QLabel, 'sources_label')
                 sources.setObjectName('muted')
+                caps = sources.font()
+                caps.setCapitalization(QFont.Capitalization.AllUppercase)
+                caps.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2)
+                sources.setFont(caps)
                 side.addWidget(sources)
             button = NavigationButton(label) if service else self.tr.widget(NavigationButton, label)
             button.setProperty('nav_key', label)
@@ -275,10 +279,6 @@ class MainWindow(QMainWindow):
         self.empty.setObjectName('muted')
         self.empty.setWordWrap(True)
         main.addWidget(self.empty)
-        footer = self.tr.widget(QLabel, 'footer')
-        footer.setObjectName('muted')
-        footer.setWordWrap(True)
-        main.addWidget(footer)
         self._download_widgets = (
             self.batch_button,
             self.composer_host,
@@ -290,7 +290,6 @@ class MainWindow(QMainWindow):
             self.status_tabs,
             self.queue_view,
             self.empty,
-            footer,
             subtitle,
         )
         self.accounts_page = AccountsPage(presenter, self.tr, self)
