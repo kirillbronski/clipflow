@@ -64,6 +64,8 @@ class MediaPipeline:
                     else:
                         info = copy.deepcopy(dict(item.info))
                         info.update(id=item.id, title=item.title)
+                        # Probe metadata keeps yt-dlp's default selection; reusing it for another format gives HTTP403.
+                        info.pop('requested_formats', None); info.pop('requested_downloads', None)
                         if not info.get('url') and not info.get('formats'):
                             raise MediaFailure('invalid_media')
                         result = ydl.process_ie_result(info, download=True)

@@ -73,6 +73,21 @@ def test_real_single_video_or_music_track(tmp_path, monkeypatch, server, fmt):
     assert 'synthetic-session' not in repr(result)+repr(events)
 
 
+def test_mp3_ignores_stale_format_selection_left_by_probe(tmp_path, monkeypatch, server):
+    # extract_info(download=False) keeps its default bestvideo+bestaudio choice; reusing it gave HTTP403.
+    url, ffprobe = server
+    audio={'format_id':'251','url':url,'ext':'mp4','vcodec':'none','acodec':'aac','protocol':'http'}
+    video={'format_id':'399','url':url.replace('source.mp4','forbidden.mp4'),'ext':'mp4','vcodec':'h264','acodec':'none','height':64,'protocol':'http'}
+    info={'_type':'video','id':'track_A','title':'Название ролика','formats':[video,audio],
+          'format_id':'399+251','requested_formats':[video,audio],'webpage_url':'https://music.youtube.com/watch?v=track_A'}
+    monkeypatch.setattr(YoutubeDL,'extract_info',lambda self,page,download=False:copy.deepcopy(info))
+    ctx=ExecutionContext(CancellationToken(),lambda event:None,Auth())
+    req=DownloadRequest(parse_url('https://music.youtube.com/watch?v=track_A'),DownloadOptions(tmp_path,format='mp3'))
+    result=YouTubeProvider(MediaPipeline()).execute(req,ctx)
+    data=json.loads(subprocess.check_output([ffprobe,'-v','error','-show_streams','-of','json',str(result.files[0])]))
+    assert result.files[0].suffix=='.mp3' and {s['codec_type'] for s in data['streams']} == {'audio'}
+
+
 def test_playlist_children_save_with_original_001_numbers(tmp_path, monkeypatch, server):
     url,_=server
     def extract(self,page,download=False):

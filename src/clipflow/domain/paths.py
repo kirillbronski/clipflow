@@ -98,9 +98,11 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
             stem = f'{code} - {item.index:02d}'
     else:
         if request.playlist:
-            identity=_portable_identity(request.playlist.playlist_id)
-            directory /= (safe_name(request.playlist.title,48)+' ['+identity+']'
-                          if request.playlist.title and request.playlist.title.strip() else safe_name(identity,128))
+            # Owner-visible "Title [ID]"; the title already separates case-only ID variants in practice.
+            identity=request.playlist.playlist_id
+            directory /= (safe_name(request.playlist.title,48)+' ['+safe_name(identity,72)+']'
+                          if request.playlist.title and request.playlist.title.strip()
+                          else safe_name(_portable_identity(identity),128))
         position = request.playlist.index if request.playlist else item.index
         prefix = f'{position:03d} - ' if request.link.kind == ContentKind.PLAYLIST or request.playlist else ''
         stem = prefix + safe_name(item.title, 56 - len(prefix))
