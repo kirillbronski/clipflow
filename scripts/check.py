@@ -1,15 +1,24 @@
 """Run the supported Qt suite and all runtime coverage gates."""
+
 from pathlib import Path
 import argparse
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def main(argv=None):
-    parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--qt',action='store_true',help='Compatibility alias; Qt is the only runtime')
-    args=parser.parse_args(argv)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '--qt', action='store_true', help='Compatibility alias; Qt is the only runtime'
+    )
+    args = parser.parse_args(argv)
     from check_coverage import run
-    result=run()
-    if not result: print('All offline Qt checks and coverage gates passed.',flush=True)
+
+    result = run()
+    if not result:
+        print('All offline Qt checks and coverage gates passed.', flush=True)
     return result
 
-if __name__=='__main__': raise SystemExit(main())
+
+if __name__ == '__main__':
+    raise SystemExit(main())

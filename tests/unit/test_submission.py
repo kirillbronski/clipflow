@@ -10,18 +10,25 @@ from tests.helpers import MemoryJobRepository
 @pytest.fixture
 def system(tmp_path):
     store = MemoryJobRepository()
-    presets = {service: DownloadOptions(folder=tmp_path/service.value) for service in Service}
+    presets = {service: DownloadOptions(folder=tmp_path / service.value) for service in Service}
     return SubmissionService(store), store, presets
 
 
 def test_mixed_batch_ignores_bad_lines_and_preserves_per_service_snapshot(system):
     service, store, presets = system
     presets[Service.YOUTUBE] = replace(presets[Service.YOUTUBE], format='mkv')
-    preview = service.preview('\n'.join([
-        'https://instagram.com/p/ABC/', 'https://instagram.com/author/',
-        'https://music.youtube.com/watch?v=track', 'not a link',
-        'https://www.instagram.com/p/ABC/?img_index=2',
-    ]), presets)
+    preview = service.preview(
+        '\n'.join(
+            [
+                'https://instagram.com/p/ABC/',
+                'https://instagram.com/author/',
+                'https://music.youtube.com/watch?v=track',
+                'not a link',
+                'https://www.instagram.com/p/ABC/?img_index=2',
+            ]
+        ),
+        presets,
+    )
     assert len(preview.requests) == 3
     assert [issue.line for issue in preview.invalid] == [4]
     assert preview.duplicate_lines == (5,)
@@ -45,7 +52,9 @@ def test_single_mode_rejects_profile(system):
 def test_profile_limit_is_explicit(system, limit):
     service, store, presets = system
     presets[Service.INSTAGRAM] = replace(presets[Service.INSTAGRAM], post_folder=False)
-    preview = service.preview('https://instagram.com/author/', presets, mode='profile', profile_limit=limit)
+    preview = service.preview(
+        'https://instagram.com/author/', presets, mode='profile', profile_limit=limit
+    )
     assert len(preview.requests) == 1
     assert preview.requests[0].profile_limit == limit
     assert preview.requests[0].options.post_folder
@@ -105,6 +114,8 @@ def test_invalid_url_error_redacts_credentials(system):
 
 def test_playlist_id_cannot_be_truncated_into_another_playlist(system):
     service, store, presets = system
-    preview = service.preview('https://youtube.com/watch?v=abc&list=PL%26other=evil', presets, mode='playlist')
+    preview = service.preview(
+        'https://youtube.com/watch?v=abc&list=PL%26other=evil', presets, mode='playlist'
+    )
     assert not preview.requests
     assert len(preview.invalid) == 1

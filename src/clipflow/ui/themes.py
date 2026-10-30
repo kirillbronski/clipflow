@@ -1,71 +1,148 @@
 """One application palette and semantic tokens. Service changes only small accents."""
+
 from types import MappingProxyType
 from pathlib import Path
 import sys
-from PySide6.QtCore import QObject,Signal,Qt
-from PySide6.QtGui import QColor,QPalette,QIcon
+from PySide6.QtCore import QObject, Signal, Qt
+from PySide6.QtGui import QColor, QPalette, QIcon
 
-PALETTES={
- 'dark':dict(background='#1b1c23',surface='#23252e',sidebar='#17181f',hover='#30323e',
-             text='#f4f3fa',muted='#b8b6c8',disabled='#aaa6bb',border='#383b49',
-             accent='#b6a4ff',accent_text='#181420',success='#80d4b1',error='#ffaaa5',
-             selection='#58467f',selection_text='#ffffff',focus='#b6a4ff',menu='#24262f',dialog='#24262f',
-             youtube='#ff8a86',instagram='#c0a4ff',getcourse='#80d4b1'),
- 'light':dict(background='#ffffff',surface='#f6f7fa',sidebar='#f5f6f9',hover='#eeedf8',
-              text='#26272e',muted='#626a7e',disabled='#626a7e',border='#e4e7ef',
-              accent='#6253da',accent_text='#ffffff',success='#126444',error='#a51b28',
-              selection='#eeebfd',selection_text='#5141b7',focus='#6253da',menu='#ffffff',dialog='#ffffff',
-              youtube='#bc2b36',instagram='#6952d9',getcourse='#15715c'),
+PALETTES = {
+    'dark': dict(
+        background='#1b1c23',
+        surface='#23252e',
+        sidebar='#17181f',
+        hover='#30323e',
+        text='#f4f3fa',
+        muted='#b8b6c8',
+        disabled='#aaa6bb',
+        border='#383b49',
+        accent='#b6a4ff',
+        accent_text='#181420',
+        success='#80d4b1',
+        error='#ffaaa5',
+        selection='#58467f',
+        selection_text='#ffffff',
+        focus='#b6a4ff',
+        menu='#24262f',
+        dialog='#24262f',
+        youtube='#ff8a86',
+        instagram='#c0a4ff',
+        getcourse='#80d4b1',
+    ),
+    'light': dict(
+        background='#ffffff',
+        surface='#f6f7fa',
+        sidebar='#f5f6f9',
+        hover='#eeedf8',
+        text='#26272e',
+        muted='#626a7e',
+        disabled='#626a7e',
+        border='#e4e7ef',
+        accent='#6253da',
+        accent_text='#ffffff',
+        success='#126444',
+        error='#a51b28',
+        selection='#eeebfd',
+        selection_text='#5141b7',
+        focus='#6253da',
+        menu='#ffffff',
+        dialog='#ffffff',
+        youtube='#bc2b36',
+        instagram='#6952d9',
+        getcourse='#15715c',
+    ),
 }
-TEXT_PAIRS=tuple((fg,bg) for fg in ('text','muted','disabled','success','error') for bg in ('background','surface','sidebar','hover','menu','dialog'))+(
- ('selection_text','selection'),('accent_text','accent'),('accent_text','youtube'),('accent_text','instagram'),('accent_text','getcourse'),
- ('youtube','surface'),('instagram','surface'),('getcourse','surface'))
+TEXT_PAIRS = tuple(
+    (fg, bg)
+    for fg in ('text', 'muted', 'disabled', 'success', 'error')
+    for bg in ('background', 'surface', 'sidebar', 'hover', 'menu', 'dialog')
+) + (
+    ('selection_text', 'selection'),
+    ('accent_text', 'accent'),
+    ('accent_text', 'youtube'),
+    ('accent_text', 'instagram'),
+    ('accent_text', 'getcourse'),
+    ('youtube', 'surface'),
+    ('instagram', 'surface'),
+    ('getcourse', 'surface'),
+)
 
 
 def application_icon():
-    root=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parents[3]))
-    return QIcon(str(root/'assets/icons/clipflow.png'))
+    root = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[3]))
+    return QIcon(str(root / 'assets/icons/clipflow.png'))
 
 
 class ThemeManager(QObject):
-    changed=Signal()
-    def __init__(self,app,settings,parent=None):
-        super().__init__(parent); self.app=app; self.mode=settings.theme
-        scheme=app.styleHints().colorScheme()
-        self._system='dark' if scheme==Qt.ColorScheme.Dark else 'light'
+    changed = Signal()
+
+    def __init__(self, app, settings, parent=None):
+        super().__init__(parent)
+        self.app = app
+        self.mode = settings.theme
+        scheme = app.styleHints().colorScheme()
+        self._system = 'dark' if scheme == Qt.ColorScheme.Dark else 'light'
         app.setStyle('Fusion')
         app.styleHints().colorSchemeChanged.connect(self._system_changed)
         self._apply()
 
-    def resolved_mode(self): return self._system if self.mode=='system' else self.mode
-    def tokens(self): return MappingProxyType(PALETTES[self.resolved_mode()])
-    def set_mode(self,mode):
-        if mode not in {'dark','light','system'}: raise ValueError('invalid_theme')
-        if self.mode!=mode: self.mode=mode; self._apply()
+    def resolved_mode(self):
+        return self._system if self.mode == 'system' else self.mode
 
-    def _system_changed(self,scheme):
-        if scheme==Qt.ColorScheme.Unknown: return
-        self._system='dark' if scheme==Qt.ColorScheme.Dark else 'light'
-        if self.mode=='system': self._apply()
+    def tokens(self):
+        return MappingProxyType(PALETTES[self.resolved_mode()])
+
+    def set_mode(self, mode):
+        if mode not in {'dark', 'light', 'system'}:
+            raise ValueError('invalid_theme')
+        if self.mode != mode:
+            self.mode = mode
+            self._apply()
+
+    def _system_changed(self, scheme):
+        if scheme == Qt.ColorScheme.Unknown:
+            return
+        self._system = 'dark' if scheme == Qt.ColorScheme.Dark else 'light'
+        if self.mode == 'system':
+            self._apply()
 
     def close(self):
         self.app.styleHints().colorSchemeChanged.disconnect(self._system_changed)
 
     def _apply(self):
-        t=self.tokens(); palette=QPalette()
-        roles={'Window':'background','Base':'background','AlternateBase':'surface','WindowText':'text','Text':'text',
-               'Button':'surface','ButtonText':'text','Highlight':'selection','HighlightedText':'selection_text',
-               'ToolTipBase':'menu','ToolTipText':'text','PlaceholderText':'muted','Link':'focus','BrightText':'text'}
-        for role,key in roles.items():
-            palette.setColor(getattr(QPalette.ColorRole,role),QColor(t[key]))
-        for role in ('WindowText','Text','ButtonText','PlaceholderText'):
-            palette.setColor(QPalette.ColorGroup.Disabled,getattr(QPalette.ColorRole,role),QColor(t['disabled']))
+        t = self.tokens()
+        palette = QPalette()
+        roles = {
+            'Window': 'background',
+            'Base': 'background',
+            'AlternateBase': 'surface',
+            'WindowText': 'text',
+            'Text': 'text',
+            'Button': 'surface',
+            'ButtonText': 'text',
+            'Highlight': 'selection',
+            'HighlightedText': 'selection_text',
+            'ToolTipBase': 'menu',
+            'ToolTipText': 'text',
+            'PlaceholderText': 'muted',
+            'Link': 'focus',
+            'BrightText': 'text',
+        }
+        for role, key in roles.items():
+            palette.setColor(getattr(QPalette.ColorRole, role), QColor(t[key]))
+        for role in ('WindowText', 'Text', 'ButtonText', 'PlaceholderText'):
+            palette.setColor(
+                QPalette.ColorGroup.Disabled,
+                getattr(QPalette.ColorRole, role),
+                QColor(t['disabled']),
+            )
         self.app.setPalette(palette)
-        self.app.setStyleSheet(styles(t)); self.changed.emit()
+        self.app.setStyleSheet(styles(t))
+        self.changed.emit()
 
 
 def styles(t):
-    return '''
+    return """
 QWidget {{ color: {text}; font-family: "{font_family}"; font-size: 13px; font-weight: 400; }}
 QMainWindow,QWidget#root {{ background: {background}; }}
 QFrame#sidebar {{ background: {sidebar}; border-right: 1px solid {border}; }}
@@ -102,4 +179,4 @@ QMenuBar,QMenu {{ background: {menu}; color: {text}; }}
 QMenu::item:selected,QMenuBar::item:selected {{ background: {selection}; color: {selection_text}; }}
 QMenu::item:disabled {{ color: {disabled}; }}
 QToolTip {{ background: {menu}; color: {text}; border: 1px solid {border}; }}
-'''.format(**t,font_family='Helvetica Neue' if sys.platform=='darwin' else 'Segoe UI')
+""".format(**t, font_family='Helvetica Neue' if sys.platform == 'darwin' else 'Segoe UI')

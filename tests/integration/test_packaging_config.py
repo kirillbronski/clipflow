@@ -1,119 +1,176 @@
 """Release configuration is executable policy, not a legacy app renamed 2.0."""
+
 from pathlib import Path
 import importlib.util
 import runpy
 import sys
 import pytest
 
-ROOT=Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[2]
 
 
-def module(name,path):
-    assert path.is_file(),f'Missing release component: {path.name}'
-    spec=importlib.util.spec_from_file_location(name,path); result=importlib.util.module_from_spec(spec)
-    sys.modules[name]=result
+def module(name, path):
+    assert path.is_file(), f'Missing release component: {path.name}'
+    spec = importlib.util.spec_from_file_location(name, path)
+    result = importlib.util.module_from_spec(spec)
+    sys.modules[name] = result
     spec.loader.exec_module(result)
     return result
 
 
 def configuration():
-    return module('package_config',ROOT/'scripts/package_config.py')
+    return module('package_config', ROOT / 'scripts/package_config.py')
 
 
-def test_both_specs_use_same_qt_entry_version_and_resources(monkeypatch,tmp_path):
-    cfg=configuration()
-    tools={name:tmp_path/name for name in ('ffmpeg','ffprobe','node')}
-    for path in tools.values(): path.write_bytes(b'synthetic config fixture, not executable')
-    monkeypatch.setattr(cfg,'resolve_tool',lambda name:tools[name])
-    versions=[]
-    for system in ('windows','macos'):
-        spec=ROOT/f'packaging/{system}/ClipFlow.spec'
+def test_both_specs_use_same_qt_entry_version_and_resources(monkeypatch, tmp_path):
+    cfg = configuration()
+    tools = {name: tmp_path / name for name in ('ffmpeg', 'ffprobe', 'node')}
+    for path in tools.values():
+        path.write_bytes(b'synthetic config fixture, not executable')
+    monkeypatch.setattr(cfg, 'resolve_tool', lambda name: tools[name])
+    versions = []
+    for system in ('windows', 'macos'):
+        spec = ROOT / f'packaging/{system}/ClipFlow.spec'
         assert spec.is_file()
-        recorded=[]
-        executable_options=[]
-        def analysis(scripts,**kwargs):
-            recorded.append((scripts,kwargs))
-            return type('AnalysisResult',(),{'pure':[],'scripts':[],'binaries':[],'datas':[]})()
-        runpy.run_path(str(spec),init_globals={
-            'SPECPATH':str(spec.parent),'Analysis':analysis,'PYZ':lambda *a,**k:None,
-            'EXE':lambda *a,**k:executable_options.append(k),'COLLECT':lambda *a,**k:None,'BUNDLE':lambda *a,**k:None})
-        scripts,args=recorded[0]
-        assert [Path(p).resolve() for p in scripts]==[ROOT/'src/clipflow/__main__.py']
-        assert str(ROOT/'source') not in args['pathex']
-        assert {Path(p).stem for p,dest in args['binaries']} >= {'ffmpeg','ffprobe','node'}
-        assert any(dest=='licenses' for p,dest in args['datas'])
+        recorded = []
+        executable_options = []
+
+        def analysis(scripts, **kwargs):
+            recorded.append((scripts, kwargs))
+            return type(
+                'AnalysisResult', (), {'pure': [], 'scripts': [], 'binaries': [], 'datas': []}
+            )()
+
+        runpy.run_path(
+            str(spec),
+            init_globals={
+                'SPECPATH': str(spec.parent),
+                'Analysis': analysis,
+                'PYZ': lambda *a, **k: None,
+                'EXE': lambda *a, **k: executable_options.append(k),
+                'COLLECT': lambda *a, **k: None,
+                'BUNDLE': lambda *a, **k: None,
+            },
+        )
+        scripts, args = recorded[0]
+        assert [Path(p).resolve() for p in scripts] == [ROOT / 'src/clipflow/__main__.py']
+        assert str(ROOT / 'source') not in args['pathex']
+        assert {Path(p).stem for p, dest in args['binaries']} >= {'ffmpeg', 'ffprobe', 'node'}
+        assert any(dest == 'licenses' for p, dest in args['datas'])
         assert 'PySide6.QtWebEngineWidgets' in args['hiddenimports']
-        if system=='windows': assert Path(executable_options[0]['version']).name=='windows-version.txt'
+        if system == 'windows':
+            assert Path(executable_options[0]['version']).name == 'windows-version.txt'
         versions.append(cfg.APP_VERSION)
-    assert versions==[runpy.run_path(str(ROOT/'src/clipflow/version.py'))['APP_VERSION']]*2
+    assert versions == [runpy.run_path(str(ROOT / 'src/clipflow/version.py'))['APP_VERSION']] * 2
 
 
-def test_no_tk_or_legacy_app_in_release(monkeypatch,tmp_path):
-    cfg=configuration(); monkeypatch.setattr(cfg,'resolve_tool',lambda name:tmp_path/name)
-    inputs=cfg.spec_inputs(ROOT,'windows')
-    assert {'tkinter','_tkinter','customtkinter'} <= set(inputs['excludes'])
+def test_no_tk_or_legacy_app_in_release(monkeypatch, tmp_path):
+    cfg = configuration()
+    monkeypatch.setattr(cfg, 'resolve_tool', lambda name: tmp_path / name)
+    inputs = cfg.spec_inputs(ROOT, 'windows')
+    assert {'tkinter', '_tkinter', 'customtkinter'} <= set(inputs['excludes'])
     assert not any('source' in Path(p).relative_to(ROOT).parts for p in inputs['pathex'])
     assert not any('customtkinter' in str(pair) for pair in inputs['datas'])
 
 
 def test_coverage_threshold_gate_fails_below_each_limit():
-    gate=module('check_coverage',ROOT/'scripts/check_coverage.py')
-    def report(core_lines=100,core_branches=100,runtime_lines=100):
-        return {'files':{
-            'src/clipflow/domain/models.py':{'summary':{'covered_lines':core_lines,'num_statements':100,
-                'covered_branches':core_branches,'num_branches':100}},
-            'src/clipflow/ui/window.py':{'summary':{'covered_lines':runtime_lines,'num_statements':100,
-                'covered_branches':0,'num_branches':0}}}}
+    gate = module('check_coverage', ROOT / 'scripts/check_coverage.py')
+
+    def report(core_lines=100, core_branches=100, runtime_lines=100):
+        return {
+            'files': {
+                'src/clipflow/domain/models.py': {
+                    'summary': {
+                        'covered_lines': core_lines,
+                        'num_statements': 100,
+                        'covered_branches': core_branches,
+                        'num_branches': 100,
+                    }
+                },
+                'src/clipflow/ui/window.py': {
+                    'summary': {
+                        'covered_lines': runtime_lines,
+                        'num_statements': 100,
+                        'covered_branches': 0,
+                        'num_branches': 0,
+                    }
+                },
+            }
+        }
+
     assert gate.evaluate(report())['passed']
-    for data in (report(core_lines=94),report(core_branches=89),report(runtime_lines=69)):
+    for data in (report(core_lines=94), report(core_branches=89), report(runtime_lines=69)):
         assert not gate.evaluate(data)['passed']
-    assert not gate.evaluate({'files':{}})['passed']
+    assert not gate.evaluate({'files': {}})['passed']
 
 
 def test_windows_build_path_excludes_foreign_dlls(tmp_path):
-    cfg=configuration()
-    foreign=tmp_path/'poppler/bin'; system=tmp_path/'Windows'; python=tmp_path/'Python/python.exe'
-    env=cfg.windows_build_environment({'PATH':str(foreign),'SYSTEMROOT':str(system)},python,python.parent)
+    cfg = configuration()
+    foreign = tmp_path / 'poppler/bin'
+    system = tmp_path / 'Windows'
+    python = tmp_path / 'Python/python.exe'
+    env = cfg.windows_build_environment(
+        {'PATH': str(foreign), 'SYSTEMROOT': str(system)}, python, python.parent
+    )
     assert str(foreign) not in env['PATH']
-    assert str(system/'System32') in env['PATH'] and str(python.parent) in env['PATH']
+    assert str(system / 'System32') in env['PATH'] and str(python.parent) in env['PATH']
 
 
-def test_auth_flags_work_when_frozen(monkeypatch,tmp_path):
-    cfg=configuration(); monkeypatch.setattr(cfg,'resolve_tool',lambda name:tmp_path/name)
-    inputs=cfg.spec_inputs(ROOT,'windows')
+def test_auth_flags_work_when_frozen(monkeypatch, tmp_path):
+    cfg = configuration()
+    monkeypatch.setattr(cfg, 'resolve_tool', lambda name: tmp_path / name)
+    inputs = cfg.spec_inputs(ROOT, 'windows')
     assert 'clipflow.infrastructure.auth_process.__main__' in inputs['hiddenimports']
     import sys
     from clipflow.infrastructure.auth import NativeAuthGateway
     from clipflow.domain.models import Service
     import clipflow.infrastructure.auth as auth
-    commands=[]
+
+    commands = []
+
     class Child:
-        def poll(self): return None
-    monkeypatch.setattr(sys,'frozen',True,raising=False)
-    monkeypatch.setattr(auth.subprocess,'Popen',lambda command,**kw:commands.append(command) or Child())
-    gateway=NativeAuthGateway(tmp_path)
-    gateway.sign_in(Service.YOUTUBE,'ru'); gateway.sign_in(Service.INSTAGRAM,'ru')
-    assert commands[0][0]==sys.executable and '--youtube-login' in commands[0] and '-m' not in commands[0]
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(sys, 'frozen', True, raising=False)
+    monkeypatch.setattr(
+        auth.subprocess, 'Popen', lambda command, **kw: commands.append(command) or Child()
+    )
+    gateway = NativeAuthGateway(tmp_path)
+    gateway.sign_in(Service.YOUTUBE, 'ru')
+    gateway.sign_in(Service.INSTAGRAM, 'ru')
+    assert (
+        commands[0][0] == sys.executable
+        and '--youtube-login' in commands[0]
+        and '-m' not in commands[0]
+    )
     assert '--instagram-login' in commands[1]
 
 
-def test_installer_language_only_seeds_first_profile(monkeypatch,tmp_path):
+def test_installer_language_only_seeds_first_profile(monkeypatch, tmp_path):
     import clipflow.ui.bootstrap as bootstrap
     from clipflow.version import APP_VERSION
-    assert hasattr(bootstrap,'installer_language')
-    monkeypatch.setattr(sys,'frozen',True,raising=False)
-    monkeypatch.setattr(sys,'executable',str(tmp_path/'ClipFlow.exe'))
-    marker=tmp_path/'language.txt'; marker.write_text(APP_VERSION+':en')
-    profile=tmp_path/'profile'; profile.mkdir()
-    assert bootstrap.installer_language(profile)=='en'
-    (profile/'settings-v2.json').write_text('{}')
+
+    assert hasattr(bootstrap, 'installer_language')
+    monkeypatch.setattr(sys, 'frozen', True, raising=False)
+    monkeypatch.setattr(sys, 'executable', str(tmp_path / 'ClipFlow.exe'))
+    marker = tmp_path / 'language.txt'
+    marker.write_text(APP_VERSION + ':en')
+    profile = tmp_path / 'profile'
+    profile.mkdir()
+    assert bootstrap.installer_language(profile) == 'en'
+    (profile / 'settings-v2.json').write_text('{}')
     assert bootstrap.installer_language(profile) is None
-    (profile/'settings-v2.json').unlink(); marker.write_text('old-version:en')
+    (profile / 'settings-v2.json').unlink()
+    marker.write_text('old-version:en')
     assert bootstrap.installer_language(profile) is None
 
 
-def test_explicit_tool_survives_sanitized_path(monkeypatch,tmp_path):
-    cfg=configuration(); tool=tmp_path/'ffmpeg.exe'; tool.write_bytes(b'fixture')
-    monkeypatch.setenv('PATH',''); monkeypatch.setenv('CLIPFLOW_FFMPEG_PATH',str(tool))
-    monkeypatch.delenv('CLIPFLOW_BIN_DIR',raising=False)
-    assert cfg.resolve_tool('ffmpeg')==tool
+def test_explicit_tool_survives_sanitized_path(monkeypatch, tmp_path):
+    cfg = configuration()
+    tool = tmp_path / 'ffmpeg.exe'
+    tool.write_bytes(b'fixture')
+    monkeypatch.setenv('PATH', '')
+    monkeypatch.setenv('CLIPFLOW_FFMPEG_PATH', str(tool))
+    monkeypatch.delenv('CLIPFLOW_BIN_DIR', raising=False)
+    assert cfg.resolve_tool('ffmpeg') == tool

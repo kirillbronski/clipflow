@@ -1,11 +1,17 @@
 """One submission command for typed links, mixed batches and profile requests."""
+
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from urllib.parse import parse_qs, urlencode, urlparse
 from uuid import uuid4
 
 from clipflow.domain.models import (
-    ContentKind, DownloadOptions, DownloadRequest, Job, Service, TERMINAL_STATES,
+    ContentKind,
+    DownloadOptions,
+    DownloadRequest,
+    Job,
+    Service,
+    TERMINAL_STATES,
 )
 from clipflow.domain.urls import InvalidLink, parse_url, request_key
 from .ports import JobRepository
@@ -45,15 +51,26 @@ class SubmissionService:
     def __init__(self, repository: JobRepository):
         self.repository = repository
 
-    def preview(self, text: str, presets: Mapping[Service, DownloadOptions],
-                mode: str = 'batch', profile_limit: int | None = 10) -> BatchPreview:
+    def preview(
+        self,
+        text: str,
+        presets: Mapping[Service, DownloadOptions],
+        mode: str = 'batch',
+        profile_limit: int | None = 10,
+    ) -> BatchPreview:
         if mode not in {'single', 'batch', 'profile', 'playlist', 'lesson'}:
             raise ValueError('Unsupported submission mode')
         requests, invalid, duplicates = [], [], []
         seen = set()
-        lines = [(number, line.strip()) for number, line in enumerate(text.splitlines(), 1) if line.strip()]
+        lines = [
+            (number, line.strip())
+            for number, line in enumerate(text.splitlines(), 1)
+            if line.strip()
+        ]
         if mode != 'batch' and len(lines) > 1:
-            return BatchPreview((), (LineError(1, '', 'Use multiple-links mode for more than one link'),), ())
+            return BatchPreview(
+                (), (LineError(1, '', 'Use multiple-links mode for more than one link'),), ()
+            )
         for number, raw in lines:
             try:
                 link = parse_url(raw)
@@ -61,8 +78,10 @@ class SubmissionService:
                     playlist_id = parse_qs(urlparse(raw).query).get('list', [''])[0]
                     if link.service != Service.YOUTUBE or not playlist_id:
                         raise InvalidLink('Expected a YouTube playlist link')
-                    origin='music.youtube.com' if link.is_music else 'www.youtube.com'
-                    link = parse_url('https://'+origin+'/playlist?' + urlencode({'list': playlist_id}))
+                    origin = 'music.youtube.com' if link.is_music else 'www.youtube.com'
+                    link = parse_url(
+                        'https://' + origin + '/playlist?' + urlencode({'list': playlist_id})
+                    )
                 if mode == 'single' and link.kind in {ContentKind.PROFILE, ContentKind.PLAYLIST}:
                     raise InvalidLink('Choose profile or playlist mode explicitly')
                 if mode == 'profile' and link.kind != ContentKind.PROFILE:
@@ -73,7 +92,9 @@ class SubmissionService:
                 is_profile = link.kind == ContentKind.PROFILE
                 if is_profile:
                     options = replace(options, post_folder=True)
-                request = DownloadRequest(link, options, profile_limit=profile_limit if is_profile else None)
+                request = DownloadRequest(
+                    link, options, profile_limit=profile_limit if is_profile else None
+                )
                 key = request_key(request)
                 if key in seen:
                     duplicates.append(number)

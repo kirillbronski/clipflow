@@ -1,16 +1,19 @@
 """Frozen 1.8.7 session wire-format reference, not an application runtime.
 Copied from platform_support at 711f5a3; only synthetic profiles are allowed.
 """
+
 import os
 import sys
 from pathlib import Path
 from threading import Lock
+
 if not os.environ.get('CLIPFLOW_DATA_DIR'):
     raise RuntimeError('Legacy codec fixture requires isolated test data')
-APP_DATA=Path(os.environ['CLIPFLOW_DATA_DIR']).resolve()
-IS_WINDOWS=sys.platform=='win32'
-IS_MAC=sys.platform=='darwin'
-_key_lock=Lock()
+APP_DATA = Path(os.environ['CLIPFLOW_DATA_DIR']).resolve()
+IS_WINDOWS = sys.platform == 'win32'
+IS_MAC = sys.platform == 'darwin'
+_key_lock = Lock()
+
 
 def protect_profile(data, decrypt=False):
     """Encrypt data with a key held in the user's macOS login Keychain."""
@@ -20,10 +23,12 @@ def protect_profile(data, decrypt=False):
         raise OSError('Saved sessions are supported on Windows and macOS.')
     from cryptography.fernet import Fernet, InvalidToken
     from keyring.backends.macOS import Keyring
+
     service, account = 'ClipFlow', 'profile-encryption-key-v1'
     if os.environ.get('CLIPFLOW_DATA_DIR'):
         # Test profiles must never request access to the user's real session key.
         import hashlib
+
         service = 'ClipFlow Tests'
         account = 'profile-key-' + hashlib.sha256(str(APP_DATA).encode()).hexdigest()[:24]
     with _key_lock:
@@ -49,16 +54,25 @@ def _protect_windows(data, decrypt=False):
     """Use the same user-scoped DPAPI format as previous Windows releases."""
     import ctypes
     from ctypes import wintypes
+
     class Blob(ctypes.Structure):
         _fields_ = [('size', wintypes.DWORD), ('data', ctypes.POINTER(ctypes.c_byte))]
+
     buffer = ctypes.create_string_buffer(data)
     source = Blob(len(data), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_byte)))
     target = Blob()
     crypt32 = ctypes.WinDLL('crypt32', use_last_error=True)
     kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
     api = crypt32.CryptUnprotectData if decrypt else crypt32.CryptProtectData
-    api.argtypes = [ctypes.POINTER(Blob), ctypes.c_void_p, ctypes.c_void_p,
-                    ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(Blob)]
+    api.argtypes = [
+        ctypes.POINTER(Blob),
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(Blob),
+    ]
     api.restype = wintypes.BOOL
     kernel32.LocalFree.argtypes = [ctypes.c_void_p]
     kernel32.LocalFree.restype = ctypes.c_void_p
@@ -68,4 +82,3 @@ def _protect_windows(data, decrypt=False):
         return ctypes.string_at(target.data, target.size)
     finally:
         kernel32.LocalFree(ctypes.cast(target.data, ctypes.c_void_p))
-

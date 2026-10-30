@@ -1,5 +1,6 @@
 """Immutable content identities and download parameter snapshots."""
-from dataclasses import dataclass,field,replace
+
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
@@ -31,7 +32,10 @@ class ParsedLink:
 
     @property
     def is_music(self):
-        return self.service==Service.YOUTUBE and urlsplit(self.canonical_url).hostname=='music.youtube.com'
+        return (
+            self.service == Service.YOUTUBE
+            and urlsplit(self.canonical_url).hostname == 'music.youtube.com'
+        )
 
 
 @dataclass(frozen=True)
@@ -54,7 +58,9 @@ class DownloadOptions:
             raise ValueError('Unsupported media filter')
         if self.description not in {None, 'txt', 'md'}:
             raise ValueError('Unsupported description format')
-        if self.max_height is not None and (type(self.max_height) is not int or self.max_height <= 0):
+        if self.max_height is not None and (
+            type(self.max_height) is not int or self.max_height <= 0
+        ):
             raise ValueError('Height must be a positive integer')
 
 
@@ -65,11 +71,13 @@ class PlaylistPosition:
     title: str | None = None
 
     def __post_init__(self):
-        if not isinstance(self.playlist_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', self.playlist_id):
+        if not isinstance(self.playlist_id, str) or not re.fullmatch(
+            r'[A-Za-z0-9_-]{1,100}', self.playlist_id
+        ):
             raise ValueError('Invalid playlist identity')
         if type(self.index) is not int or self.index < 1:
             raise ValueError('Playlist position must be a positive integer')
-        if self.title is not None and (not isinstance(self.title,str) or len(self.title)>1000):
+        if self.title is not None and (not isinstance(self.title, str) or len(self.title) > 1000):
             raise ValueError('Invalid playlist title')
 
 
@@ -90,10 +98,17 @@ class DownloadRequest:
 
     def __post_init__(self):
         _display_name(self.label)
-        if self.link.is_music and (self.options.format!='mp3' or self.options.max_height is not None):
-            object.__setattr__(self,'options',replace(self.options,format='mp3',max_height=None))
-        if self.playlist is not None and (not isinstance(self.playlist, PlaylistPosition)
-                or self.link.service != Service.YOUTUBE or self.link.kind != ContentKind.VIDEO):
+        if self.link.is_music and (
+            self.options.format != 'mp3' or self.options.max_height is not None
+        ):
+            object.__setattr__(
+                self, 'options', replace(self.options, format='mp3', max_height=None)
+            )
+        if self.playlist is not None and (
+            not isinstance(self.playlist, PlaylistPosition)
+            or self.link.service != Service.YOUTUBE
+            or self.link.kind != ContentKind.VIDEO
+        ):
             raise ValueError('Playlist position belongs to a YouTube child video')
         if self.profile_limit not in (None, 10, 50):
             raise ValueError('Profile limit must be 10, 50, or all')

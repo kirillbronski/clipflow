@@ -1,4 +1,5 @@
 """Interfaces implemented by persistence and protected credential adapters."""
+
 from collections.abc import Mapping
 from typing import Protocol
 

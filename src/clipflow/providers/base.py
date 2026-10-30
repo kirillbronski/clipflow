@@ -1,4 +1,5 @@
 """Contracts shared by providers, executor and media pipeline."""
+
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,6 +46,7 @@ class ExecutionContext:
 
 class MediaFailure(Exception):
     """Safe typed error; never retain raw CDN/auth URLs in the public message."""
+
     def __init__(self, code: str):
         self.code = code
         super().__init__(code)

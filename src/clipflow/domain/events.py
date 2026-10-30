@@ -1,4 +1,5 @@
 """Worker messages and cooperative cancellation; no UI or persistence dependencies."""
+
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +20,7 @@ class WorkCancelled(Exception):
 
 class CancellationToken:
     """First cancellation wins; Event.wait makes provider delays interruptible."""
+
     def __init__(self):
         self._event = Event()
         self._lock = Lock()
@@ -96,9 +98,18 @@ class WorkStopped:
     """Executor acknowledges resource teardown after cancellation or deferral."""
 
 
-ProviderEvent = (StageChanged | TitleChanged | ProgressChanged | FilesSaved | RequestsDiscovered
-                 | SelectionRequired | RateLimitDeferred | WorkFinished | WorkFailed
-                 | WorkStopped)
+ProviderEvent = (
+    StageChanged
+    | TitleChanged
+    | ProgressChanged
+    | FilesSaved
+    | RequestsDiscovered
+    | SelectionRequired
+    | RateLimitDeferred
+    | WorkFinished
+    | WorkFailed
+    | WorkStopped
+)
 
 
 @dataclass(frozen=True)

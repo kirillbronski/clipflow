@@ -1,4 +1,5 @@
 """Queue behavior with controllable workers: no GUI, network, or wall-clock sleeps."""
+
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -6,9 +7,18 @@ import pytest
 
 from clipflow.application.scheduler import Scheduler
 from clipflow.domain.events import (
-    CancellationToken, WorkCancelled, JobEvent, StageChanged, ProgressChanged,
-    FilesSaved, RequestsDiscovered, SelectionRequired, RateLimitDeferred,
-    WorkFinished, WorkFailed, WorkStopped,
+    CancellationToken,
+    WorkCancelled,
+    JobEvent,
+    StageChanged,
+    ProgressChanged,
+    FilesSaved,
+    RequestsDiscovered,
+    SelectionRequired,
+    RateLimitDeferred,
+    WorkFinished,
+    WorkFailed,
+    WorkStopped,
 )
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
 from clipflow.domain.urls import parse_url
@@ -17,6 +27,7 @@ from tests.helpers import MemoryJobRepository
 
 class ControlledExecutor:
     """External worker boundary; termination can deliberately arrive late."""
+
     def __init__(self):
         self.runs = []
         self.stops = []
@@ -33,7 +44,9 @@ class ControlledExecutor:
 
 
 def request(name='first'):
-    return DownloadRequest(parse_url(f'https://youtu.be/{name}'), DownloadOptions(Path('/downloads')))
+    return DownloadRequest(
+        parse_url(f'https://youtu.be/{name}'), DownloadOptions(Path('/downloads'))
+    )
 
 
 @pytest.fixture
@@ -63,12 +76,15 @@ def test_one_running_job(queue):
 
 
 def test_drained_queue_requires_explicit_start_for_new_jobs(queue):
-    repo,worker,scheduler=queue; scheduler.start(); finish(worker); finish(worker)
-    repo.add(Job('three',request('third')))
-    scheduler.tick()
-    assert repo.get('three').state==JobState.QUEUED and len(worker.runs)==2
+    repo, worker, scheduler = queue
     scheduler.start()
-    assert worker.runs[-1][0].id=='three'
+    finish(worker)
+    finish(worker)
+    repo.add(Job('three', request('third')))
+    scheduler.tick()
+    assert repo.get('three').state == JobState.QUEUED and len(worker.runs) == 2
+    scheduler.start()
+    assert worker.runs[-1][0].id == 'three'
 
 
 def test_old_attempt_cannot_fail_new_attempt(queue):
@@ -120,8 +136,15 @@ def test_pause_preserves_partial_then_resumes_new_attempt(queue, tmp_path):
 def test_profile_cancel_cancels_unstarted_children(queue):
     repo, worker, scheduler = queue
     repo.add(Job('child', request('child'), parent_id='one'))
-    repo.add(Job('done', request('done'), state=JobState.COMPLETED,
-                 parent_id='one', result_files=(Path('saved.mp4'),)))
+    repo.add(
+        Job(
+            'done',
+            request('done'),
+            state=JobState.COMPLETED,
+            parent_id='one',
+            result_files=(Path('saved.mp4'),),
+        )
+    )
     repo.add(Job('grandchild', request('grandchild'), parent_id='child'))
     scheduler.start()
     scheduler.cancel('one')
@@ -400,34 +423,54 @@ def test_discovery_already_in_queue_finishes_parent_without_duplicate_download(q
 @pytest.mark.parametrize('state', [JobState.CANCELLED, JobState.FAILED, JobState.COMPLETED])
 def test_collection_retry_rediscovery_restores_terminal_children_without_outputs(tmp_path, state):
     from dataclasses import replace
-    repo=MemoryJobRepository()
-    parent=DownloadRequest(parse_url('https://youtube.com/playlist?list=PL_test'),DownloadOptions(tmp_path))
-    repo.add(Job('parent',parent,state=JobState.CANCELLED))
-    child=request('child')
-    repo.add(Job('old-child',child,state=state,parent_id='parent',result_files=(tmp_path/'deleted.mp4',) if state==JobState.COMPLETED else ()))
-    worker=ControlledExecutor(); scheduler=Scheduler(repo,worker)
-    scheduler.retry('parent'); scheduler.start()
-    worker.emit(RequestsDiscovered((child,child)))
+
+    repo = MemoryJobRepository()
+    parent = DownloadRequest(
+        parse_url('https://youtube.com/playlist?list=PL_test'), DownloadOptions(tmp_path)
+    )
+    repo.add(Job('parent', parent, state=JobState.CANCELLED))
+    child = request('child')
+    repo.add(
+        Job(
+            'old-child',
+            child,
+            state=state,
+            parent_id='parent',
+            result_files=(tmp_path / 'deleted.mp4',) if state == JobState.COMPLETED else (),
+        )
+    )
+    worker = ControlledExecutor()
+    scheduler = Scheduler(repo, worker)
+    scheduler.retry('parent')
+    scheduler.start()
+    worker.emit(RequestsDiscovered((child, child)))
     worker.emit(WorkFinished())
-    restored=[job for job in repo.list() if job.id!='old-child' and job.parent_id=='parent']
-    assert len(restored)==1
-    assert worker.runs[-1][0].id==restored[0].id
-    assert repo.get(restored[0].id).state==JobState.PROBING
+    restored = [job for job in repo.list() if job.id != 'old-child' and job.parent_id == 'parent']
+    assert len(restored) == 1
+    assert worker.runs[-1][0].id == restored[0].id
+    assert repo.get(restored[0].id).state == JobState.PROBING
 
 
 def test_rediscovery_keeps_verified_completed_output_and_active_work(tmp_path):
-    repo=MemoryJobRepository(); repo.add(Job('parent',request('parent')))
-    child=request('child'); saved=tmp_path/'saved.mp4'; saved.write_bytes(b'kept')
-    repo.add(Job('done',child,state=JobState.COMPLETED,result_files=(saved,)))
-    worker=ControlledExecutor(); scheduler=Scheduler(repo,worker); scheduler.start()
-    worker.emit(RequestsDiscovered((child,child)))
-    assert len(repo.list())==2
+    repo = MemoryJobRepository()
+    repo.add(Job('parent', request('parent')))
+    child = request('child')
+    saved = tmp_path / 'saved.mp4'
+    saved.write_bytes(b'kept')
+    repo.add(Job('done', child, state=JobState.COMPLETED, result_files=(saved,)))
+    worker = ControlledExecutor()
+    scheduler = Scheduler(repo, worker)
+    scheduler.start()
+    worker.emit(RequestsDiscovered((child, child)))
+    assert len(repo.list()) == 2
 
 
 def test_title_events_persist_and_named_queued_jobs_are_relabelled(queue):
     from clipflow.domain.events import TitleChanged
+
     repo, worker, scheduler = queue
-    seen = []; scheduler.subscribe(seen.append)
+    seen = []
+    scheduler.subscribe(seen.append)
     scheduler.start()
     worker.emit(TitleChanged('Пропаганда - Мелом'))
     assert repo.get('one').title == 'Пропаганда - Мелом'

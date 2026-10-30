@@ -1,4 +1,5 @@
 """Import previous app data into ClipFlow without replacing existing files."""
+
 from pathlib import Path
 import argparse
 import json
@@ -45,12 +46,16 @@ def main(argv=None):
     if sys.platform != 'win32':
         parser.error('Run this import on the Windows computer under the original user account.')
     from clipflow.infrastructure.platform import data_directory
+
     try:
         for name, status in migrate(args.source, data_directory()).items():
             print(f'{name}: {status}')
     except (OSError, ValueError):
-        raise SystemExit('Import failed. Check the selected directory, file format and permissions. Originals were preserved.')
+        raise SystemExit(
+            'Import failed. Check the selected directory, file format and permissions. Originals were preserved.'
+        )
     return 0
 
 
-if __name__=='__main__': raise SystemExit(main())
+if __name__ == '__main__':
+    raise SystemExit(main())
