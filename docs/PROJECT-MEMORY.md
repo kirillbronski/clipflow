@@ -5,7 +5,7 @@
 ## 2.0.2 — MP3 и папка плейлиста, 30 октября
 
 Владелец сообщил, что Music-плейлист не скачивается. Причина: probe-метаданные несли `requested_formats` выбора yt-dlp по умолчанию (видео+аудио); MediaPipeline передавал их второму YoutubeDL, и для MP3 загрузка шла по устаревшему набору → HTTP403 для любого MP3 с YouTube. Запись 2.0.1 о «403 без авторизации» была этим дефектом. Исправлено в `af721f6` (2.0.2), регрессия RED→GREEN, папка плейлиста — ровно `Название [ID]`.
-Mac полный check 471 PASS/6 skips; CI Checks обеих ОС success. Сборки Mac (на Mac) и Windows (Parallels, Inno 6.7.3 поставлен в VM через winget по просьбе владельца) из af721f6, обе установлены, файлы в Мой диск/ClipFlow. Подробности: [releases/2.0.2-candidate-2026-10-30.md](releases/2.0.2-candidate-2026-10-30.md).
+Mac полный check 471 PASS/6 skips; CI Checks обеих ОС success. Сборки Mac (на Mac) и Windows (Parallels, Inno 6.7.3 поставлен в VM через winget по просьбе владельца) из af721f6, обе установлены, файлы в Мой диск/ClipFlow. Keychain для Mac 2.0.2 владелец подтвердил, главное окно 1180×832 проверено. Подробности: [releases/2.0.2-candidate-2026-10-30.md](releases/2.0.2-candidate-2026-10-30.md).
 Сборка в Parallels требует `prlctl exec --current-user` (SYSTEM без рабочего стола роняет WebEngine smoke), mingit в PATH и `INNO_SETUP_COMPILER`. Основной Windows ПК остаётся на 2.0.0. main не менялся. После задачи — ПАУЗА.
 
 ## Доступ Keychain подтверждён — 30 октября
