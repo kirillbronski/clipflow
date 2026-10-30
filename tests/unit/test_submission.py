@@ -28,7 +28,7 @@ def test_mixed_batch_ignores_bad_lines_and_preserves_per_service_snapshot(system
     presets[Service.YOUTUBE] = replace(presets[Service.YOUTUBE], format='mp3')
     result = service.submit(preview)
     assert len(result.added) == 3
-    assert store.get(result.added[2]).request.options.format == 'mkv'
+    assert store.get(result.added[2]).request.options.format == 'mp3'
     assert store.get(result.added[0]).request.options.folder.name == 'instagram'
     assert store.get(result.added[1]).request.profile_limit == 10
 

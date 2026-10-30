@@ -98,7 +98,9 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
             stem = f'{code} - {item.index:02d}'
     else:
         if request.playlist:
-            directory /= safe_name(_portable_identity(request.playlist.playlist_id), 128)
+            identity=_portable_identity(request.playlist.playlist_id)
+            directory /= (safe_name(request.playlist.title,48)+' ['+identity+']'
+                          if request.playlist.title and request.playlist.title.strip() else safe_name(identity,128))
         position = request.playlist.index if request.playlist else item.index
         prefix = f'{position:03d} - ' if request.link.kind == ContentKind.PLAYLIST or request.playlist else ''
         stem = prefix + safe_name(item.title, 56 - len(prefix))
@@ -106,6 +108,7 @@ def output_path(request: DownloadRequest, item: 'MediaItem', author: str | None,
         # stable identity and requested-quality marker outside the clipped title
         # so retries reuse their own partials, never another video's bytes.
         identity = f'{item.id}\0{request.options.max_height}'
+        if request.options.format=='mp3': identity+='\0mp3:320k'
         identity_suffix = ' [' + hashlib.sha256(identity.encode('utf-8')).hexdigest()[:16] + ']'
     # Reserve 40 UTF-16 units for downloader/FFmpeg temporary suffixes. Root
     # folders are never shortened or redirected to make an overlong path fit.

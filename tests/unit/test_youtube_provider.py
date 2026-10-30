@@ -93,7 +93,7 @@ def test_playlist_order_and_unavailable_entry(tmp_path, monkeypatch):
     provider.execute(req, ctx)
     children = [r for e in events if isinstance(e, RequestsDiscovered) for r in e.requests]
     assert [r.link.canonical_id for r in children] == ['video_A','private_B','video_C']
-    assert [r.playlist for r in children] == [PlaylistPosition('PL_music',1), PlaylistPosition('PL_music',3), PlaylistPosition('PL_music',4)]
+    assert [r.playlist for r in children] == [PlaylistPosition('PL_music',1,'Музыка'), PlaylistPosition('PL_music',3,'Музыка'), PlaylistPosition('PL_music',4,'Музыка')]
     assert all(r.options == req.options for r in children)
     extract_fixture(monkeypatch, None)
     with pytest.raises(MediaFailure, match='unavailable_media'):

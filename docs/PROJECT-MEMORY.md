@@ -433,3 +433,10 @@ EXE SHA256 702751e66a4b175a3986c07126c53d4f724b191a96eecf346dc572376b2aec96; inn
 Выявлены1319лишних файлов от прежних overlay-установок, в том числе Tcl/Tk/старые Qt DLL. После полного сравнения с SHA-проверенным portable ZIP они перемещены пофайлово в тот же локальный backup; текущие package files, uninstaller и language.txt сохранены. Рекурсивного удаления не было.
 На реальном Windows11 build28000 AMD64 именно установленная поставка прошла frozen Qt/local HTTP transfer/FFmpeg/FFprobe/Node и оба protected WebEngine self-tests на synthetic data, clean resources PASS. Это дополняет прежнюю Parallels ARM64 проверку. Личный вход/закрытые материалы этими self-tests не подтверждаются.
 Текущие открытые Mac/manual/live gates из T16a и FINAL-REVIEW не закрываются установкой на Windows. Main не менялся, новый бинарник не пересобирался: установлен проверенный существующий артефакт.
+
+## 2.0.1 — YouTube Music MP3
+
+Ссылки с точным music.youtube.com сохраняют происхождение и принудительно создают MP3-задания: одиночный трек, плейлист, batch и дочерние задания очереди/restart/retry. Виджет показывает заблокированный MP3, обычный YouTube сохраняет предыдущий ручной формат даже после изменения папки в Music-режиме.
+MP3320кбит/с из лучшей доступной аудиодорожки; исходное качество ограничено YouTube. Предыдущие192кбит/с файлы не считаются320кбит/с результатом и не перезаписываются. Папки плейлистов начинаются с настоящего title, затем portable ID; позиции001 сохранены. Старые SQLite записи без title читаются; title не меняет ключ дедупликации.
+Живая public metadata проверка Sound City/PLO5Q7HxgkOYo получила46позиций; ограниченная попытка скачать первые2 упёрлась в HTTP403 на audio CDN без авторизации. Это unverified live transfer, не успешная загрузка; реальные профили не использовались. Real localhost FFmpeg/FFprobe MP3/audio-only320000bit/s PASS.
+Windows2.0.1 package verification in progress; Mac native2.0.1 requires a Mac. Existing2.0.0 Mac/manual/live acceptance notes remain separate.

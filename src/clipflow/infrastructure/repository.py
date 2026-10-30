@@ -86,7 +86,7 @@ def _encode(job):
                            'canonical_url':link.canonical_url},
                    'options':encode_options(job.request.options),'selection':selection,
                    'profile_limit':job.request.profile_limit,
-                   'playlist':{'playlist_id':job.request.playlist.playlist_id,'index':job.request.playlist.index}
+                   'playlist':{'playlist_id':job.request.playlist.playlist_id,'index':job.request.playlist.index,'title':job.request.playlist.title}
                               if job.request.playlist else None},
     }
     if job.attempt_id is not None: _identifier(job.attempt_id)

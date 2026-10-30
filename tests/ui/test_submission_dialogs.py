@@ -13,6 +13,32 @@ from clipflow.ui.batch_dialog import BatchDialog
 from tests.ui.test_workbench import make_window
 
 
+def test_music_locks_mp3_and_restores_video_preset(make_window,qtbot,tmp_path):
+    window,_=make_window();composer=window.composer
+    composer.format_box.setCurrentIndex(composer.format_box.findData('mkv'))
+    window.url_input.setText('https://music.youtube.com/watch?v=track')
+    assert composer.format_box.currentData()=='mp3' and not composer.format_box.isEnabled()
+    assert not composer.quality_box.isEnabled() and composer.options().format=='mp3'
+    composer.folder_input.setText(str(tmp_path/'other'));composer.folder_input.editingFinished.emit()
+    assert window.presenter.settings.presets[Service.YOUTUBE].format=='mkv'
+    composer.apply_probe('obsolete',(1080,),'')
+    assert composer.format_box.currentData()=='mp3'
+    window.url_input.setText('https://youtube.com/watch?v=video')
+    assert composer.format_box.currentData()=='mkv' and composer.format_box.isEnabled()
+    assert composer.options().folder==tmp_path/'other'
+    window.url_input.setText('https://music.youtube.com/watch?v=track')
+    window.url_input.clear()
+    assert composer.format_box.currentData()=='mkv' and composer.format_box.isEnabled()
+    from PySide6.QtWidgets import QApplication
+    QApplication.clipboard().setText('https://music.youtube.com/watch?v=track')
+    qtbot.mouseClick(composer.paste_button,Qt.MouseButton.LeftButton)
+    assert composer.format_box.currentData()=='mp3' and not composer.format_box.isEnabled()
+    composer.set_service(Service.INSTAGRAM);composer.set_service(Service.YOUTUBE)
+    assert composer.format_box.currentData()=='mp3'
+    window.url_input.clear()
+    assert composer.format_box.currentData()=='mkv'
+
+
 def batch(window,qtbot):
     qtbot.mouseClick(window.batch_button,Qt.MouseButton.LeftButton)
     return next(dialog for dialog in window._dialogs if isinstance(dialog,BatchDialog) and dialog.isVisible())

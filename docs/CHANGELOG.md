@@ -38,3 +38,10 @@
 ## 2.0.0 — T16 Windows candidate
 
 Единственный Qt runtime, parity mapping и удаление legacy Tk/scripts; реальная измеренная скорость передачи и сохранение byte counters на финальном hook. Обновлены архитектура/тесты/документы. Mac acceptance выделена в открытый T16a; candidate не означает завершённый межплатформенный выпуск.
+
+## 2.0.1 — YouTube Music MP3
+
+Ссылки с точным music.youtube.com сохраняют происхождение и принудительно создают MP3-задания: одиночный трек, плейлист, batch и дочерние задания очереди/restart/retry. Виджет показывает заблокированный MP3, обычный YouTube сохраняет предыдущий ручной формат даже после изменения папки в Music-режиме.
+MP3320кбит/с из лучшей доступной аудиодорожки; исходное качество ограничено YouTube. Предыдущие192кбит/с файлы не считаются320кбит/с результатом и не перезаписываются. Папки плейлистов начинаются с настоящего title, затем portable ID; позиции001 сохранены. Старые SQLite записи без title читаются; title не меняет ключ дедупликации.
+Живая public metadata проверка Sound City/PLO5Q7HxgkOYo получила46позиций; ограниченная попытка скачать первые2 упёрлась в HTTP403 на audio CDN без авторизации. Это unverified live transfer, не успешная загрузка; реальные профили не использовались. Real localhost FFmpeg/FFprobe MP3/audio-only320000bit/s PASS.
+Windows2.0.1 package verification in progress; Mac native2.0.1 requires a Mac. Existing2.0.0 Mac/manual/live acceptance notes remain separate.

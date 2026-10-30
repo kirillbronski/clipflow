@@ -41,7 +41,9 @@ class YouTubeProvider:
                 items.append(MediaItem(identity, index, 'video', self._title(entry), entry))
             if not items:
                 raise MediaFailure('unavailable_media')
-            return ProbeResult(tuple(items), ())
+            title=info.get('title')
+            title=' '.join(title.split())[:500] if isinstance(title,str) and title.strip() else None
+            return ProbeResult(tuple(items), (), collection_title=title)
         identity = info.get('id') or request.link.canonical_id
         if (not self._valid_id(identity) or info.get('_type') in {'playlist', 'url', 'url_transparent'}
                 or not (info.get('url') or info.get('formats'))):
@@ -65,8 +67,9 @@ class YouTubeProvider:
         for item in result.items:
             context.cancel.raise_if_cancelled()
             # Persist only canonical identities/options, never raw CDN URLs or credentials.
-            child = replace(request, link=parse_url(f'https://www.youtube.com/watch?v={item.id}'),
-                            selection=None, playlist=PlaylistPosition(request.link.canonical_id, item.index))
+            origin='music.youtube.com' if request.link.is_music else 'www.youtube.com'
+            child = replace(request, link=parse_url(f'https://{origin}/watch?v={item.id}'),
+                            selection=None, playlist=PlaylistPosition(request.link.canonical_id, item.index,result.collection_title))
             pending.append(child)
             count += 1
             if len(pending) == 25:

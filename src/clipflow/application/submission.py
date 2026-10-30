@@ -61,7 +61,8 @@ class SubmissionService:
                     playlist_id = parse_qs(urlparse(raw).query).get('list', [''])[0]
                     if link.service != Service.YOUTUBE or not playlist_id:
                         raise InvalidLink('Expected a YouTube playlist link')
-                    link = parse_url('https://www.youtube.com/playlist?' + urlencode({'list': playlist_id}))
+                    origin='music.youtube.com' if link.is_music else 'www.youtube.com'
+                    link = parse_url('https://'+origin+'/playlist?' + urlencode({'list': playlist_id}))
                 if mode == 'single' and link.kind in {ContentKind.PROFILE, ContentKind.PLAYLIST}:
                     raise InvalidLink('Choose profile or playlist mode explicitly')
                 if mode == 'profile' and link.kind != ContentKind.PROFILE:

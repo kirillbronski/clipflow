@@ -14,6 +14,28 @@ def job(folder,identity='one',state=JobState.QUEUED):
     return Job(identity,DownloadRequest(parse_url('https://youtu.be/ABC'),DownloadOptions(folder)),state)
 
 
+def test_music_playlist_title_persists_and_old_position_still_loads(tmp_path):
+    original=Job('music',DownloadRequest(parse_url('https://music.youtube.com/watch?v=track'),
+        DownloadOptions(tmp_path),playlist=PlaylistPosition('PL_music',2,'Sound City')))
+    path=tmp_path/'music.sqlite3';repo=SqliteJobRepository(path);repo.add(original);repo.close()
+    repo=SqliteJobRepository(path)
+    try:
+        saved=repo.get('music')
+        assert saved.request.link.is_music and saved.request.options.format=='mp3'
+        assert saved.request.playlist.title=='Sound City' and saved.request.playlist.index==2
+    finally:repo.close()
+    import json
+    with sqlite3.connect(path) as db:
+        payload=json.loads(db.execute('SELECT payload FROM jobs').fetchone()[0])
+        payload['request']['playlist'].pop('title')
+        db.execute('UPDATE jobs SET payload=?',(json.dumps(payload),))
+    repo=SqliteJobRepository(path)
+    try:
+        old=repo.get('music').request
+        assert old.playlist.title is None and old.playlist.index==2 and old.options.format=='mp3'
+    finally:repo.close()
+
+
 @pytest.mark.parametrize('state',[JobState.QUEUED,JobState.PROBING,JobState.DOWNLOADING,JobState.PROCESSING])
 def test_restart_recovers_active_as_paused(tmp_path,state):
     path=tmp_path/'queue.sqlite3'; repo=SqliteJobRepository(path)

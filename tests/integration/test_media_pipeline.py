@@ -107,6 +107,15 @@ def probe(path, tools):
     return data
 
 
+def test_mp3_uses_320k_audio_only(tmp_path,context,media_server,tools):
+    ctx,_=context;base,_,_=media_server
+    req=request(tmp_path,'mp3');pipeline=MediaPipeline(ffmpeg=tools[0],ffprobe=tools[1])
+    path=pipeline.save(item(base+'/sample.mp4'),req,ctx)[0]
+    streams=probe(path,tools)['streams']
+    assert {stream['codec_type'] for stream in streams}=={'audio'}
+    assert streams[0]['codec_name']=='mp3' and int(streams[0]['bit_rate'])==320000
+
+
 @pytest.mark.parametrize('fmt,container,codecs', [
     ('mp4', 'mp4', {'h264', 'aac'}), ('mkv', 'matroska', {'h264', 'aac'}),
     ('webm', 'webm', {'vp9', 'opus'}), ('mp3', 'mp3', {'mp3'})])

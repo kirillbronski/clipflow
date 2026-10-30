@@ -41,7 +41,8 @@ def parse_url(text: str) -> ParsedLink:
                 raise InvalidLink('Missing content ID')
             key = 'list' if kind == ContentKind.PLAYLIST else 'v'
             route = 'playlist' if kind == ContentKind.PLAYLIST else 'watch'
-            return ParsedLink(Service.YOUTUBE, kind, identity, f'https://www.youtube.com/{route}?{key}={identity}')
+            origin='music.youtube.com' if host=='music.youtube.com' else 'www.youtube.com'
+            return ParsedLink(Service.YOUTUBE, kind, identity, f'https://{origin}/{route}?{key}={identity}')
         if host == 'instagram.com' or host.endswith('.instagram.com'):
             match = re.fullmatch(r'/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)/?', path)
             if match:
@@ -86,5 +87,5 @@ def request_key(request: DownloadRequest) -> str:
             'options': options,
             'selection': sorted(request.selection) if request.selection is not None else None,
             'profile_limit': request.profile_limit,
-            'playlist': asdict(request.playlist) if request.playlist is not None else None}
+            'playlist': {'playlist_id':request.playlist.playlist_id,'index':request.playlist.index} if request.playlist is not None else None}
     return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()

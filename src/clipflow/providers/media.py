@@ -271,7 +271,7 @@ class MediaPipeline:
         codecs = {s.get('codec_name') for s in self._probe(source, context).get('streams', [])}
         args = [self.ffmpeg, '-v', 'error', '-nostdin', '-y', '-i', str(source)]
         if fmt == 'mp3':
-            args += ['-vn', '-c:a', 'libmp3lame', '-b:a', '192k']
+            args += ['-vn', '-c:a', 'libmp3lame', '-b:a', '320k']
         elif fmt == 'webm' and not codecs.issubset({'vp8', 'vp9', 'av1', 'opus', 'vorbis'}):
             args += ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-c:a', 'libopus']
         else:

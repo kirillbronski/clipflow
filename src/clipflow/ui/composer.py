@@ -195,7 +195,14 @@ class Composer(QFrame):
         self.url_input.setPlaceholderText('https://www.instagram.com/username/' if profile else self.tr.text('instagram_link') if ig else self.tr.text('link_placeholder'))
         if not self.url_input.text(): self._hint('instagram_hint' if ig and not profile else 'youtube_hint' if self.service==Service.YOUTUBE else 'getcourse_hint' if self.service==Service.GETCOURSE else 'profile_note')
         photo_only=ig and self.filter_box.currentData()=='photo'
-        self.format_box.setEnabled(not photo_only); self.quality_box.setEnabled(not photo_only and self.format_box.currentData()!='mp3')
+        music=self._is_music()
+        self.format_box.setCurrentIndex(self.format_box.findData('mp3' if music else self._presets[self.service].format))
+        self.format_box.setEnabled(not photo_only and not music)
+        self.quality_box.setEnabled(not photo_only and self.format_box.currentData()!='mp3')
+
+    def _is_music(self):
+        try: return self.service==Service.YOUTUBE and parse_url(self.url_input.text()).is_music
+        except ValueError: return False
 
     def options(self):
         folder=self.folder_input.text().strip()
@@ -211,6 +218,9 @@ class Composer(QFrame):
         if self.mode!='profile': self._post_preference=self.post_folder.isChecked()
         try: options=self.options()
         except ValueError: self._hint('check_folder'); return
+        if self._is_music():
+            previous=self._presets[self.service]
+            options=replace(options,format=previous.format,max_height=previous.max_height)
         self._presets[self.service]=options; self._profile_limit=self.limit_box.currentData()
         self._loading=True; self._mode_ui(); self._summary(); self._loading=False
         self.preset_changed.emit(self.service,options,self._profile_limit); self._invalidate()
@@ -219,7 +229,7 @@ class Composer(QFrame):
         options=self._presets[self.service]
         if self.service==Service.INSTAGRAM and options.media_filter=='photo':
             self.summary.setText(self.tr.text('photo_summary')); return
-        if options.format=='mp3': self.summary.setText(self.tr.text('audio_summary')); return
+        if self._is_music() or options.format=='mp3': self.summary.setText(self.tr.text('audio_summary')); return
         quality=self.tr.text('quality_cap',height=options.max_height) if options.max_height else self.tr.text('best_quality')
         self.summary.setText(f'{options.format.upper()} · {quality}')
 
@@ -229,12 +239,14 @@ class Composer(QFrame):
         except ValueError: detected=self.service
         if detected!=self.service:
             self.set_service(detected,incoming=text); return
-        self._drafts[self.service]=text; self._invalidate()
+        self._drafts[self.service]=text
+        self._loading=True; self._mode_ui(); self._summary(); self._loading=False
+        self._invalidate()
 
     def _invalidate(self):
         self._timer.stop(); self._probe_id=uuid4().hex; self.quality_pending=False
         self.probe_requested.emit('',self._probe_id)
-        self._loading=True; self._quality((),self._presets[self.service].max_height); self._loading=False
+        self._loading=True; self._quality((),None if self._is_music() else self._presets[self.service].max_height); self._loading=False
         try: link=parse_url(self.url_input.text())
         except ValueError:
             self._hint('instagram_hint' if self.service==Service.INSTAGRAM and self.mode!='profile' else 'youtube_hint' if self.service==Service.YOUTUBE else 'getcourse_hint' if self.service==Service.GETCOURSE else 'profile_note')

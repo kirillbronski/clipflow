@@ -26,6 +26,7 @@ class ProbeResult:
     items: tuple[MediaItem, ...]
     available_heights: tuple[int, ...]
     selection_required: bool = False
+    collection_title: str | None = None
 
 
 @dataclass(frozen=True)
