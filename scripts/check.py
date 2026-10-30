@@ -11,7 +11,7 @@ def main(argv=None):
     parser.add_argument(
         '--qt', action='store_true', help='Compatibility alias; Qt is the only runtime'
     )
-    args = parser.parse_args(argv)
+    parser.parse_args(argv)
     from check_coverage import run
 
     result = run()

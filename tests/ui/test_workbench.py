@@ -78,7 +78,7 @@ def make_window(qtbot, tmp_path):
     yield make
     for window in windows:
         window.presenter.shutdown()
-        qtbot.waitUntil(lambda: window.presenter.is_closed, timeout=5000)
+        qtbot.waitUntil(lambda w=window: w.presenter.is_closed, timeout=5000)
         window.close()
         window.deleteLater()
 

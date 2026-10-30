@@ -37,7 +37,8 @@ def test_both_specs_use_same_qt_entry_version_and_resources(monkeypatch, tmp_pat
         executable_options = []
 
         def analysis(scripts, **kwargs):
-            recorded.append((scripts, kwargs))
+            # runpy calls these fakes synchronously within this loop iteration.
+            recorded.append((scripts, kwargs))  # noqa: B023 — called within this iteration
             return type(
                 'AnalysisResult', (), {'pure': [], 'scripts': [], 'binaries': [], 'datas': []}
             )()
@@ -48,7 +49,7 @@ def test_both_specs_use_same_qt_entry_version_and_resources(monkeypatch, tmp_pat
                 'SPECPATH': str(spec.parent),
                 'Analysis': analysis,
                 'PYZ': lambda *a, **k: None,
-                'EXE': lambda *a, **k: executable_options.append(k),
+                'EXE': lambda *a, **k: executable_options.append(k),  # noqa: B023 — same iteration
                 'COLLECT': lambda *a, **k: None,
                 'BUNDLE': lambda *a, **k: None,
             },

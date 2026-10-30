@@ -67,7 +67,7 @@ def test_labels_show_at_once_then_paced_lookup_names_waiting_videos(make_window,
     assert repo.get('a').title == 'Пропаганда - Мелом' and repo.get('b').title is None
     called = [identity for identity, _ in provider.calls]
     assert sorted(called) == ['track_A', 'track_B', 'track_D'] and not provider.overlap
-    gaps = [b - a for (_, a), (_, b) in zip(provider.calls, provider.calls[1:])]
+    gaps = [b - a for (_, a), (_, b) in zip(provider.calls, provider.calls[1:], strict=False)]
     assert all(gap >= 0.14 for gap in gaps)
     qtbot.wait(400)
     assert len(provider.calls) == 3  # a failed lookup is not retried in a loop

@@ -15,7 +15,7 @@ from tests.ui.test_workbench import add, make_window
 
 def test_restart_does_not_autostart(make_window, qtbot, tmp_path):
     window, provider = make_window()
-    identity = add(window, qtbot)
+    add(window, qtbot)
     path = window.presenter.repository.path
     window.close()
     qtbot.waitUntil(lambda: window.presenter.is_closed)
@@ -31,7 +31,7 @@ def test_restart_does_not_autostart(make_window, qtbot, tmp_path):
 
 def test_close_during_network_processing_or_auth(make_window, qtbot):
     window, provider = make_window()
-    identity = add(window, qtbot)
+    add(window, qtbot)
     window.presenter.start_queue()
     qtbot.waitUntil(provider.started.is_set)
     path = window.presenter.repository.path
@@ -246,9 +246,11 @@ def test_close_during_stalled_network_is_bounded(make_window, qtbot):
 
     class Network:
         def execute(self, request, context):
-            with open_downloader({'quiet': True}, context=context) as ydl:
-                with ydl.urlopen(f'http://127.0.0.1:{server.server_port}/stall') as response:
-                    response.read()
+            with (
+                open_downloader({'quiet': True}, context=context) as ydl,
+                ydl.urlopen(f'http://127.0.0.1:{server.server_port}/stall') as response,
+            ):
+                response.read()
 
     try:
         window, _ = make_window(Network())

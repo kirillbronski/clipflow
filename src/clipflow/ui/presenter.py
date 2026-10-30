@@ -1,5 +1,6 @@
 """Owner-thread commands bridge submission/scheduler/storage to Qt views."""
 
+import contextlib
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -496,10 +497,8 @@ class WorkbenchPresenter(QObject):
 
     def _title_ready(self, identity, title):
         if title and not self._closing:
-            try:
+            with contextlib.suppress(KeyError):
                 self._command(lambda: self.scheduler.set_title(identity, title))
-            except KeyError:
-                pass
         if not self._closing:
             self._title_timer.start(self.title_interval_ms)
 

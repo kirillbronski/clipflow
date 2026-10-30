@@ -1,5 +1,6 @@
 """Common resumable transfer, verified conversion and atomic sidecar publishing."""
 
+import contextlib
 import copy
 import json
 import os
@@ -315,8 +316,8 @@ class MediaPipeline:
             # Chocolatey and user launchers can own the actual FFmpeg child.
             # Kill the tree while its root still exists, then drain inherited
             # pipes: killing just the shim can leave communicate() blocked.
-            taskkill = Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'System32/taskkill.exe'
-            try:
+            taskkill = Path(os.environ.get('SYSTEMROOT', 'C:/Windows')) / 'System32/taskkill.exe'
+            with contextlib.suppress(OSError, subprocess.TimeoutExpired):
                 subprocess.run(
                     [str(taskkill), '/PID', str(process.pid), '/T', '/F'],
                     stdout=subprocess.DEVNULL,
@@ -324,15 +325,11 @@ class MediaPipeline:
                     timeout=2,
                     creationflags=subprocess.CREATE_NO_WINDOW,
                 )
-            except (OSError, subprocess.TimeoutExpired):
-                pass
             if process.poll() is None:
                 process.kill()
         else:
-            try:
+            with contextlib.suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
-            except ProcessLookupError:
-                pass
 
     def _probe(self, path, context):
         if not self.ffprobe:

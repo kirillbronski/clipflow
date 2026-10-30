@@ -130,7 +130,7 @@ def main(argv=None):
             language=app.property('clipflowLanguage') or 'ru',
             theme=app.property('clipflowTheme') or 'dark',
         )
-        theme = ThemeManager(app, settings)
+        _theme = ThemeManager(app, settings)  # keeps the palette alive while the dialog is shown
         translator = Translator(settings.language)
         translator.install_qt()
         key = 'error.' + error.code

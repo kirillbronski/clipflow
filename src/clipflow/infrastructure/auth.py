@@ -1,5 +1,6 @@
 """Scoped protected authentication and supervised, separate browser processes."""
 
+import contextlib
 import hashlib
 import os
 import re
@@ -91,10 +92,8 @@ class AuthProcessHandle:
                 'closing' if self._deadline is not None else 'pending',
                 status.account,
             )
-        try:
+        with contextlib.suppress(OSError):
             self.close_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         return status
 
 

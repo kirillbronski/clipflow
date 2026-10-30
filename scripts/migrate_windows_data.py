@@ -17,9 +17,10 @@ def migrate(source, destination):
     if not candidates or any(path.is_symlink() for path in candidates):
         raise ValueError('No supported regular app data files found.')
     settings = source / 'settings.json'
-    if settings in candidates:
-        if not isinstance(json.loads(settings.read_text(encoding='utf-8')), dict):
-            raise ValueError('Settings must contain a JSON object.')
+    if settings in candidates and not isinstance(
+        json.loads(settings.read_text(encoding='utf-8')), dict
+    ):
+        raise ValueError('Settings must contain a JSON object.')
     destination.mkdir(parents=True, exist_ok=True)
     result = {}
     for path in candidates:
@@ -54,7 +55,7 @@ def main(argv=None):
         raise SystemExit(
             'Import failed. Check the selected directory, file format and permissions. '
             'Originals were preserved.'
-        )
+        ) from None
     return 0
 
 

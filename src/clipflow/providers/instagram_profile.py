@@ -74,7 +74,10 @@ class InstagramProfileProvider:
             batch = []
             for post in posts:
                 context.cancel.raise_if_cancelled()
-                line = next((l.strip() for l in (post.caption or '').splitlines() if l.strip()), '')
+                line = next(
+                    (part.strip() for part in (post.caption or '').splitlines() if part.strip()),
+                    '',
+                )
                 batch.append(
                     DownloadRequest(
                         parse_url(f'https://www.instagram.com/p/{post.code}/'),

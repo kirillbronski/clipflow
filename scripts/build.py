@@ -13,8 +13,9 @@ from pathlib import Path
 from urllib.request import urlopen
 from uuid import uuid4
 
-ROOT = Path(__file__).resolve().parents[1]
 from package_config import APP_VERSION, resolve_tool, windows_build_environment
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def run(*args, **kwargs):

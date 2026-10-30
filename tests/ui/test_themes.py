@@ -19,7 +19,7 @@ def contrast(a, b):
         c = QColor(color)
         values = [c.redF(), c.greenF(), c.blueF()]
         values = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in values]
-        return sum(v * w for v, w in zip(values, (0.2126, 0.7152, 0.0722)))
+        return sum(v * w for v, w in zip(values, (0.2126, 0.7152, 0.0722), strict=True))
 
     x, y = sorted((lum(a), lum(b)))
     return (y + 0.05) / (x + 0.05)

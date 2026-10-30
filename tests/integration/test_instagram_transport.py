@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
@@ -33,10 +34,8 @@ def server():
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(data)))
             self.end_headers()
-            try:
+            with contextlib.suppress(ConnectionError, OSError):
                 self.wfile.write(data)
-            except (ConnectionError, OSError):
-                pass
 
     http = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     thread = Thread(target=http.serve_forever, daemon=True)
@@ -68,9 +67,11 @@ def test_ytdlp_redirect_is_also_paced(tmp_path, server):
     ctx, _, _ = context()
     ctx = replace(ctx, instagram_rate=gate)
     base, calls = server
-    with open_downloader({'quiet': True}, instagram_context=ctx) as ydl:
-        with ydl.urlopen(Request(base + '/redirect')) as response:
-            response.read()
+    with (
+        open_downloader({'quiet': True}, instagram_context=ctx) as ydl,
+        ydl.urlopen(Request(base + '/redirect')) as response,
+    ):
+        response.read()
     assert calls == ['/redirect', '/target'] and clock.waits == [3]
 
 
@@ -91,9 +92,11 @@ def test_cancel_during_redirect_preserves_cancellation_and_releases_lease(tmp_pa
         return original(kind, token)
 
     gate.acquire = acquire
-    with open_downloader({'quiet': True}, instagram_context=ctx) as ydl:
-        with pytest.raises(WorkCancelled):
-            ydl.urlopen(Request(base + '/redirect'))
+    with (
+        open_downloader({'quiet': True}, instagram_context=ctx) as ydl,
+        pytest.raises(WorkCancelled),
+    ):
+        ydl.urlopen(Request(base + '/redirect'))
     assert calls == ['/redirect'] and gate.store.claim('other', clock.now)
 
 
