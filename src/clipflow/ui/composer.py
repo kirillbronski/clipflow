@@ -270,7 +270,12 @@ class Composer(QFrame):
         self.add_button.ensurePolished()
         self.paste_button.ensurePolished()
         self.add_button.setMinimumWidth(
-            max(170, self.add_button.fontMetrics().horizontalAdvance(self.add_button.text()) + 24)
+            max(
+                170,
+                self.add_button.fontMetrics().horizontalAdvance(self.add_button.text())
+                + self.add_button.iconSize().width()
+                + 28,
+            )
         )
         needed = self.url_input.minimumWidth() + self.add_button.minimumWidth() + 48
         compact = self.width() < needed

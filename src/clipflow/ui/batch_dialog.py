@@ -166,7 +166,7 @@ class BatchDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.addStretch()
         self.cancel_button = self.tr.widget(QPushButton, 'cancel')
-        self.accept_button = self.tr.widget(QPushButton, 'add')
+        self.accept_button = self.tr.widget(QPushButton, 'add_primary')
         self.accept_button.setObjectName('primary')
         buttons.addWidget(self.cancel_button)
         buttons.addWidget(self.accept_button)

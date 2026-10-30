@@ -5,7 +5,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPalette
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPalette, QPixmap
 
 PALETTES = {
     'dark': dict(
@@ -72,6 +72,25 @@ TEXT_PAIRS = tuple(
 def application_icon():
     root = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[3]))
     return QIcon(str(root / 'assets/icons/clipflow.png'))
+
+
+def glyph_icon(glyph, color, size=16):
+    """Draw a text glyph as an icon so button labels stay words only."""
+    scale = 2
+    pixmap = QPixmap(size * scale, size * scale)
+    pixmap.setDevicePixelRatio(scale)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+    font = QFont()
+    font.setPixelSize(size - 2)
+    font.setBold(True)
+    painter.setFont(font)
+    painter.setPen(QColor(color))
+    painter.drawText(0, 0, size, size, Qt.AlignmentFlag.AlignCenter, glyph)
+    painter.end()
+    return QIcon(pixmap)
 
 
 class ThemeManager(QObject):

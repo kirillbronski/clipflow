@@ -38,7 +38,7 @@ from clipflow.ui.job_status import SOURCE_NAMES
 from clipflow.ui.queue_delegate import QueueDelegate
 from clipflow.ui.queue_model import JobListModel, QueueFilter
 from clipflow.ui.settings_page import SettingsPage
-from clipflow.ui.themes import ThemeManager, application_icon
+from clipflow.ui.themes import ThemeManager, application_icon, glyph_icon
 from clipflow.version import APP_VERSION
 
 
@@ -184,7 +184,7 @@ class MainWindow(QMainWindow):
         self.heading.setObjectName('heading')
         titles.addWidget(self.heading)
         header.addLayout(titles, 1)
-        self.batch_button = self.tr.widget(QPushButton, 'batch_button')
+        self.batch_button = self.tr.widget(QPushButton, 'batch')
         self.batch_button.clicked.connect(self._open_batch)
         header.addWidget(self.batch_button)
         main.addLayout(header)
@@ -393,7 +393,7 @@ class MainWindow(QMainWindow):
     def _menus(self):
         bar = self.menuBar()
         bar.setNativeMenuBar(True)
-        downloads = bar.addMenu('')
+        downloads = self.downloads_menu = bar.addMenu('')
         self.tr.bind(downloads, 'menu_downloads', setter='setTitle')
         action = downloads.addAction('')
         self.tr.bind(action, 'batch')
@@ -412,7 +412,10 @@ class MainWindow(QMainWindow):
         ]:
             action = downloads.addAction('')
             self.tr.bind(action, key)
+            if key in {'clear_queue', 'clear_history'}:
+                self.tr.bind(action, 'keeps_files_hint', setter='setToolTip')
             action.triggered.connect(command)
+        downloads.setToolTipsVisible(True)
         edit = bar.addMenu('')
         self.tr.bind(edit, 'menu_edit', setter='setTitle')
         for key, method, standard in [
@@ -486,6 +489,9 @@ class MainWindow(QMainWindow):
             f'QPushButton#statusTab:checked {{border-bottom-color:{color};}}'
         )
         self.queue_view.viewport().update()
+        self.composer.add_button.setIcon(glyph_icon('↓', t['accent_text']))
+        self.start_button.setIcon(glyph_icon('▷', t['text']))
+        self.batch_button.setIcon(glyph_icon('+', t['text']))
         for button in self.nav_buttons:
             service = button.property('nav_key').lower()
             if service in {'youtube', 'instagram', 'getcourse'}:
@@ -715,7 +721,7 @@ class MainWindow(QMainWindow):
         if not count:
             return
         dialog = QMessageBox(self)
-        self.tr.bind(dialog, 'clear_all', setter='setWindowTitle')
+        self.tr.bind(dialog, 'clear_all_confirm', setter='setWindowTitle')
         self.tr.bind(dialog, 'clear_all_confirmation', count=count)
         dialog.setIcon(QMessageBox.Icon.Warning)
         checkbox = self.tr.widget(QCheckBox, 'clear_all_delete_files')
@@ -723,7 +729,7 @@ class MainWindow(QMainWindow):
         dialog.setCheckBox(checkbox)
         dialog.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         dialog.setDefaultButton(QMessageBox.StandardButton.No)
-        self.tr.bind(dialog.button(QMessageBox.StandardButton.Yes), 'clear_all')
+        self.tr.bind(dialog.button(QMessageBox.StandardButton.Yes), 'clear_all_confirm')
         self.tr.bind(dialog.button(QMessageBox.StandardButton.No), 'cancel')
         dialog.finished.connect(
             lambda result: (

@@ -113,7 +113,9 @@ def test_ru_en_880px_no_clipping(make_window, qtbot, language):
         qtbot.waitUntil(lambda: window.composer_host.horizontalScrollBar().maximum() == 0)
         assert window.url_input.width() >= 180 and window.add_button.width() >= 150
         for button in (window.batch_button, window.add_button, window.start_button):
-            assert button.width() >= button.fontMetrics().horizontalAdvance(button.text()) + 12
+            icon = 0 if button.icon().isNull() else button.iconSize().width() + 4
+            text = button.fontMetrics().horizontalAdvance(button.text())
+            assert button.width() >= text + icon + 12
     dialog = batch(window, qtbot)
     assert dialog.accept_button.text() == (
         'Добавить в очередь' if language == 'ru' else 'Add to queue'
