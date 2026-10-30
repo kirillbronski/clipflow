@@ -177,3 +177,42 @@ def test_explicit_tool_survives_sanitized_path(monkeypatch, tmp_path):
     monkeypatch.setenv('CLIPFLOW_FFMPEG_PATH', str(tool))
     monkeypatch.delenv('CLIPFLOW_BIN_DIR', raising=False)
     assert cfg.resolve_tool('ffmpeg') == tool
+
+
+def offline_check(monkeypatch, codes):
+    """Load scripts/check.py with fake ruff results and a fake coverage run."""
+    import types
+
+    check = module('clipflow_check_script', ROOT / 'scripts/check.py')
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs.get('cwd')))
+        return types.SimpleNamespace(returncode=codes.pop(0))
+
+    tests = types.SimpleNamespace(calls=0)
+
+    def run_tests():
+        tests.calls += 1
+        return 0
+
+    monkeypatch.setattr(check.subprocess, 'run', fake_run)
+    monkeypatch.setitem(sys.modules, 'check_coverage', types.SimpleNamespace(run=run_tests))
+    return check, calls, tests
+
+
+def test_offline_check_stops_before_tests_when_style_fails(monkeypatch):
+    check, calls, tests = offline_check(monkeypatch, [1, 0])
+    assert check.main([]) == 1
+    assert tests.calls == 0
+    assert calls[0] == ([sys.executable, '-m', 'ruff', 'format', '--check', '.'], ROOT)
+
+
+def test_offline_check_runs_lint_then_tests(monkeypatch):
+    check, calls, tests = offline_check(monkeypatch, [0, 0])
+    assert check.main([]) == 0
+    assert [command for command, _ in calls] == [
+        [sys.executable, '-m', 'ruff', 'format', '--check', '.'],
+        [sys.executable, '-m', 'ruff', 'check', '.'],
+    ]
+    assert tests.calls == 1
