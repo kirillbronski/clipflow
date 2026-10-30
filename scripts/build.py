@@ -1,8 +1,6 @@
 """Native Qt candidates; fresh stages, bundled-tool smoke, source provenance."""
 
-from pathlib import Path
 import argparse
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -10,11 +8,13 @@ import platform
 import shutil
 import subprocess
 import sys
+from datetime import UTC, datetime
+from pathlib import Path
 from urllib.request import urlopen
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
-from package_config import APP_VERSION, spec_inputs, resolve_tool, windows_build_environment
+from package_config import APP_VERSION, resolve_tool, windows_build_environment
 
 
 def run(*args, **kwargs):
@@ -53,7 +53,7 @@ def prepare():
         'source_fingerprint': digest.hexdigest(),
         'os': platform.platform(),
         'cpu': platform.machine(),
-        'built_at_utc': datetime.now(timezone.utc).isoformat(),
+        'built_at_utc': datetime.now(UTC).isoformat(),
         'channel': 'candidate',
     }
     (ROOT / 'work/package-build-info.json').write_text(

@@ -1,15 +1,17 @@
-from dataclasses import replace
 import hashlib
+from dataclasses import replace
+
 import pytest
+
 from clipflow.application.submission import SubmissionService
-from clipflow.domain.models import DownloadOptions, DownloadRequest, PlaylistPosition, Service
-from clipflow.domain.urls import parse_url, request_key, InvalidLink
-from clipflow.domain.paths import output_path
 from clipflow.domain.events import RequestsDiscovered
-from clipflow.providers.youtube import YouTubeProvider
+from clipflow.domain.models import DownloadOptions, DownloadRequest, PlaylistPosition, Service
+from clipflow.domain.paths import output_path
+from clipflow.domain.urls import InvalidLink, parse_url, request_key
 from clipflow.providers.media import MediaPipeline
+from clipflow.providers.youtube import YouTubeProvider
 from tests.helpers import MemoryJobRepository
-from tests.unit.test_youtube_provider import extract_fixture, playlist, context
+from tests.unit.test_youtube_provider import context, extract_fixture, playlist
 
 
 @pytest.mark.parametrize('route', ['watch?v=track', 'playlist?list=PL_music'])
@@ -93,5 +95,5 @@ def test_mp3_320_does_not_reuse_old_192_path(tmp_path):
         parse_url('https://youtube.com/watch?v=track'), DownloadOptions(tmp_path, format='mp3')
     )
     target = output_path(request, MediaItem('track', 1, 'video', 'Song', {}), None, None)
-    old_digest = hashlib.sha256('track\0None'.encode()).hexdigest()[:16]
+    old_digest = hashlib.sha256(b'track\0None').hexdigest()[:16]
     assert old_digest not in target.name

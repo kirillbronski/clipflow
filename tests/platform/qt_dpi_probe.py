@@ -4,12 +4,13 @@ import os
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
+
 from clipflow.application.scheduler import Scheduler
 from clipflow.application.submission import SubmissionService
 from clipflow.domain.models import Service
 from clipflow.infrastructure.executor import ThreadExecutor
-from clipflow.infrastructure.settings import AppSettings
 from clipflow.infrastructure.repository import SqliteJobRepository
+from clipflow.infrastructure.settings import AppSettings
 from clipflow.ui.presenter import WorkbenchPresenter
 from clipflow.ui.window import MainWindow
 

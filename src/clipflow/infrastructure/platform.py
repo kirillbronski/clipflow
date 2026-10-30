@@ -2,9 +2,9 @@
 
 import hashlib
 import os
-from pathlib import Path
 import sys
 import threading
+from pathlib import Path
 
 SYSTEM = sys.platform
 _key_lock = threading.Lock()

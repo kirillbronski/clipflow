@@ -1,9 +1,9 @@
 """One model and painted delegate for any queue size; no widget per download."""
 
-from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, QSortFilterProxyModel
+from PySide6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt
 
 from clipflow.domain.events import ProgressChanged, TitleChanged
-from clipflow.domain.models import JobState, TERMINAL_STATES
+from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.ui.i18n import Translator
 
 

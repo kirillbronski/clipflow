@@ -1,10 +1,10 @@
 """Import previous app data into ClipFlow without replacing existing files."""
 
-from pathlib import Path
 import argparse
 import json
 import shutil
 import sys
+from pathlib import Path
 
 FILES = ('settings.json', 'getcourse-profile.dat')
 

@@ -1,11 +1,11 @@
 from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
 
 
 def reserve(path):
-    return RateLimitStore(path).reserve('metadata', datetime(2026, 10, 28, tzinfo=timezone.utc), 3)
+    return RateLimitStore(path).reserve('metadata', datetime(2026, 10, 28, tzinfo=UTC), 3)
 
 
 def test_cross_process_reservation(tmp_path):
@@ -18,7 +18,7 @@ def test_cross_process_reservation(tmp_path):
 def test_leases_and_safe_checkpoints_survive_restart(tmp_path):
     path = tmp_path / 'instagram-rate.sqlite3'
     store = RateLimitStore(path)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     assert store.claim('first', now)
     assert not RateLimitStore(path).claim('second', now)
     store.release('first')
@@ -31,7 +31,7 @@ def test_leases_and_safe_checkpoints_survive_restart(tmp_path):
 
 def test_completed_ids_and_expired_lease_survive_restart(tmp_path):
     store = RateLimitStore(tmp_path / 'rate.sqlite3')
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     store.mark_completed('alice', 'ABc')
     store.mark_completed('alice', 'ABc')
     assert RateLimitStore(store.path).completed_ids('alice') == frozenset({'ABc'})
@@ -43,6 +43,7 @@ def test_completed_ids_and_expired_lease_survive_restart(tmp_path):
 
 def test_unsupported_schema_and_unsafe_checkpoint_rejected(tmp_path):
     import sqlite3
+
     import pytest
 
     path = tmp_path / 'rate.sqlite3'

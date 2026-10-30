@@ -1,7 +1,8 @@
 """Explicit RU/EN message catalogue; never translate user content by replacement."""
 
 import weakref
-from PySide6.QtCore import QObject, Signal, QLibraryInfo, QLocale, QTranslator
+
+from PySide6.QtCore import QLibraryInfo, QLocale, QObject, QTranslator, Signal
 
 MESSAGES = {
     'download_label': ('Скачать', 'Download'),

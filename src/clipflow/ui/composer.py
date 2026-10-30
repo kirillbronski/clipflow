@@ -6,22 +6,22 @@ from uuid import uuid4
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
     QFrame,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QToolButton,
-    QLineEdit,
-    QComboBox,
-    QCheckBox,
-    QFileDialog,
-    QApplication,
+    QVBoxLayout,
+    QWidget,
 )
 
-from clipflow.domain.models import Service, ContentKind
+from clipflow.domain.models import ContentKind, Service
 from clipflow.domain.urls import parse_url
 from clipflow.ui.i18n import Translator
 

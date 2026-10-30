@@ -1,14 +1,13 @@
 """YouTube/Music metadata and playlist discovery; transfers use the shared pipeline."""
 
-from dataclasses import replace
 import re
-
-from yt_dlp import YoutubeDL
+from dataclasses import replace
 
 from clipflow.domain.events import RequestsDiscovered, StageChanged, TitleChanged, WorkCancelled
 from clipflow.domain.models import ContentKind, DownloadRequest, JobState, PlaylistPosition, Service
 from clipflow.domain.paths import UnsafePath, output_path
 from clipflow.domain.urls import parse_url
+from clipflow.providers.access import open_downloader
 from clipflow.providers.base import (
     DownloadResult,
     ExecutionContext,
@@ -17,7 +16,6 @@ from clipflow.providers.base import (
     ProbeResult,
 )
 from clipflow.providers.media import MediaPipeline, _QuietLogger
-from clipflow.providers.access import open_downloader
 
 
 class YouTubeProvider:

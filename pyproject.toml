@@ -43,8 +43,8 @@ quote-style = "single"
 select = ["E", "W", "F", "I", "B", "UP", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-# pytest fixtures are imported into test modules and used as parameters.
-"tests/**" = ["F811"]
+# pytest fixtures are imported into test modules and used only as parameter names.
+"tests/**" = ["F401", "F811"]
 
 [tool.ruff.lint.flake8-bugbear]
 # Qt models take parent=QModelIndex() by convention; the default is never mutated.

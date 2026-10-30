@@ -1,11 +1,11 @@
 """Independent cross-process Instagram budget. No URLs, sessions or credentials."""
 
+import json
+import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
-import json
+from datetime import UTC, datetime
 from pathlib import Path
-import sqlite3
 
 
 def stamp(value):
@@ -15,7 +15,7 @@ def stamp(value):
 
 
 def utc(value):
-    return datetime.fromtimestamp(value, timezone.utc)
+    return datetime.fromtimestamp(value, UTC)
 
 
 @dataclass(frozen=True)

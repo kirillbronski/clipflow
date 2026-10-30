@@ -1,10 +1,10 @@
 """Scoped yt-dlp transport; a lease covers the response body, not every chunk."""
 
+from yt_dlp.networking._urllib import RedirectHandler, UrllibRH
 from yt_dlp.networking.common import Response
 from yt_dlp.networking.exceptions import HTTPError, RequestError
-from yt_dlp.networking._urllib import UrllibRH, RedirectHandler
 
-from clipflow.application.instagram_rate_policy import gated_request, InstagramDeferred
+from clipflow.application.instagram_rate_policy import InstagramDeferred, gated_request
 from clipflow.domain.events import WorkCancelled
 from clipflow.providers.access import _CancellableDownloader
 

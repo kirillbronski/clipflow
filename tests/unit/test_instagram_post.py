@@ -3,12 +3,11 @@ from dataclasses import replace
 
 import pytest
 
-from clipflow.domain.events import FilesSaved, RequestsDiscovered
-from clipflow.domain.events import WorkCancelled
+from clipflow.domain.events import FilesSaved, RequestsDiscovered, WorkCancelled
 from clipflow.providers.base import MediaFailure
-from clipflow.providers.media import MediaPipeline
 from clipflow.providers.instagram_post import InstagramExtractor, InstagramPostProvider
-from tests.instagram_fixtures import context, request, product, photo, video, isolate_instagram
+from clipflow.providers.media import MediaPipeline
+from tests.instagram_fixtures import context, isolate_instagram, photo, product, request, video
 
 
 @pytest.fixture(autouse=True)
@@ -128,6 +127,7 @@ def test_filter_with_no_matches_is_not_empty_success(tmp_path, monkeypatch):
 )
 def test_metadata_http_failures_are_specific_and_safe(tmp_path, monkeypatch, capsys, status, code):
     from io import BytesIO
+
     from yt_dlp.networking.common import Response
     from yt_dlp.networking.exceptions import HTTPError
 

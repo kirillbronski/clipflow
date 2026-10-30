@@ -1,14 +1,14 @@
 """YouTube files are named "Artist - Title"; numbering is opt-in; old keys/settings stay readable."""
 
-from dataclasses import asdict, replace
 import hashlib
 import json
 import os
+from dataclasses import asdict, replace
 
 import pytest
 
 from clipflow.domain.models import DownloadOptions, DownloadRequest, PlaylistPosition
-from clipflow.domain.paths import output_path, media_identity
+from clipflow.domain.paths import media_identity, output_path
 from clipflow.domain.urls import parse_url, request_key
 from clipflow.infrastructure.serialization import decode_options, encode_options
 from clipflow.providers.base import MediaItem

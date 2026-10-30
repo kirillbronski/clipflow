@@ -1,10 +1,10 @@
 """Immutable content identities and download parameter snapshots."""
 
+import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
-import re
 from urllib.parse import urlsplit
 
 

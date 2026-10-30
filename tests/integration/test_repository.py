@@ -1,13 +1,13 @@
-from dataclasses import replace
-from datetime import datetime, timezone
-from pathlib import Path
 import sqlite3
+from dataclasses import replace
+from datetime import UTC, datetime, timezone
+from pathlib import Path
 
 import pytest
 
-from clipflow.infrastructure.repository import SqliteJobRepository, RepositoryError
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState, PlaylistPosition
 from clipflow.domain.urls import parse_url
+from clipflow.infrastructure.repository import RepositoryError, SqliteJobRepository
 
 
 def job(folder, identity='one', state=JobState.QUEUED):
@@ -62,7 +62,7 @@ def test_restart_recovers_active_as_paused(tmp_path, state):
         job(tmp_path, state=state),
         attempt_id='old-attempt',
         automatic_retry=True,
-        next_allowed_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        next_allowed_at=datetime(2099, 1, 1, tzinfo=UTC),
     )
     repo.add(original)
     repo.close()
@@ -212,7 +212,7 @@ def test_cooldown_and_manual_pause_survive_recovery_without_auto_retry(tmp_path)
         job(tmp_path, state=JobState.PAUSED),
         pause_reason='rate_limit',
         automatic_retry=True,
-        next_allowed_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        next_allowed_at=datetime(2099, 1, 1, tzinfo=UTC),
     )
     repo.add(original)
     repo.close()
@@ -352,12 +352,13 @@ def test_source_required_blocks_other_start_commands(tmp_path, state, reason, co
 
 
 def test_file_saved_before_commit_is_reconciled_on_explicit_resume(tmp_path):
+    import base64
+
     from clipflow.application.scheduler import Scheduler
     from clipflow.domain.events import CancellationToken, JobEvent, WorkFinished
     from clipflow.providers.base import ExecutionContext, MediaItem
     from clipflow.providers.media import MediaPipeline
     from tests.instagram_fixtures import Auth, Gate
-    import base64
 
     # Real PNG with no network. A previously published file survives the DB gap.
     path = tmp_path / 'queue.sqlite3'
@@ -378,7 +379,7 @@ def test_file_saved_before_commit_is_reconciled_on_explicit_resume(tmp_path):
             'post_title': 'Photo',
         },
     )
-    from clipflow.domain.paths import output_path, PostIdentity
+    from clipflow.domain.paths import PostIdentity, output_path
 
     target = output_path(request, item, 'alice', PostIdentity('ABC', 'Photo', None))
     target.parent.mkdir(parents=True, exist_ok=True)

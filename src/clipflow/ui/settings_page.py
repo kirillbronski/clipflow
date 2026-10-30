@@ -1,6 +1,7 @@
 """Preferences use the same validated owner-thread commands as the main menus."""
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QComboBox, QLabel
+from PySide6.QtWidgets import QComboBox, QFormLayout, QLabel, QVBoxLayout, QWidget
+
 from clipflow.version import APP_VERSION
 
 

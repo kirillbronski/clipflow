@@ -1,9 +1,9 @@
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -247,6 +247,7 @@ def test_direct_getcourse_player_never_receives_school_credentials(tmp_path):
 
 def test_credentials_only_referenced_in_queue_and_settings(tmp_path):
     from dataclasses import replace
+
     from clipflow.application.submission import SubmissionService
     from clipflow.infrastructure.repository import SqliteJobRepository
     from clipflow.infrastructure.settings import AppSettings, SettingsStore
@@ -287,8 +288,8 @@ def test_gateway_import_does_not_load_webengine_or_tk(tmp_path):
 
 
 def test_bootstrap_dispatches_auth_before_main_window(monkeypatch):
-    import clipflow.ui.bootstrap as bootstrap
     import clipflow.infrastructure.auth_process.__main__ as auth
+    import clipflow.ui.bootstrap as bootstrap
 
     seen = []
 
@@ -332,7 +333,7 @@ def test_auth_self_tests_native(tmp_path, flag):
     if os.environ.get('CLIPFLOW_AUTH_NATIVE') != '1':
         pytest.skip('Run separate native auth job with CLIPFLOW_AUTH_NATIVE=1')
     assert os.environ.get('QT_QPA_PLATFORM') in {'windows', 'cocoa'}
-    from clipflow.infrastructure.settings import SettingsStore, AppSettings
+    from clipflow.infrastructure.settings import AppSettings, SettingsStore
 
     SettingsStore(tmp_path).save(AppSettings(theme='light'))
     destination = tmp_path / ('instagram' if 'instagram' in flag else 'youtube')

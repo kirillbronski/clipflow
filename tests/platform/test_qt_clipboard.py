@@ -3,13 +3,13 @@ import subprocess
 import sys
 
 import pytest
-from PySide6.QtCore import Qt, QMimeData, QPoint
-from PySide6.QtGui import QKeyEvent, QContextMenuEvent, QKeySequence
+from PySide6.QtCore import QMimeData, QPoint, Qt
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QMenu
 
 from clipflow.domain.models import Service
-from tests.ui.test_workbench import make_window
 from tests.ui.test_submission_dialogs import batch
+from tests.ui.test_workbench import make_window
 
 
 @pytest.fixture

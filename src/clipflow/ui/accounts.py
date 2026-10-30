@@ -2,21 +2,21 @@
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
-    QPushButton,
-    QDialog,
     QLineEdit,
-    QComboBox,
-    QFormLayout,
-    QFileDialog,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from clipflow.domain.models import Service
-from clipflow.ui.composer import NAMES
 from clipflow.infrastructure.auth import BROWSERS
+from clipflow.ui.composer import NAMES
 
 
 class AccountsPage(QWidget):

@@ -1,5 +1,6 @@
-from scripts.migrate_windows_data import migrate
 import pytest
+
+from scripts.migrate_windows_data import migrate
 
 
 def test_import_preserves_encrypted_bytes_and_existing_files(tmp_path):

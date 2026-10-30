@@ -1,14 +1,14 @@
 """Painted compact rows and hit targets; no per-row QPushButtons."""
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal, QEvent
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPen
-from PySide6.QtWidgets import QStyledItemDelegate, QStyle
+from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
-from clipflow.domain.models import JobState, TERMINAL_STATES
-from clipflow.ui.queue_model import JobListModel
-from clipflow.ui.i18n import Translator
-from clipflow.ui.themes import PALETTES
+from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.ui.history import result_status
+from clipflow.ui.i18n import Translator
+from clipflow.ui.queue_model import JobListModel
+from clipflow.ui.themes import PALETTES
 
 SOURCE_NAMES = {'youtube': 'YouTube', 'instagram': 'Instagram', 'getcourse': 'GetCourse'}
 

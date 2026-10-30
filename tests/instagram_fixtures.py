@@ -1,8 +1,8 @@
 """Synthetic Instagram products and explicit offline pacing-policy doubles."""
 
-from datetime import datetime, timezone
-from urllib.parse import urlparse
 from contextlib import contextmanager
+from datetime import UTC, datetime, timezone
+from urllib.parse import urlparse
 
 import pytest
 from yt_dlp import YoutubeDL
@@ -32,7 +32,7 @@ class Gate:
     def record_429(self, retry_after):
         from clipflow.domain.events import RateLimitDeferred
 
-        return RateLimitDeferred(datetime(2030, 1, 1, tzinfo=timezone.utc), False)
+        return RateLimitDeferred(datetime(2030, 1, 1, tzinfo=UTC), False)
 
 
 class Auth:
@@ -78,7 +78,7 @@ def product(base=None):
         'pk': '100',
         'user': {'username': 'alice', 'pk': '123', 'full_name': 'Display Name'},
         'caption': {'text': 'Подпись — полностью\nВторая строка'},
-        'taken_at': int(datetime(2026, 10, 28, tzinfo=timezone.utc).timestamp()),
+        'taken_at': int(datetime(2026, 10, 28, tzinfo=UTC).timestamp()),
         'carousel_media': [
             photo(url=base + '/image.png') if base else photo(),
             video(url=base + '/video.mp4') if base else video(),

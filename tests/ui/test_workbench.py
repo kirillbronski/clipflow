@@ -8,14 +8,14 @@ from PySide6.QtWidgets import QPushButton
 
 from clipflow.application.scheduler import Scheduler
 from clipflow.application.submission import SubmissionService
-from clipflow.domain.events import StageChanged, ProgressChanged, JobEvent, TitleChanged
+from clipflow.domain.events import JobEvent, ProgressChanged, StageChanged, TitleChanged
 from clipflow.domain.models import (
+    ContentKind,
     DownloadOptions,
     DownloadRequest,
     Job,
     JobState,
     Service,
-    ContentKind,
 )
 from clipflow.domain.urls import parse_url
 from clipflow.infrastructure.executor import ThreadExecutor
@@ -23,8 +23,8 @@ from clipflow.infrastructure.repository import SqliteJobRepository
 from clipflow.infrastructure.settings import AppSettings
 from clipflow.providers.base import DownloadResult, MediaItem
 from clipflow.ui.presenter import WorkbenchPresenter
-from clipflow.ui.window import MainWindow
 from clipflow.ui.queue_model import JobListModel
+from clipflow.ui.window import MainWindow
 from tests.instagram_fixtures import Auth
 from tests.integration.test_media_pipeline import (
     media_server,
@@ -271,8 +271,9 @@ def test_bootstrap_recovers_without_network_and_dark_first(qtbot, tmp_path):
 
 
 def test_selection_can_refresh_after_restart(make_window, qtbot, tmp_path):
-    from clipflow.domain.events import SelectionRequired
     from PySide6.QtWidgets import QDialogButtonBox
+
+    from clipflow.domain.events import SelectionRequired
 
     class SelectProvider:
         def execute(self, request, context):
@@ -362,9 +363,10 @@ def test_failed_folder_save_cannot_queue_with_old_destination(make_window, qtbot
 
 
 def test_startup_storage_failure_is_actionable_without_traceback(qtbot, monkeypatch):
-    from clipflow.ui.bootstrap import main
-    from clipflow.infrastructure.settings import SettingsStore, SettingsError
     from PySide6.QtWidgets import QMessageBox
+
+    from clipflow.infrastructure.settings import SettingsError, SettingsStore
+    from clipflow.ui.bootstrap import main
 
     messages = []
 
@@ -501,7 +503,7 @@ def test_drain_reaps_active_worker_after_event_loop_exit(make_window, qtbot):
 
 
 def test_instagram_rate_limit_releases_real_qt_executor_for_youtube(make_window, qtbot, tmp_path):
-    from clipflow.application.instagram_rate_policy import InstagramRatePolicy, InstagramDeferred
+    from clipflow.application.instagram_rate_policy import InstagramDeferred, InstagramRatePolicy
     from clipflow.infrastructure.rate_limit_store import RateLimitStore
 
     policy = InstagramRatePolicy(

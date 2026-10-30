@@ -1,23 +1,23 @@
 import copy
-from dataclasses import replace
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from http.cookiejar import Cookie
-from pathlib import Path
 import shutil
 import subprocess
+from dataclasses import replace
+from functools import partial
+from http.cookiejar import Cookie
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from threading import Thread
 
 import pytest
 
 from clipflow.domain.events import FilesSaved
-from clipflow.providers.media import MediaPipeline
 from clipflow.providers.instagram_post import (
     InstagramExtractor,
-    InstagramPostProvider,
     InstagramMediaFailure,
+    InstagramPostProvider,
 )
-from tests.instagram_fixtures import context, request, product, isolate_instagram
+from clipflow.providers.media import MediaPipeline
+from tests.instagram_fixtures import context, isolate_instagram, product, request
 
 
 @pytest.fixture(autouse=True)

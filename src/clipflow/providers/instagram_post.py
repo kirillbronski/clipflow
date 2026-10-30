@@ -1,9 +1,9 @@
 """One Instagram post/Reel/carousel, never implicit profile discovery."""
 
-from datetime import datetime, timezone
-from dataclasses import replace
-from pathlib import Path
 import re
+from dataclasses import replace
+from datetime import UTC, datetime
+from pathlib import Path
 from urllib.parse import urlparse
 
 from yt_dlp.extractor.instagram import InstagramIE
@@ -11,7 +11,7 @@ from yt_dlp.networking.exceptions import HTTPError
 
 from clipflow.domain.events import StageChanged, WorkCancelled
 from clipflow.domain.models import ContentKind, JobState, Service
-from clipflow.providers.access import open_downloader, SessionAuth
+from clipflow.providers.access import SessionAuth, open_downloader
 from clipflow.providers.base import DownloadResult, MediaFailure, MediaItem, ProbeResult
 from clipflow.providers.media import _QuietLogger
 
@@ -111,13 +111,13 @@ def _published(sources):
         date = source.get('upload_date')
         if isinstance(date, str) and re.fullmatch(r'\d{8}', date):
             try:
-                return datetime.strptime(date, '%Y%m%d').replace(tzinfo=timezone.utc)
+                return datetime.strptime(date, '%Y%m%d').replace(tzinfo=UTC)
             except ValueError:
                 pass
         stamp = source.get('timestamp')
         if type(stamp) in (int, float):
             try:
-                return datetime.fromtimestamp(stamp, timezone.utc)
+                return datetime.fromtimestamp(stamp, UTC)
             except (ValueError, OverflowError, OSError):
                 pass
     return None

@@ -1,10 +1,11 @@
 """One application palette and semantic tokens. Service changes only small accents."""
 
-from types import MappingProxyType
-from pathlib import Path
 import sys
-from PySide6.QtCore import QObject, Signal, Qt
-from PySide6.QtGui import QColor, QPalette, QIcon
+from pathlib import Path
+from types import MappingProxyType
+
+from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPalette
 
 PALETTES = {
     'dark': dict(

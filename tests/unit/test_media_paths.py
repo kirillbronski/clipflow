@@ -1,14 +1,14 @@
 """Output layouts must not escape the root, collide posts, or renumber media."""
 
-from datetime import datetime
 import os
 import subprocess
+from datetime import datetime
 
 import pytest
 
 from clipflow.domain.models import DownloadOptions, DownloadRequest
-from clipflow.domain.urls import parse_url
 from clipflow.domain.paths import PostIdentity, UnsafePath, output_path
+from clipflow.domain.urls import parse_url
 from clipflow.providers.base import MediaItem
 
 

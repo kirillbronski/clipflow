@@ -1,33 +1,32 @@
 """Single Qt application bootstrap, shared by source and frozen entrypoints."""
 
-import os
-from pathlib import Path
 import shutil
 import sys
 from dataclasses import replace
-from clipflow.version import APP_VERSION
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from clipflow.application.instagram_rate_policy import InstagramRatePolicy
 from clipflow.application.scheduler import Scheduler
 from clipflow.application.submission import SubmissionService
-from clipflow.application.instagram_rate_policy import InstagramRatePolicy
-from clipflow.domain.models import Service, ContentKind
+from clipflow.domain.models import ContentKind, Service
+from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.infrastructure.executor import ThreadExecutor
-from clipflow.infrastructure.repository import SqliteJobRepository, RepositoryError
-from clipflow.infrastructure.settings import SettingsStore, SettingsError, AppSettings
+from clipflow.infrastructure.platform import data_directory
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
-from clipflow.providers.media import MediaPipeline
-from clipflow.providers.youtube import YouTubeProvider
+from clipflow.infrastructure.repository import RepositoryError, SqliteJobRepository
+from clipflow.infrastructure.settings import AppSettings, SettingsError, SettingsStore
 from clipflow.providers.getcourse import GetCourseProvider
 from clipflow.providers.instagram_post import InstagramPostProvider
 from clipflow.providers.instagram_profile import InstagramProfileProvider, InstaloaderPageSource
+from clipflow.providers.media import MediaPipeline
+from clipflow.providers.youtube import YouTubeProvider
+from clipflow.ui.i18n import CATALOG, Translator
 from clipflow.ui.presenter import WorkbenchPresenter
-from clipflow.ui.window import MainWindow
-from clipflow.ui.i18n import Translator, CATALOG
 from clipflow.ui.themes import ThemeManager, application_icon
-from clipflow.infrastructure.auth import NativeAuthGateway
-from clipflow.infrastructure.platform import data_directory
+from clipflow.ui.window import MainWindow
+from clipflow.version import APP_VERSION
 
 
 def _binary(name):

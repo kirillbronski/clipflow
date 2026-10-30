@@ -1,22 +1,22 @@
 """Profile discovery: deduplicate feed/Reels and prove completeness before latest N."""
 
-from collections.abc import Iterator
-from dataclasses import dataclass, replace
-from datetime import datetime
-import re
-from typing import Protocol
-from datetime import timezone
 import hashlib
+import re
+from collections.abc import Iterator
+from copy import copy
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
+from typing import Protocol
+
 import instaloader
 from instaloader import InstaloaderContext
-from copy import copy
 
+from clipflow.application.instagram_rate_policy import InstagramDeferred, gated_request
 from clipflow.domain.events import RequestsDiscovered, StageChanged, WorkCancelled
-from clipflow.domain.models import ContentKind, Service, JobState, DownloadRequest
+from clipflow.domain.models import ContentKind, DownloadRequest, JobState, Service
 from clipflow.domain.urls import parse_url, request_key
-from clipflow.providers.base import DownloadResult, ProbeResult, MediaFailure
-from clipflow.application.instagram_rate_policy import gated_request, InstagramDeferred
 from clipflow.providers.access import open_downloader
+from clipflow.providers.base import DownloadResult, MediaFailure, ProbeResult
 from clipflow.providers.media import _QuietLogger
 
 
@@ -267,7 +267,7 @@ class InstaloaderPageSource:
             for method in (profile.get_posts, profile.get_reels):
                 for post in method():
                     context.cancel.raise_if_cancelled()
-                    published = post.date_utc.replace(tzinfo=timezone.utc)
+                    published = post.date_utc.replace(tzinfo=UTC)
                     caption = getattr(
                         post, 'caption', None
                     )  # read from the already fetched node, no request

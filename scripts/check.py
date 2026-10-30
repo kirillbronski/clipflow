@@ -1,7 +1,7 @@
 """Run the supported Qt suite and all runtime coverage gates."""
 
-from pathlib import Path
 import argparse
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 

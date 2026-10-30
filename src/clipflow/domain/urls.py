@@ -1,10 +1,10 @@
 """Exact-host routing and stable content identity shared by every input path."""
 
-from dataclasses import asdict
 import hashlib
 import json
 import os
 import re
+from dataclasses import asdict
 from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlparse
 
 from .models import ContentKind, DownloadRequest, ParsedLink, Service

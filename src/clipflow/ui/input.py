@@ -1,8 +1,8 @@
 """Native Qt editing and context menus, including Cyrillic-layout command keys."""
 
-from PySide6.QtCore import QObject, QEvent, Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QLineEdit, QPlainTextEdit, QTextEdit, QMenu
+from PySide6.QtWidgets import QLineEdit, QMenu, QPlainTextEdit, QTextEdit
 
 EDITORS = (QLineEdit, QPlainTextEdit, QTextEdit)
 COMMANDS = {'ф': 'selectAll', 'с': 'copy', 'ч': 'cut', 'м': 'paste', 'я': 'undo', 'н': 'redo'}

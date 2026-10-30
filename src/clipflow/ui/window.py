@@ -1,46 +1,43 @@
 """Qt workbench following the approved desktop composition and shared commands."""
 
-from PySide6.QtCore import Qt, QSize, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QPainter, QColor, QPixmap, QIcon
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QGridLayout,
+    QAbstractItemView,
+    QApplication,
     QBoxLayout,
-    QSizePolicy,
-    QLabel,
-    QPushButton,
-    QLineEdit,
-    QComboBox,
-    QListView,
-    QFrame,
-    QFileDialog,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QListView,
     QListWidget,
     QListWidgetItem,
-    QInputDialog,
-    QScrollArea,
-    QApplication,
+    QMainWindow,
     QMenu,
     QMessageBox,
-    QAbstractItemView,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
-from clipflow.domain.models import Service, JobState
-from clipflow.domain.urls import parse_url, request_key
-from clipflow.ui.queue_model import QueueFilter, JobListModel
-from clipflow.ui.queue_delegate import QueueDelegate, SOURCE_NAMES
-from clipflow.ui.composer import Composer
-from clipflow.ui.batch_dialog import BatchDialog
-from clipflow.ui.i18n import Translator, CATALOG
-from clipflow.ui.themes import ThemeManager, application_icon
-from clipflow.ui.input import InputActions
+from clipflow.domain.models import JobState, Service
+from clipflow.domain.urls import request_key
 from clipflow.ui.accounts import AccountsPage
+from clipflow.ui.batch_dialog import BatchDialog
+from clipflow.ui.composer import Composer
+from clipflow.ui.i18n import CATALOG, Translator
+from clipflow.ui.input import InputActions
+from clipflow.ui.queue_delegate import SOURCE_NAMES, QueueDelegate
+from clipflow.ui.queue_model import JobListModel, QueueFilter
 from clipflow.ui.settings_page import SettingsPage
+from clipflow.ui.themes import ThemeManager, application_icon
 from clipflow.version import APP_VERSION
 
 

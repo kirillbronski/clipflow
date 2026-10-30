@@ -1,8 +1,8 @@
 """Strict, credential-free option snapshots shared by queue and settings codecs."""
 
+import re
 from dataclasses import asdict
 from pathlib import Path
-import re
 
 from clipflow.domain.models import DownloadOptions
 

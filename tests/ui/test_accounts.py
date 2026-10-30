@@ -4,10 +4,9 @@ from PySide6.QtCore import Qt, QTimer
 from clipflow.domain.models import Service
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.ui.accounts import AccountsPage
-from tests.platform.test_auth_compatibility import seed
-from tests.platform.test_auth_compatibility import Process
+from tests.platform.test_auth_compatibility import Process, seed
+from tests.platform.test_qt_clipboard import clipboard, context_paste, paste_shortcut
 from tests.ui.test_workbench import make_window
-from tests.platform.test_qt_clipboard import clipboard, paste_shortcut, context_paste
 
 
 def test_accounts_use_saved_sessions_without_showing_sign_in(make_window, qtbot, tmp_path):
@@ -49,6 +48,7 @@ def test_accounts_getcourse_configuration_is_scoped_and_password_cleared(
     make_window, qtbot, tmp_path
 ):
     from PySide6.QtWidgets import QPushButton
+
     from clipflow.ui.accounts import GetCourseDialog
 
     window, _ = make_window()

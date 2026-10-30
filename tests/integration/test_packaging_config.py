@@ -1,9 +1,10 @@
 """Release configuration is executable policy, not a legacy app renamed 2.0."""
 
-from pathlib import Path
 import importlib.util
 import runpy
 import sys
+from pathlib import Path
+
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -122,9 +123,10 @@ def test_auth_flags_work_when_frozen(monkeypatch, tmp_path):
     inputs = cfg.spec_inputs(ROOT, 'windows')
     assert 'clipflow.infrastructure.auth_process.__main__' in inputs['hiddenimports']
     import sys
-    from clipflow.infrastructure.auth import NativeAuthGateway
-    from clipflow.domain.models import Service
+
     import clipflow.infrastructure.auth as auth
+    from clipflow.domain.models import Service
+    from clipflow.infrastructure.auth import NativeAuthGateway
 
     commands = []
 

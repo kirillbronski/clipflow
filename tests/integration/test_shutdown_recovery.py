@@ -1,15 +1,16 @@
-from threading import Event
 import os
 import signal
 import sys
+from threading import Event
+
 import pytest
 
 from clipflow.domain.events import StageChanged
 from clipflow.domain.models import JobState, Service
 from clipflow.infrastructure.repository import SqliteJobRepository
 from clipflow.providers.media import MediaPipeline
-from tests.ui.test_workbench import make_window, add
-from tests.integration.test_media_pipeline import media_server, tools, context
+from tests.integration.test_media_pipeline import context, media_server, tools
+from tests.ui.test_workbench import add, make_window
 
 
 def test_restart_does_not_autostart(make_window, qtbot, tmp_path):
@@ -100,7 +101,9 @@ def test_close_interrupts_ytdlp_internal_postprocessor(
     make_window, qtbot, media_server, tools, tmp_path, monkeypatch
 ):
     import subprocess
+
     from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
+
     from clipflow.providers.access import open_downloader
 
     processes = []
@@ -192,7 +195,9 @@ def test_close_reaps_wrapper_and_child_holding_stderr(make_window, qtbot, tmp_pa
 
 def test_ytdlp_real_merger_still_combines_separate_tracks(media_server, tools, tmp_path, context):
     import shutil
+
     from yt_dlp.postprocessor.ffmpeg import FFmpegMergerPP
+
     from clipflow.providers.access import open_downloader
     from tests.integration.test_media_pipeline import probe
 
@@ -221,6 +226,7 @@ def test_ytdlp_real_merger_still_combines_separate_tracks(media_server, tools, t
 def test_close_during_stalled_network_is_bounded(make_window, qtbot):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from threading import Thread
+
     from clipflow.providers.access import open_downloader
 
     class Stalled(BaseHTTPRequestHandler):
@@ -260,8 +266,11 @@ def test_close_during_stalled_network_is_bounded(make_window, qtbot):
 
 
 def test_close_waits_for_and_reaps_auth_process(make_window, qtbot, tmp_path):
-    import subprocess, sys, os
-    from clipflow.infrastructure.auth import NativeAuthGateway, AuthProcessHandle
+    import os
+    import subprocess
+    import sys
+
+    from clipflow.infrastructure.auth import AuthProcessHandle, NativeAuthGateway
 
     gateway = NativeAuthGateway(tmp_path / 'auth')
     directory = tmp_path / 'auth' / 'YouTubeAuth'

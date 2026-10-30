@@ -1,11 +1,11 @@
 """Protected snapshots, compatible with existing session.dat cookie-list payloads."""
 
-from http.cookiejar import Cookie, CookieJar
 import json
 import os
+import time
+from http.cookiejar import Cookie, CookieJar
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-import time
 
 from clipflow.domain.models import Service
 

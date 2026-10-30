@@ -1,12 +1,12 @@
 """GetCourse lesson selection and signed school login, with no legacy App dependency."""
 
 import base64
+import json
+import re
 from contextlib import contextmanager
 from dataclasses import replace
 from html.parser import HTMLParser
 from http.cookiejar import LoadError
-import json
-import re
 from urllib.parse import parse_qs, urljoin, urlparse
 
 from yt_dlp.cookies import CookieLoadError
@@ -21,7 +21,7 @@ from clipflow.domain.events import (
     WorkCancelled,
 )
 from clipflow.domain.models import ContentKind, JobState, Service
-from clipflow.providers.access import open_downloader, SessionAuth
+from clipflow.providers.access import SessionAuth, open_downloader
 from clipflow.providers.base import DownloadResult, MediaFailure, MediaItem, ProbeResult
 from clipflow.providers.media import _QuietLogger
 

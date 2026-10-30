@@ -1,15 +1,15 @@
 """Real HTTP transfers and FFmpeg; only fault injection replaces OS operations."""
 
+import json
+import shutil
+import subprocess
+import sys
+import time
 from dataclasses import replace
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-import json
 from pathlib import Path
-import shutil
-import subprocess
 from threading import Thread, Timer
-import sys
-import time
 
 import pytest
 
@@ -21,8 +21,8 @@ from clipflow.domain.events import (
     WorkCancelled,
 )
 from clipflow.domain.models import DownloadOptions, DownloadRequest, JobState
-from clipflow.domain.urls import parse_url
 from clipflow.domain.paths import PostIdentity
+from clipflow.domain.urls import parse_url
 from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
 from clipflow.providers.media import MediaPipeline
 

@@ -1,13 +1,13 @@
 """Portable output names. No network, GUI, or platform storage dependencies."""
 
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
 import hashlib
 import re
 import unicodedata
-from urllib.parse import urlparse
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from clipflow.domain.models import ContentKind, DownloadRequest, Service
 

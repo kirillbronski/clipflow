@@ -2,7 +2,7 @@
 
 import time
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QCoreApplication
+from PySide6.QtCore import QCoreApplication, QObject, Qt, QThread, Signal, Slot
 
 from clipflow.domain.events import (
     CancellationToken,
@@ -13,8 +13,8 @@ from clipflow.domain.events import (
     WorkFinished,
     WorkStopped,
 )
-from clipflow.providers.base import ExecutionContext, MediaFailure
 from clipflow.domain.models import ContentKind
+from clipflow.providers.base import ExecutionContext, MediaFailure
 
 
 class _ProbeWorker(QThread):

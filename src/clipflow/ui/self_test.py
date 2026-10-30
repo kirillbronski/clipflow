@@ -1,15 +1,14 @@
 """Real Qt/HTTP/FFmpeg package acceptance, fenced to a fresh explicit test root."""
 
 import argparse
+import json
+import os
+import platform
+import sys
 from dataclasses import replace
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-import json
-import os
 from pathlib import Path
-import platform
-import subprocess
-import sys
 from threading import Thread
 
 from clipflow.version import APP_VERSION
@@ -47,12 +46,13 @@ def main(argv=None):
     }
     if args.require_frozen and not proof['frozen']:
         return 2
-    from clipflow.ui.bootstrap import create_application, _binary
-    from clipflow.domain.models import Service, JobState
-    from clipflow.providers.media import MediaPipeline
-    from clipflow.providers.base import MediaItem, ExecutionContext
-    from clipflow.domain.events import CancellationToken
     from PySide6.QtCore import QTimer
+
+    from clipflow.domain.events import CancellationToken
+    from clipflow.domain.models import JobState, Service
+    from clipflow.providers.base import ExecutionContext, MediaItem
+    from clipflow.providers.media import MediaPipeline
+    from clipflow.ui.bootstrap import _binary, create_application
 
     app, window = create_application([], root)
     presenter = window.presenter

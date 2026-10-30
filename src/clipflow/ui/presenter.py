@@ -1,17 +1,17 @@
 """Owner-thread commands bridge submission/scheduler/storage to Qt views."""
 
+import time
 from dataclasses import replace
 from pathlib import Path
-import time
 
-from PySide6.QtCore import QObject, QTimer, Signal, Slot, QUrl
+from PySide6.QtCore import QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
 from clipflow.domain.events import RequestsDiscovered, SelectionRequired
-from clipflow.domain.models import JobState, TERMINAL_STATES, Service
+from clipflow.domain.models import TERMINAL_STATES, JobState, Service
 from clipflow.domain.urls import parse_url
+from clipflow.ui.history import HistoryError, deletion_paths, result_status
 from clipflow.ui.queue_model import JobListModel
-from clipflow.ui.history import deletion_paths, result_status, HistoryError
 
 _UNSET = object()
 

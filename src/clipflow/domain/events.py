@@ -8,7 +8,6 @@ from typing import Literal
 
 from clipflow.domain.models import DownloadRequest, JobState
 
-
 StopReason = Literal['pause', 'cancel', 'shutdown']
 
 

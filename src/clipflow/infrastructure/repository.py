@@ -1,26 +1,26 @@
 """Atomic queue/history snapshots; secrets stay in memory or protected auth storage."""
 
+import json
+import re
+import sqlite3
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime
-import json
 from pathlib import Path
-import re
-import sqlite3
 from urllib.parse import parse_qs, urlparse
 
 from clipflow.domain.models import (
+    TERMINAL_STATES,
+    ContentKind,
+    DownloadRequest,
     Job,
     JobState,
-    DownloadRequest,
     ParsedLink,
     PlaylistPosition,
     Service,
-    ContentKind,
-    TERMINAL_STATES,
 )
 from clipflow.domain.urls import parse_url, source_reference
-from clipflow.infrastructure.serialization import encode_options, decode_options, path_value
+from clipflow.infrastructure.serialization import decode_options, encode_options, path_value
 
 
 class RepositoryError(Exception):

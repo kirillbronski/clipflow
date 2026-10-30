@@ -1,6 +1,6 @@
 """Queue behavior with controllable workers: no GUI, network, or wall-clock sleeps."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -8,16 +8,16 @@ import pytest
 from clipflow.application.scheduler import Scheduler
 from clipflow.domain.events import (
     CancellationToken,
-    WorkCancelled,
-    JobEvent,
-    StageChanged,
-    ProgressChanged,
     FilesSaved,
+    JobEvent,
+    ProgressChanged,
+    RateLimitDeferred,
     RequestsDiscovered,
     SelectionRequired,
-    RateLimitDeferred,
-    WorkFinished,
+    StageChanged,
+    WorkCancelled,
     WorkFailed,
+    WorkFinished,
     WorkStopped,
 )
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
@@ -225,7 +225,7 @@ def test_selection_pauses_until_worker_stops_and_creates_new_snapshot(queue):
 
 def test_rate_limit_pauses_and_keeps_deadline_without_claiming_success(queue):
     repo, worker, scheduler = queue
-    deadline = datetime(2099, 1, 1, tzinfo=timezone.utc)
+    deadline = datetime(2099, 1, 1, tzinfo=UTC)
     scheduler.start()
     worker.emit(RateLimitDeferred(deadline, automatic_retry=False))
     assert repo.get('one').state == JobState.PAUSED

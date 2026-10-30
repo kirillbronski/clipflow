@@ -1,16 +1,16 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from email.utils import format_datetime
 
 import pytest
 
-from clipflow.application.instagram_rate_policy import InstagramRatePolicy, InstagramDeferred
-from clipflow.infrastructure.rate_limit_store import RateLimitStore
+from clipflow.application.instagram_rate_policy import InstagramDeferred, InstagramRatePolicy
 from clipflow.domain.events import CancellationToken, WorkCancelled
+from clipflow.infrastructure.rate_limit_store import RateLimitStore
 
 
 class Clock:
     def __init__(self):
-        self.now = datetime(2026, 10, 28, tzinfo=timezone.utc)
+        self.now = datetime(2026, 10, 28, tzinfo=UTC)
         self.waits = []
 
     def __call__(self):
@@ -97,8 +97,9 @@ def test_user_pause_disables_automatic_retry_and_other_instagram_jobs_wait(tmp_p
     from clipflow.domain.events import RateLimitDeferred, WorkStopped
     from clipflow.domain.models import Job, JobState
     from tests.helpers import MemoryJobRepository
-    from tests.unit.test_scheduler import ControlledExecutor, request as youtube_request
     from tests.instagram_fixtures import request
+    from tests.unit.test_scheduler import ControlledExecutor
+    from tests.unit.test_scheduler import request as youtube_request
 
     repo = MemoryJobRepository()
     worker = ControlledExecutor()
@@ -158,16 +159,15 @@ def test_real_cancel_wakes_cross_process_lease_wait(tmp_path):
     from time import monotonic
 
     store = RateLimitStore(tmp_path / 'rate.sqlite3')
-    assert store.claim('other-process', datetime.now(timezone.utc))
+    assert store.claim('other-process', datetime.now(UTC))
     gate = InstagramRatePolicy(store)
     token = CancellationToken()
     timer = Timer(0.03, lambda: token.cancel('cancel'))
     timer.start()
     started = monotonic()
     try:
-        with pytest.raises(WorkCancelled):
-            with gate.request('metadata', token):
-                pytest.fail('Acquired a busy lease')
+        with pytest.raises(WorkCancelled), gate.request('metadata', token):
+            pytest.fail('Acquired a busy lease')
         assert monotonic() - started < 1
     finally:
         timer.cancel()

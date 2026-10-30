@@ -8,10 +8,10 @@ from PySide6.QtWidgets import QDialogButtonBox, QLineEdit, QPlainTextEdit
 from clipflow.domain.events import SelectionRequired
 from clipflow.domain.models import Service
 from clipflow.infrastructure.settings import SettingsStore
-from clipflow.ui.i18n import Translator, CATALOG
-from clipflow.ui.themes import ThemeManager, TEXT_PAIRS, PALETTES
-from tests.ui.test_workbench import make_window
+from clipflow.ui.i18n import CATALOG, Translator
+from clipflow.ui.themes import PALETTES, TEXT_PAIRS, ThemeManager
 from tests.ui.test_submission_dialogs import batch
+from tests.ui.test_workbench import make_window
 
 
 def contrast(a, b):

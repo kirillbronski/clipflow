@@ -1,13 +1,15 @@
 """Approved composition must leave space for the queue and retain real actions."""
 
 from dataclasses import replace
+
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from clipflow.domain.models import Service, JobState, Job, DownloadRequest
-from clipflow.domain.urls import parse_url
+
 from clipflow.domain.events import ProgressChanged
-from tests.ui.test_workbench import make_window, add
+from clipflow.domain.models import DownloadRequest, Job, JobState, Service
+from clipflow.domain.urls import parse_url
+from tests.ui.test_workbench import add, make_window
 
 
 def test_collapsed_composer_leaves_queue_space_and_discloses_folder(make_window, qtbot):
@@ -113,7 +115,7 @@ def test_design_disclosure_and_navigation_fit_minimum_window(make_window, qtbot,
 @pytest.mark.parametrize('language', ['ru', 'en'])
 @pytest.mark.parametrize('theme', ['light', 'dark'])
 def test_checked_mode_text_has_full_bold_content_width(make_window, qtbot, language, theme):
-    from PySide6.QtWidgets import QStyleOptionButton, QStyle
+    from PySide6.QtWidgets import QStyle, QStyleOptionButton
 
     window, _ = make_window()
     window.language_actions[language].trigger()

@@ -6,10 +6,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialogButtonBox, QListWidget
 
 from clipflow.domain.events import SelectionRequired
-from clipflow.domain.models import Service, ContentKind, JobState, DownloadOptions
+from clipflow.domain.models import ContentKind, DownloadOptions, JobState, Service
 from clipflow.providers.base import DownloadResult, ProbeResult
-from clipflow.ui.composer import Composer
 from clipflow.ui.batch_dialog import BatchDialog
+from clipflow.ui.composer import Composer
 from tests.ui.test_workbench import make_window
 
 
@@ -31,8 +31,9 @@ def test_music_locks_mp3_and_restores_video_preset(make_window, qtbot, tmp_path,
     window.url_input.setText('https://music.youtube.com/watch?v=track')
     window.url_input.clear()
     assert composer.format_box.currentData() == 'mkv' and composer.format_box.isEnabled()
-    from PySide6.QtWidgets import QApplication
     from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QApplication
 
     # Native clipboard mechanics have their own platform tests. Isolate this
     # format-switch test so it cannot contaminate those tests' MIME ownership.

@@ -3,7 +3,7 @@
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Protocol, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from clipflow.application.ports import AuthGateway
 from clipflow.domain.events import CancellationToken, ProviderEvent

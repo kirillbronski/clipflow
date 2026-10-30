@@ -6,14 +6,15 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from uuid import uuid4
 
 from clipflow.domain.models import (
+    TERMINAL_STATES,
     ContentKind,
     DownloadOptions,
     DownloadRequest,
     Job,
     Service,
-    TERMINAL_STATES,
 )
 from clipflow.domain.urls import InvalidLink, parse_url, request_key
+
 from .ports import JobRepository
 
 

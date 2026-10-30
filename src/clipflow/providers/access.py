@@ -1,11 +1,11 @@
 """Read exported/protected cookies into memory; never write a user's export."""
 
+import os
 from contextlib import contextmanager
 from copy import copy
 from http.cookiejar import LoadError
 from io import StringIO
 from pathlib import Path
-import os
 from types import SimpleNamespace
 
 from yt_dlp import YoutubeDL

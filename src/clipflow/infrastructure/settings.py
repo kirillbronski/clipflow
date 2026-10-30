@@ -1,18 +1,18 @@
 """Versioned preferences beside legacy files, with atomic writes and safe migration."""
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
 import json
 import os
-from pathlib import Path
 import shutil
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from types import MappingProxyType
 from uuid import uuid4
 
 from clipflow.domain.models import DownloadOptions, Service
-from clipflow.infrastructure.serialization import encode_options, decode_options, path_value
 from clipflow.infrastructure.repository import storage_code
+from clipflow.infrastructure.serialization import decode_options, encode_options, path_value
 
 
 class SettingsError(Exception):

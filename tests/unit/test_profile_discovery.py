@@ -1,11 +1,11 @@
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from clipflow.providers.instagram_profile import InstagramProfileProvider, ProfilePage, PostRef
-from clipflow.providers.base import MediaFailure
 from clipflow.domain.events import RequestsDiscovered, WorkCancelled
+from clipflow.providers.base import MediaFailure
+from clipflow.providers.instagram_profile import InstagramProfileProvider, PostRef, ProfilePage
 from tests.instagram_fixtures import context, request
 
 
@@ -23,7 +23,7 @@ class Source:
 
 
 def post(i):
-    return PostRef(f'C{i}', datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=i), 'alice')
+    return PostRef(f'C{i}', datetime(2026, 1, 1, tzinfo=UTC) + timedelta(days=i), 'alice')
 
 
 def req(path, limit=None):
@@ -100,8 +100,8 @@ def test_cancellation_interrupts_backoff(tmp_path):
 
 
 def test_expired_checkpoint_reenumerates_and_never_reuses_old_completeness(tmp_path):
-    from tests.unit.test_instagram_rate_policy import policy
     from clipflow.domain.urls import request_key
+    from tests.unit.test_instagram_rate_policy import policy
 
     gate, _, _ = policy(tmp_path)
     ctx, events, _ = context()
@@ -120,7 +120,7 @@ def test_expired_checkpoint_reenumerates_and_never_reuses_old_completeness(tmp_p
 
 def test_children_are_labelled_with_caption_or_code(tmp_path):
     captioned = PostRef(
-        'C1', datetime(2026, 1, 2, tzinfo=timezone.utc), 'alice', 'Закат над морем\nвторая строка'
+        'C1', datetime(2026, 1, 2, tzinfo=UTC), 'alice', 'Закат над морем\nвторая строка'
     )
     source = Source([ProfilePage((captioned, post(0)), None, False, frozenset())])
     ctx, events, _ = context()

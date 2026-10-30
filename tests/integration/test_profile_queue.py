@@ -3,11 +3,11 @@ from threading import get_ident
 
 import pytest
 
-from clipflow.providers.instagram_profile import InstagramProfileProvider, ProfilePage
-from clipflow.providers.base import MediaFailure
 from clipflow.domain.events import RequestsDiscovered
+from clipflow.providers.base import MediaFailure
+from clipflow.providers.instagram_profile import InstagramProfileProvider, ProfilePage
 from tests.instagram_fixtures import context
-from tests.unit.test_profile_discovery import Source, post, req, codes
+from tests.unit.test_profile_discovery import Source, codes, post, req
 
 
 def test_429_second_page_keeps_discovered_jobs_but_not_success(tmp_path):
@@ -49,12 +49,17 @@ def test_5000_posts_on_worker_bounded_batches_and_no_duplicates(tmp_path):
 
 def test_partial_profile_jobs_survive_scheduler_failure_and_retry_dedup(tmp_path):
     from clipflow.application.scheduler import Scheduler
-    from clipflow.domain.events import JobEvent, WorkFailed, WorkFinished, FilesSaved
-    from clipflow.domain.models import Job, JobState, ContentKind
+    from clipflow.domain.events import (
+        CancellationToken,
+        FilesSaved,
+        JobEvent,
+        WorkFailed,
+        WorkFinished,
+    )
+    from clipflow.domain.models import ContentKind, Job, JobState
     from clipflow.providers.base import ExecutionContext
     from tests.helpers import MemoryJobRepository
-    from tests.instagram_fixtures import Gate, Auth
-    from clipflow.domain.events import CancellationToken
+    from tests.instagram_fixtures import Auth, Gate
 
     source = Source(
         [

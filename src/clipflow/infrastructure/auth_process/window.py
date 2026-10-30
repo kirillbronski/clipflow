@@ -1,30 +1,30 @@
 """Interactive sign-in in its own process; passwords are entered on provider pages."""
 
 import json
-from pathlib import Path
 import time
+from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QUrl, QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, Qt, QTimer, QUrl
 from PySide6.QtNetwork import QNetworkCookie
-from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QComboBox,
-    QTabWidget,
-)
 from PySide6.QtWebEngineCore import (
-    QWebEngineProfile,
     QWebEnginePage,
+    QWebEngineProfile,
     QWebEngineUrlRequestInterceptor,
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from clipflow.domain.models import Service
-from clipflow.infrastructure.auth_process.sessions import DOMAINS, AUTH_NAMES, SessionStore
+from clipflow.infrastructure.auth_process.sessions import AUTH_NAMES, DOMAINS, SessionStore
 from clipflow.ui.themes import application_icon
 
 USER_AGENTS = {

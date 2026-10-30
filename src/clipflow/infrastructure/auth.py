@@ -1,29 +1,29 @@
 """Scoped protected authentication and supervised, separate browser processes."""
 
-from dataclasses import dataclass, field
-from copy import copy
 import hashlib
-from http.cookiejar import MozillaCookieJar
-from io import StringIO
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
 import time
-from uuid import uuid4
+from copy import copy
+from dataclasses import dataclass, field
+from http.cookiejar import MozillaCookieJar
+from io import StringIO
+from pathlib import Path
 from urllib.parse import urlsplit
+from uuid import uuid4
 
-from clipflow.domain.models import Service, ContentKind
+from clipflow.domain.models import ContentKind, Service
 from clipflow.domain.urls import parse_url
-from clipflow.infrastructure.platform import PlatformServices
 from clipflow.infrastructure.auth_process.sessions import (
-    SessionStore,
     FOLDERS,
-    cookie_jar,
+    SessionStore,
     atomic_protected,
+    cookie_jar,
     load_protected,
 )
+from clipflow.infrastructure.platform import PlatformServices
 from clipflow.providers.base import MediaFailure
 
 BROWSERS = (

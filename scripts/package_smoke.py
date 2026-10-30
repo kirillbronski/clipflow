@@ -4,10 +4,9 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import subprocess
-import sys
+from pathlib import Path
 
 
 def clean_environment(data):

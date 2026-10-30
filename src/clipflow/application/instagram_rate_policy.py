@@ -1,10 +1,10 @@
 """One cancellable budget for profile pages, probes and media in all clients."""
 
-from contextlib import contextmanager
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 import random as randomness
 import time
+from contextlib import contextmanager
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from uuid import uuid4
 
 from clipflow.domain.events import RateLimitDeferred, WorkCancelled
@@ -23,7 +23,7 @@ class InstagramRatePolicy:
         self, store, *, clock=None, random=None, wait=None, diagnostic=None, monotonic=None
     ):
         self.store = store
-        self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.clock = clock or (lambda: datetime.now(UTC))
         self.random = random or randomness.random
         self.wait = wait or (lambda token, seconds: token.wait(seconds))
         self.diagnostic = diagnostic or (lambda record: None)

@@ -1,18 +1,17 @@
 """Common resumable transfer, verified conversion and atomic sidecar publishing."""
 
 import copy
-from datetime import datetime
 import json
 import os
-from pathlib import Path
 import shutil
 import signal
 import subprocess
-from tempfile import NamedTemporaryFile
 import time
+from datetime import datetime
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from urllib.parse import urlsplit
 
-from yt_dlp import YoutubeDL
 from yt_dlp.networking import Request
 from yt_dlp.networking.exceptions import HTTPError
 
@@ -20,13 +19,13 @@ from clipflow.domain.events import (
     FilesSaved,
     ProgressChanged,
     StageChanged,
-    WorkCancelled,
     TitleChanged,
+    WorkCancelled,
 )
 from clipflow.domain.models import DownloadRequest, JobState, Service
 from clipflow.domain.paths import PostIdentity, UnsafePath, media_identity, output_path
-from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
 from clipflow.providers.access import open_downloader
+from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
 
 
 class _QuietLogger:

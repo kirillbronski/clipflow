@@ -1,9 +1,9 @@
 """Shared PyInstaller inputs, independent of legacy source/."""
 
-from pathlib import Path
 import os
 import runpy
 import shutil
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_VERSION = runpy.run_path(str(ROOT / 'src/clipflow/version.py'))['APP_VERSION']

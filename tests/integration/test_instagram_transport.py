@@ -118,6 +118,7 @@ def test_cdn_reads_do_not_sleep_and_429_defers_once(tmp_path, server):
 
 def test_instaloader_copied_session_uses_shared_gate(tmp_path, server):
     import requests
+
     from clipflow.providers.instagram_profile import PacedSession
 
     gate, clock, token = policy(tmp_path)
@@ -132,10 +133,12 @@ def test_instaloader_copied_session_uses_shared_gate(tmp_path, server):
 
 
 def test_instaloader_source_merges_and_marks_exhaustion(tmp_path, monkeypatch):
-    import instaloader
     from types import SimpleNamespace
-    from clipflow.providers.instagram_profile import InstaloaderPageSource, InstagramProfileProvider
-    from tests.unit.test_profile_discovery import req, codes, post
+
+    import instaloader
+
+    from clipflow.providers.instagram_profile import InstagramProfileProvider, InstaloaderPageSource
+    from tests.unit.test_profile_discovery import codes, post, req
 
     gate, clock, token = policy(tmp_path)
     ctx, events, _ = context()
@@ -166,10 +169,12 @@ def test_instaloader_source_merges_and_marks_exhaustion(tmp_path, monkeypatch):
 
 
 def test_instaloader_real_get_json_wraps_library_copy_and_homepage(tmp_path, server, monkeypatch):
+    from urllib.parse import urlparse
+
     import requests
     from instaloader.instaloadercontext import copy_session
+
     from clipflow.providers.instagram_profile import PacedContext
-    from urllib.parse import urlparse
 
     base, calls = server
     original = requests.Session.request
@@ -193,9 +198,11 @@ def test_instaloader_real_get_json_wraps_library_copy_and_homepage(tmp_path, ser
 
 
 def test_profile_cookie_domains_remain_in_memory(tmp_path, monkeypatch):
-    import instaloader
     from http.cookiejar import Cookie, CookieJar
     from types import SimpleNamespace
+
+    import instaloader
+
     from clipflow.providers.instagram_profile import InstaloaderPageSource
     from tests.unit.test_profile_discovery import req
 

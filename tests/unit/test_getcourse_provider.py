@@ -1,14 +1,14 @@
 """Lesson/player extraction with synthetic school pages and real media transfers."""
 
 import base64
-from dataclasses import replace
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from http.cookiejar import Cookie
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from dataclasses import replace
+from functools import partial
+from http.cookiejar import Cookie
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
@@ -27,8 +27,8 @@ from clipflow.domain.events import (
 from clipflow.domain.models import ContentKind, DownloadOptions, DownloadRequest
 from clipflow.domain.urls import parse_url
 from clipflow.providers.base import ExecutionContext, MediaFailure
-from clipflow.providers.media import MediaPipeline
 from clipflow.providers.getcourse import GetCourseProvider, LessonExtractor, PlayerExtractor
+from clipflow.providers.media import MediaPipeline
 
 FIXTURES = Path(__file__).parents[1] / 'fixtures/getcourse'
 LESSON = 'https://school.getcourse.ru/pl/teach/control/lesson/view?id=123'
@@ -429,6 +429,7 @@ def test_bad_cookie_export_has_school_specific_safe_error(tmp_path, school, caps
 
 def test_http_403_reports_getcourse_access_denied(tmp_path, school, monkeypatch):
     from io import BytesIO
+
     from yt_dlp.networking.common import Response
     from yt_dlp.networking.exceptions import HTTPError
 

@@ -1,11 +1,11 @@
 from dataclasses import replace
 
+import pytest
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QMessageBox
-import pytest
 
-from clipflow.domain.models import Job, JobState, DownloadRequest, DownloadOptions
+from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
 from clipflow.domain.urls import parse_url
 from tests.ui.test_workbench import make_window
 

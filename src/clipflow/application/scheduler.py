@@ -9,26 +9,26 @@ command state changes use StageChanged after the repository has been updated.
 
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
 
 from clipflow.application.ports import JobRepository
 from clipflow.domain.events import (
-    JobEvent,
-    StageChanged,
-    ProgressChanged,
     FilesSaved,
+    JobEvent,
+    ProgressChanged,
+    RateLimitDeferred,
     RequestsDiscovered,
     SelectionRequired,
-    RateLimitDeferred,
-    WorkFinished,
-    WorkFailed,
-    WorkStopped,
+    StageChanged,
     StopReason,
     TitleChanged,
+    WorkFailed,
+    WorkFinished,
+    WorkStopped,
 )
-from clipflow.domain.models import Job, JobState, ParsedLink, Service, TERMINAL_STATES
+from clipflow.domain.models import TERMINAL_STATES, Job, JobState, ParsedLink, Service
 from clipflow.domain.urls import request_key, source_reference
 
 
@@ -45,7 +45,7 @@ class Scheduler:
     def __init__(self, repository: JobRepository, executor: Executor, *, clock=None):
         self.repository = repository
         self.executor = executor
-        self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.clock = clock or (lambda: datetime.now(UTC))
         self._instagram_deferred: RateLimitDeferred | None = None
         self._preferred_job: str | None = None
         self._running = False

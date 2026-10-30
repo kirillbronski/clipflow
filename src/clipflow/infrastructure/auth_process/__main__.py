@@ -3,16 +3,16 @@
 import argparse
 import json
 import os
+import platform as runtime_platform
 import re
-from pathlib import Path
 import shutil
 import sys
-import platform as runtime_platform
 import traceback
+from pathlib import Path
 
 from clipflow.domain.models import Service
+from clipflow.infrastructure.auth_process.sessions import AUTH_NAMES, FOLDERS
 from clipflow.infrastructure.platform import PlatformServices, data_directory
-from clipflow.infrastructure.auth_process.sessions import FOLDERS, AUTH_NAMES
 
 FLAGS = {'--youtube-login', '--instagram-login', '--auth-self-test', '--instagram-auth-self-test'}
 
@@ -51,7 +51,7 @@ def main(argv=None):
     if args.report and (not testing or not Path(args.report).resolve().is_relative_to(root)):
         return 2
     directory.mkdir(parents=True, exist_ok=True)
-    from PySide6.QtCore import QLockFile, Qt, QCoreApplication, QTimer
+    from PySide6.QtCore import QCoreApplication, QLockFile, Qt, QTimer
     from PySide6.QtWidgets import QApplication
 
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
@@ -87,7 +87,7 @@ def main(argv=None):
     theme = ThemeManager(app, AppSettings(language=args.language, theme=mode))
     translator = Translator(args.language)
     translator.install_qt()
-    from clipflow.infrastructure.auth_process.window import AuthWindow, USER_AGENTS
+    from clipflow.infrastructure.auth_process.window import USER_AGENTS, AuthWindow
 
     platform = PlatformServices(root)
     window = AuthWindow(

@@ -1,16 +1,16 @@
 """Network-free mixed batch preview. Only an explicit confirmation submits it."""
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, Signal
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
-    QVBoxLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPlainTextEdit,
     QPushButton,
-    QComboBox,
     QTableView,
-    QHeaderView,
+    QVBoxLayout,
 )
 
 from clipflow.domain.models import ContentKind

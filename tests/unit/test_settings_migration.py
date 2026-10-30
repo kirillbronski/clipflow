@@ -1,11 +1,11 @@
-from dataclasses import replace
 import json
 import os
+from dataclasses import replace
 
 import pytest
 
-from clipflow.infrastructure.settings import AppSettings, SettingsStore, SettingsError
 from clipflow.domain.models import DownloadOptions, Service
+from clipflow.infrastructure.settings import AppSettings, SettingsError, SettingsStore
 
 
 def test_first_run_defaults_and_roundtrip(tmp_path):
