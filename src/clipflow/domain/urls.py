@@ -82,6 +82,7 @@ def source_reference(link: ParsedLink) -> str:
 def request_key(request: DownloadRequest) -> str:
     options = asdict(request.options)
     options['folder'] = os.path.normcase(str(request.options.folder))
+    if not options['numbering']: del options['numbering']  # keep pre-2.0.3 queue keys
     data = {'service': request.link.service, 'kind': request.link.kind,
             'id': source_reference(request.link) if request.link.service==Service.GETCOURSE else request.link.canonical_id,
             'options': options,

@@ -339,7 +339,7 @@ def test_adaptive_video_and_audio_merge_and_height_limit(tmp_path, context, medi
     ]})
     req = DownloadRequest(parse_url('https://youtu.be/BaW_jenozKc'), DownloadOptions(tmp_path, max_height=64))
     final, = MediaPipeline().save(media, req, ctx)
-    assert final.name.startswith('Adaptive streams [') and final.suffix == '.mp4'
+    assert final.name == 'Adaptive streams.mp4'
     assert {s['codec_name'] for s in probe(final, tools)['streams']} == {'h264', 'aac'}
     limited = replace(req, options=replace(req.options, folder=tmp_path/'limited', max_height=32))
     with pytest.raises(MediaFailure):

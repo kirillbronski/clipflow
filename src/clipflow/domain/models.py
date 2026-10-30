@@ -44,6 +44,7 @@ class DownloadOptions:
     post_folder: bool = True
     description: str | None = None
     auth_profile: str | None = None
+    numbering: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, 'folder', Path(self.folder).expanduser().resolve())

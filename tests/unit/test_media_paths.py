@@ -43,7 +43,7 @@ def test_windows_reserved_unicode_and_long_path(tmp_path):
     path = output_path(req, item, None, None)
     assert path.is_relative_to(tmp_path/'YouTube')
     assert len(str(path).encode('utf-16-le')) // 2 <= 240
-    assert len(path.stem) <= 56
+    assert len(path.stem) <= 80
     assert '🌈е\u0301' in path.name
     assert not any(c in path.name for c in '<>:"/\\|?*')
     assert '—' not in path.name
@@ -57,10 +57,10 @@ def test_reserved_names_are_portable(tmp_path, title):
 
 
 def test_playlist_number_and_postprocessed_extension(tmp_path):
-    req = request(tmp_path, url='https://youtube.com/playlist?list=PL_test', format='webm')
+    req = request(tmp_path, url='https://youtube.com/playlist?list=PL_test', format='webm', numbering=True)
     path = output_path(req, MediaItem('v', 12, 'video', 'Название — ролика', {'ext': 'mp4'}), None, None)
     assert path.parent == tmp_path/'YouTube'
-    assert path.name.startswith('012 - Название - ролика [') and path.suffix == '.webm'
+    assert path.name == '012 - Название - ролика.webm'
 
 
 def test_getcourse_complete_title(tmp_path):
@@ -129,7 +129,8 @@ def test_post_codes_differing_only_in_case_cannot_collide(tmp_path, post_folder)
     assert len({str(p).casefold() for p in paths}) == 3
 
 
-@pytest.mark.parametrize('url', ['https://youtu.be/AAAAAAAAAAA', 'https://school.getcourse.ru/pl/teach/control/lesson/view?id=123'])
+# YouTube names carry no hash; their collisions are resolved by the pipeline (test_youtube_worker).
+@pytest.mark.parametrize('url', ['https://school.getcourse.ru/pl/teach/control/lesson/view?id=123'])
 def test_same_title_different_media_and_quality_cannot_reuse_output(tmp_path, url):
     from dataclasses import replace
     req = request(tmp_path, url=url)
@@ -148,6 +149,9 @@ def test_tight_generic_path_budget_rejects_instead_of_clipping_identity(tmp_path
     from pathlib import Path
     # Choose an absolute folder for a deterministic 18-unit filename budget.
     root=Path('/')/('x'*168)
-    req=request(root,url='https://youtu.be/AAAAAAAAAAA')
+    req=request(root,url='https://school.getcourse.ru/pl/teach/control/lesson/view?id=123')
     with pytest.raises(UnsafePath):
         output_path(req,MediaItem('v',1,'video','A'*100,{}),None,None)
+    # YouTube has no name suffix to protect: it clips, identity lives in the file tag.
+    clipped=output_path(request(root,url='https://youtu.be/AAAAAAAAAAA'),MediaItem('v',1,'video','A'*100,{}),None,None)
+    assert clipped.stem=='A'*18

@@ -17,7 +17,7 @@ from yt_dlp.networking.exceptions import HTTPError
 
 from clipflow.domain.events import FilesSaved, ProgressChanged, StageChanged, WorkCancelled,TitleChanged
 from clipflow.domain.models import DownloadRequest, JobState, Service
-from clipflow.domain.paths import PostIdentity, UnsafePath, output_path
+from clipflow.domain.paths import PostIdentity, UnsafePath, media_identity, output_path
 from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
 from clipflow.providers.access import open_downloader
 
@@ -48,14 +48,19 @@ class MediaPipeline:
                                     published if isinstance(published, datetime) else None)
             target = output_path(request, item, item.info.get('author'), post)
             target.parent.mkdir(parents=True, exist_ok=True)
-            if target.exists():
+            # YouTube names carry no identity: temporaries do, and finished files carry it as a tag.
+            tag = 'clipflow:'+media_identity(request, item) if request.link.service == Service.YOUTUBE else None
+            work = target.with_name(target.stem+'.'+tag[9:]) if tag else target
+            existing = self._tagged(target, tag, context) if tag else (target if target.exists() else None)
+            if existing is not None:
+                target = existing
                 self._verify(target, item, request, context)
             else:
                 url = str(item.info.get('url') or '')
                 if item.kind == 'photo' and urlsplit(url).scheme not in {'http', 'https'}:
                     raise MediaFailure('invalid_media')
                 context.emit(StageChanged(JobState.DOWNLOADING))
-                with open_downloader(self._options(item, request, context, target),
+                with open_downloader(self._options(item, request, context, work),
                                      context=context,
                                      instagram_context=context if request.link.service == Service.INSTAGRAM else None,
                                      instagram_kind='cdn') as ydl:
@@ -72,7 +77,7 @@ class MediaPipeline:
                         source = self._source_file(result, ydl, target.parent)
                         context.cancel.raise_if_cancelled()
                         context.emit(StageChanged(JobState.PROCESSING))
-                        self._convert(source, target, request, context)
+                        target = self._convert(source, target, request, context, work, tag)
                         self._verify(target, item, request, context)
                         source.unlink(missing_ok=True)
                         Path(str(source)+'.ytdl').unlink(missing_ok=True)
@@ -82,7 +87,7 @@ class MediaPipeline:
             if request.options.description and isinstance(description, str) and description.strip():
                 files += (self._caption(target, description, request.options.description),)
             context.cancel.raise_if_cancelled()
-            Path(str(target)+'.ytdl').unlink(missing_ok=True)
+            Path(str(work)+'.ytdl').unlink(missing_ok=True)
             context.emit(FilesSaved(files))
             return files
         except (WorkCancelled, MediaFailure):
@@ -266,7 +271,40 @@ class MediaPipeline:
         if ('audio' not in kinds if fmt == 'mp3' else 'video' not in kinds):
             raise MediaFailure('invalid_media')
 
-    def _convert(self, source, target, request, context):
+    @staticmethod
+    def _numbered(target, n):
+        return target if n == 1 else target.with_name(f'{target.stem} ({n}){target.suffix}')
+
+    def _tagged(self, target, tag, context):
+        for n in range(1, 100):
+            candidate = self._numbered(target, n)
+            if candidate.is_file():
+                try:
+                    tags = self._probe(candidate, context).get('format', {}).get('tags') or {}
+                except MediaFailure:
+                    continue  # unreadable foreign file: not ours, keep looking
+                if any(key.lower() == 'comment' and value == tag for key, value in tags.items()):
+                    return candidate
+        return None
+
+    def _publish(self, temporary, target):
+        # Never replace an equally named file of another video: link fails if the name is taken.
+        for n in range(1, 100):
+            candidate = self._numbered(target, n)
+            try:
+                os.link(temporary, candidate)
+            except FileExistsError:
+                continue
+            except OSError:
+                if candidate.exists():
+                    continue
+                os.replace(temporary, candidate)  # volume without hard links
+                return candidate
+            temporary.unlink()
+            return candidate
+        raise MediaFailure('write_failed')
+
+    def _convert(self, source, target, request, context, work=None, tag=None):
         if not self.ffmpeg:
             raise MediaFailure('tool_missing')
         fmt = request.options.format
@@ -278,11 +316,17 @@ class MediaPipeline:
             args += ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-c:a', 'libopus']
         else:
             args += ['-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy']
-        temporary = target.with_name(target.stem+'.processing'+target.suffix)
+        if tag:
+            args += ['-metadata', 'comment='+tag]
+        work = work or target
+        temporary = work.with_name(work.stem+'.processing'+target.suffix)
         self._run(args+[str(temporary)], context)
         self._verify(temporary, MediaItem('', 1, 'video', '', {}), request, context)
         context.cancel.raise_if_cancelled()
+        if tag:
+            return self._publish(temporary, target)
         os.replace(temporary, target)
+        return target
 
     @staticmethod
     def _caption(target, description, fmt):

@@ -51,7 +51,7 @@ def test_playlist_title_survives_children_and_is_not_identity(tmp_path,monkeypat
     from clipflow.providers.base import MediaItem
     media=MediaItem('video_A',1,'video','Track',{})
     target=output_path(child,media,None,None)
-    assert target.parent.name=='Sound City [PL_music]' and target.name.startswith('001 - Track')
+    assert target.parent.name=='Sound City [PL_music]' and target.name=='Track.mp3'
     other=replace(child,playlist=replace(child.playlist,playlist_id='PL_other'))
     assert target.parent!=output_path(other,media,None,None).parent
     fallback=replace(child,playlist=PlaylistPosition('PL_music',1))

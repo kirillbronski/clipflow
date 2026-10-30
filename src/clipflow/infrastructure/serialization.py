@@ -28,8 +28,9 @@ def encode_options(options):
 def decode_options(raw):
     if not isinstance(raw,dict): raise ValueError('invalid_options')
     fields={'folder','format','max_height','media_filter','author_folder','post_folder','description','auth_profile'}
-    if set(raw)!=fields: raise ValueError('invalid_options')
-    if any(type(raw[key]) is not bool for key in ('author_folder','post_folder')):
+    # numbering arrived in 2.0.3; snapshots written before it stay readable.
+    if set(raw)-{'numbering'}!=fields: raise ValueError('invalid_options')
+    if any(type(raw[key]) is not bool for key in ('author_folder','post_folder','numbering') if key in raw):
         raise ValueError('invalid_boolean')
     reference(raw['auth_profile'])
     return DownloadOptions(**dict(raw,folder=path_value(raw['folder'])))

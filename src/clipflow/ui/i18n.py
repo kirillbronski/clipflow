@@ -46,7 +46,7 @@ MESSAGES={
  'link_accessible':('Ссылка для скачивания','Download link'),
  'add':('Добавить в очередь','Add to queue'), 'add_primary':('↓  Добавить в очередь','↓  Add to queue'),
  'download_options':('Параметры загрузки','Download options'),
- 'audio_format':('MP3 — только звук','MP3 — audio only'),
+ 'audio_format':('MP3','MP3'), 'numbering':('Нумеровать треки плейлиста','Number playlist tracks'),
  'all_media':('Все фото и видео','Photos and videos'), 'video_only':('Только видео','Videos only'), 'photo_only':('Только фото','Photos only'),
  'video_format':('Формат видео','Video format'), 'quality':('Качество','Quality'), 'content':('Содержимое','Content'),
  'author_folder':('Папка автора','Author folder'), 'post_folder':('Папка каждого поста','Folder per post'),

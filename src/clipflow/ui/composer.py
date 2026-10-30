@@ -72,7 +72,10 @@ class Composer(QFrame):
         captions=QHBoxLayout(); self.description=self.tr.widget(QCheckBox,'description_beside'); self.description_format=QComboBox()
         for text,value in [('TXT','txt'),('Markdown','md')]: self.description_format.addItem(text,value)
         captions.addWidget(self.description); captions.addWidget(self.description_format); captions.addStretch(); ig.addLayout(captions)
-        params.addWidget(self.instagram_options); self.parameters.hide(); layout.addWidget(self.parameters)
+        params.addWidget(self.instagram_options)
+        self.youtube_options=QWidget(); self.youtube_options.setObjectName('composerSection'); yt=QHBoxLayout(self.youtube_options); yt.setContentsMargins(0,0,0,0)
+        self.numbering=self.tr.widget(QCheckBox,'numbering'); yt.addWidget(self.numbering); yt.addStretch(); params.addWidget(self.youtube_options)
+        self.parameters.hide(); layout.addWidget(self.parameters)
         path=QHBoxLayout(); path.addWidget(self.tr.widget(QLabel,'folder')); self.folder_input=QLineEdit(); self.folder_input.setMinimumWidth(80)
         self.folder_input.setAccessibleName(self.tr.text('download_folder')); self.choose_button=self.tr.widget(QPushButton,'choose'); self.recent_box=QComboBox()
         self.recent_box.setMaximumWidth(110); path.addWidget(self.folder_input,1); path.addWidget(self.choose_button); path.addWidget(self.recent_box); params.addLayout(path)
@@ -85,7 +88,7 @@ class Composer(QFrame):
         self.choose_button.clicked.connect(self._choose_folder); self.folder_input.editingFinished.connect(self._options_changed)
         self.recent_box.activated.connect(self._recent)
         for box in (self.format_box,self.quality_box,self.filter_box,self.description_format): box.currentIndexChanged.connect(self._options_changed)
-        for box in (self.author_folder,self.post_folder,self.description): box.toggled.connect(self._options_changed)
+        for box in (self.author_folder,self.post_folder,self.description,self.numbering): box.toggled.connect(self._options_changed)
         self.limit_box.currentIndexChanged.connect(self._options_changed)
         self._load(settings); self._loading=False
         self.tr.changed.connect(self.retranslate)
@@ -139,7 +142,7 @@ class Composer(QFrame):
         self.format_box.setCurrentIndex(self.format_box.findData(options.format)); self._quality((),options.max_height)
         self.filter_box.setCurrentIndex(self.filter_box.findData(options.media_filter)); self.author_folder.setChecked(options.author_folder)
         self._post_preference=options.post_folder; self.post_folder.setChecked(options.post_folder)
-        self.description.setChecked(options.description is not None)
+        self.description.setChecked(options.description is not None); self.numbering.setChecked(options.numbering)
         self.description_format.setCurrentIndex(self.description_format.findData(options.description or 'txt'))
         self.folder_input.setText(str(options.folder)); self.limit_box.setCurrentIndex(self.limit_box.findData(self._profile_limit))
         if settings is not None:
@@ -188,7 +191,7 @@ class Composer(QFrame):
             button.setMinimumHeight(metrics.height()+20)
         self._arrange_entry()
         ig=self.service==Service.INSTAGRAM; profile=ig and self.mode=='profile'
-        self.instagram_options.setVisible(ig); self.filter_box.setVisible(ig); self.filter_label.setVisible(ig); self.profile_row.setVisible(profile)
+        self.instagram_options.setVisible(ig); self.youtube_options.setVisible(self.service==Service.YOUTUBE); self.filter_box.setVisible(ig); self.filter_label.setVisible(ig); self.profile_row.setVisible(profile)
         self.post_folder.setChecked(True if profile else self._post_preference); self.post_folder.setEnabled(not profile)
         self.description_format.setEnabled(self.description.isChecked())
         self.profile_note.setText(self.tr.text('profile_note') if profile else '')
@@ -211,7 +214,8 @@ class Composer(QFrame):
                        max_height=None if self.format_box.currentData()=='mp3' else self.quality_box.currentData(),media_filter=self.filter_box.currentData(),
                        author_folder=self.author_folder.isChecked(),
                        post_folder=self._post_preference if self.mode=='profile' else self.post_folder.isChecked(),
-                       description=self.description_format.currentData() if self.description.isChecked() else None)
+                       description=self.description_format.currentData() if self.description.isChecked() else None,
+                       numbering=self.service==Service.YOUTUBE and self.numbering.isChecked())
 
     def _options_changed(self,*args):
         if self._loading: return

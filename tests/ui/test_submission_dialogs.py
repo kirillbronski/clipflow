@@ -336,3 +336,17 @@ def test_auto_start_off_remains_off_after_previous_queue_finishes(make_window,qt
     window.url_input.setText('https://youtu.be/SECOND'); qtbot.mouseClick(window.add_button,Qt.MouseButton.LeftButton)
     qtbot.wait(1100)
     assert provider.calls==1 and window.presenter.repository.list()[-1].state==JobState.QUEUED
+
+
+def test_youtube_numbering_is_off_by_default_persisted_and_mp3_label_is_plain(make_window,qtbot):
+    window,_=make_window(); composer=window.composer
+    composer.set_service(Service.YOUTUBE); composer.parameters_button.setChecked(True)
+    assert composer.numbering.isVisible() and not composer.numbering.isChecked()
+    assert not composer.options().numbering
+    assert composer.format_box.itemText(composer.format_box.findData('mp3'))=='MP3'
+    composer.numbering.setChecked(True)
+    assert composer.options().numbering and window.presenter.settings.presets[Service.YOUTUBE].numbering
+    composer.set_service(Service.INSTAGRAM)
+    assert not composer.numbering.isVisible()
+    composer.set_service(Service.YOUTUBE)
+    assert composer.numbering.isChecked()

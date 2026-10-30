@@ -64,7 +64,7 @@ def test_real_single_video_or_music_track(tmp_path, monkeypatch, server, fmt):
     req=DownloadRequest(parse_url(f'https://{host}/watch?v=track_A'),DownloadOptions(tmp_path,format=fmt,auth_profile='youtube'))
     result=YouTubeProvider(MediaPipeline()).execute(req,ctx)
     assert len(result.files)==1
-    assert result.files[0].name.startswith('Название ролика [') and result.files[0].suffix=='.'+fmt
+    assert result.files[0].name=='Название ролика.'+fmt
     data=json.loads(subprocess.check_output([ffprobe,'-v','error','-show_streams','-of','json',str(result.files[0])]))
     assert {s['codec_type'] for s in data['streams']} == ({'audio'} if fmt=='mp3' else {'video','audio'})
     states=[e.state for e in events if isinstance(e,StageChanged)]
@@ -88,6 +88,31 @@ def test_mp3_ignores_stale_format_selection_left_by_probe(tmp_path, monkeypatch,
     assert result.files[0].suffix=='.mp3' and {s['codec_type'] for s in data['streams']} == {'audio'}
 
 
+@pytest.mark.parametrize('fmt', ['mp3','mp4'])
+def test_same_artist_title_gets_numbered_copy_and_retry_reuses_own_file(tmp_path, monkeypatch, server, fmt):
+    url, ffprobe = server
+    def extract(self, page, download=False):
+        info = metadata(url, parse_url(page).canonical_id)
+        return dict(info, artists=['Пропаганда'], track='Мелом')
+    monkeypatch.setattr(YoutubeDL,'extract_info',extract)
+    ctx=ExecutionContext(CancellationToken(),lambda event:None,Auth())
+    provider=YouTubeProvider(MediaPipeline())
+    def run(identity):
+        return provider.execute(DownloadRequest(parse_url(f'https://www.youtube.com/watch?v={identity}'),DownloadOptions(tmp_path,format=fmt)),ctx).files[0]
+    first=run('track_A'); second=run('track_B')
+    assert first.name==f'Пропаганда - Мелом.{fmt}' and second.name==f'Пропаганда - Мелом (2).{fmt}'
+    foreign=tmp_path/'YouTube'/f'Пропаганда - Мелом (3).{fmt}'; foreign.write_bytes(b'not media')
+    third=run('track_C')
+    assert third.name==f'Пропаганда - Мелом (4).{fmt}' and foreign.read_bytes()==b'not media'
+    third.unlink(); foreign.unlink()
+    modified=first.stat().st_mtime_ns
+    assert run('track_A')==first and first.stat().st_mtime_ns==modified
+    assert run('track_B')==second
+    tags=json.loads(subprocess.check_output([ffprobe,'-v','error','-show_format','-of','json',str(first)]))['format'].get('tags',{})
+    assert any(str(value).startswith('clipflow:') for value in tags.values())
+    assert sorted(p.name for p in first.parent.iterdir())==sorted([first.name,second.name])
+
+
 def test_playlist_children_save_with_original_001_numbers(tmp_path, monkeypatch, server):
     url,_=server
     def extract(self,page,download=False):
@@ -99,13 +124,13 @@ def test_playlist_children_save_with_original_001_numbers(tmp_path, monkeypatch,
     monkeypatch.setattr(YoutubeDL,'extract_info',extract)
     events=[]
     ctx=ExecutionContext(CancellationToken(),events.append,Auth())
-    req=DownloadRequest(parse_url('https://music.youtube.com/playlist?list=PL_test'),DownloadOptions(tmp_path,format='mp3'))
+    req=DownloadRequest(parse_url('https://music.youtube.com/playlist?list=PL_test'),DownloadOptions(tmp_path,format='mp3',numbering=True))
     provider=YouTubeProvider(MediaPipeline())
     parent=provider.execute(req,ctx)
     assert parent.files == () and parent.discovered_count == 2
     children=[r for e in events if isinstance(e,RequestsDiscovered) for r in e.requests]
     results=[provider.execute(r,ctx) for r in children]
-    assert all(result.files[0].name.startswith(prefix+' - Название ролика [') and result.files[0].suffix=='.mp3' for result,prefix in zip(results,('001','003')))
+    assert [result.files[0].name for result in results]==['001 - Название ролика.mp3','003 - Название ролика.mp3']
     for r in results:
         modified=r.files[0].stat().st_mtime_ns
         child=children[results.index(r)]
