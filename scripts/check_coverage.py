@@ -90,7 +90,8 @@ def check():
     )
     for name, gate in result['thresholds'].items():
         print(
-            f'{name}: {gate["value"]:.2%} >= {gate["minimum"]:.0%}: {"PASS" if gate["passed"] else "FAIL"}'
+            f'{name}: {gate["value"]:.2%} >= {gate["minimum"]:.0%}: '
+            f'{"PASS" if gate["passed"] else "FAIL"}'
         )
     return 0 if result['passed'] else 1
 

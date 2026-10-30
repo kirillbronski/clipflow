@@ -178,7 +178,10 @@ def main(argv=None):
             run('ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', app, archive)
             artifacts += [image, archive]
         finally:
-            ls = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+            ls = (
+                '/System/Library/Frameworks/CoreServices.framework/Frameworks/'
+                'LaunchServices.framework/Support/lsregister'
+            )
             subprocess.run([ls, '-u', str(dmg_stage / 'ClipFlow.app')], capture_output=True)
             shutil.rmtree(dmg_stage)
     info['artifacts'] = [

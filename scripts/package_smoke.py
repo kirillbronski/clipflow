@@ -150,10 +150,8 @@ def run(executable, data):
         json.dumps(proof, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
     print(
-        'PASS frozen Qt UI, local media/FFmpeg, both protected WebEngine self-tests, clean resources; '
-        + proof['os']
-        + ' '
-        + proof['cpu']
+        'PASS frozen Qt UI, local media/FFmpeg, both protected WebEngine self-tests, '
+        'clean resources; ' + proof['os'] + ' ' + proof['cpu']
     )
     return proof
 

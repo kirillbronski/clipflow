@@ -29,8 +29,14 @@ from clipflow.ui.themes import application_icon
 
 USER_AGENTS = {
     'Обычный Qt WebEngine': None,
-    'Chrome на iPad · 51': 'Mozilla/5.0 (iPad; CPU OS 13_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/51.0.2704.84 Mobile/15E148 Safari/604.1',
-    'Chrome на iPad · 87': 'Mozilla/5.0 (iPad; CPU OS 13_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/87.0.4280.88 Mobile/15E148 Safari/604.1',
+    'Chrome на iPad · 51': (
+        'Mozilla/5.0 (iPad; CPU OS 13_2 like Mac OS X) AppleWebKit/605.1.15 '
+        '(KHTML, like Gecko) CriOS/51.0.2704.84 Mobile/15E148 Safari/604.1'
+    ),
+    'Chrome на iPad · 87': (
+        'Mozilla/5.0 (iPad; CPU OS 13_2 like Mac OS X) AppleWebKit/605.1.15 '
+        '(KHTML, like Gecko) CriOS/87.0.4280.88 Mobile/15E148 Safari/604.1'
+    ),
 }
 LOGIN_URL = 'https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Dm%26hl%3Den%26next%3D%252F&hl=en'
 
@@ -151,7 +157,8 @@ class AuthWindow(QMainWindow):
         self.store.loadAllCookies()
         if not test:
             self.view.setHtml(
-                '<html><body style="background:#202020;color:white;font:18px sans-serif;padding:30px">ClipFlow</body></html>'
+                '<html><body style="background:#202020;color:white;'
+                'font:18px sans-serif;padding:30px">ClipFlow</body></html>'
             )
 
     def add_tab(self):

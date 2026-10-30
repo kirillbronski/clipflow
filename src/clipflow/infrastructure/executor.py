@@ -37,7 +37,8 @@ class _ProbeWorker(QThread):
                 or self.request.options.format == 'mp3'
                 or self.request.options.media_filter == 'photo'
             ):
-                return  # Collections choose formats per material, never enumerate twice for quality.
+                # Collections choose formats per material, never enumerate twice for quality.
+                return
             context = ExecutionContext(self.cancel, lambda event: None, self.auth, self.policy)
             result = self.provider.probe(self.request, context)
             self.cancel.raise_if_cancelled()

@@ -1,4 +1,4 @@
-"""YouTube files are named "Artist - Title"; numbering is opt-in; old keys/settings stay readable."""
+"""YouTube files are "Artist - Title"; numbering is opt-in; old keys/settings stay readable."""
 
 import hashlib
 import json

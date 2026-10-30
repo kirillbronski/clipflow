@@ -128,7 +128,8 @@ def test_real_single_video_or_music_track(tmp_path, monkeypatch, server, fmt):
 
 
 def test_mp3_ignores_stale_format_selection_left_by_probe(tmp_path, monkeypatch, server):
-    # extract_info(download=False) keeps its default bestvideo+bestaudio choice; reusing it gave HTTP403.
+    # extract_info(download=False) keeps its default bestvideo+bestaudio choice;
+    # reusing it gave HTTP403.
     url, ffprobe = server
     audio = {
         'format_id': '251',

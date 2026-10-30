@@ -480,7 +480,9 @@ class MainWindow(QMainWindow):
             start = '#a93d85' if self.theme.resolved_mode() == 'light' else '#f3aed9'
             background = f'qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {start},stop:1 {color})'
         self.setStyleSheet(
-            f'QPushButton#primary {{background:{background};color:{t["accent_text"]};border-color:{color};}} QPushButton#statusTab:checked {{border-bottom-color:{color};}}'
+            f'QPushButton#primary {{background:{background};color:{t["accent_text"]};'
+            f'border-color:{color};}} '
+            f'QPushButton#statusTab:checked {{border-bottom-color:{color};}}'
         )
         self.queue_view.viewport().update()
         for button in self.nav_buttons:
@@ -498,7 +500,8 @@ class MainWindow(QMainWindow):
                 tint = QColor(t[service])
                 tint.setAlpha(22)
                 button.setStyleSheet(
-                    f'QPushButton:checked {{color:{t[service]};background:{tint.name(QColor.NameFormat.HexArgb)};}}'
+                    f'QPushButton:checked {{color:{t[service]};'
+                    f'background:{tint.name(QColor.NameFormat.HexArgb)};}}'
                 )
         self._subtitle()
         self._resize_composer()

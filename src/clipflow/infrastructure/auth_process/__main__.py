@@ -170,8 +170,8 @@ def main(argv=None):
                             encoding='utf-8',
                         )
                     print(
-                        'PASS isolated WebEngine render, modes, protected compatible snapshot, domain scope, no Tk; theme='
-                        + theme.mode
+                        'PASS isolated WebEngine render, modes, protected compatible snapshot, '
+                        'domain scope, no Tk; theme=' + theme.mode
                     )
                     app.exit(0)
                 except Exception as error:

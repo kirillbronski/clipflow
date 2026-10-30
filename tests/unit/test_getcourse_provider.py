@@ -205,7 +205,8 @@ def test_signed_school_login_uses_server_timestamp(tmp_path, school):
 def test_source_cookie_export_is_not_overwritten(tmp_path, school):
     source = tmp_path / 'export.txt'
     source.write_text(
-        '# Netscape HTTP Cookie File\n.school.getcourse.ru\tTRUE\t/\tTRUE\t0\tsession\tsynthetic-cookie\n',
+        '# Netscape HTTP Cookie File\n'
+        '.school.getcourse.ru\tTRUE\t/\tTRUE\t0\tsession\tsynthetic-cookie\n',
         encoding='utf-8',
     )
     original = source.read_bytes()

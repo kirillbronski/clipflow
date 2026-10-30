@@ -82,7 +82,10 @@ class QueueDelegate(QStyledItemDelegate):
             if job.request.options.max_height
             else self.tr.text('best_quality')
         )
-        meta = f'{SOURCE_NAMES[job.request.link.service.value]}  ·  {job.request.options.format.upper()}  ·  {quality}'
+        meta = (
+            f'{SOURCE_NAMES[job.request.link.service.value]}  ·  '
+            f'{job.request.options.format.upper()}  ·  {quality}'
+        )
         painter.drawText(
             QRect(left, rect.top() + 39, available, 19),
             Qt.AlignmentFlag.AlignVCenter,

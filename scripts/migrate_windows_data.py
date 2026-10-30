@@ -52,7 +52,8 @@ def main(argv=None):
             print(f'{name}: {status}')
     except (OSError, ValueError):
         raise SystemExit(
-            'Import failed. Check the selected directory, file format and permissions. Originals were preserved.'
+            'Import failed. Check the selected directory, file format and permissions. '
+            'Originals were preserved.'
         )
     return 0
 

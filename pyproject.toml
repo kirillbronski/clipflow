@@ -45,6 +45,9 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM"]
 [tool.ruff.lint.per-file-ignores]
 # pytest fixtures are imported into test modules and used only as parameter names.
 "tests/**" = ["F401", "F811"]
+# One message per line keeps the RU/EN catalogue greppable; QSS keeps one rule per line.
+"src/clipflow/ui/i18n.py" = ["E501"]
+"src/clipflow/ui/themes.py" = ["E501"]
 
 [tool.ruff.lint.flake8-bugbear]
 # Qt models take parent=QModelIndex() by convention; the default is never mutated.

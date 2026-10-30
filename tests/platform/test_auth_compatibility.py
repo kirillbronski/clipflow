@@ -218,7 +218,10 @@ def test_getcourse_export_is_filtered_to_selected_school(tmp_path):
     gateway = NativeAuthGateway(tmp_path)
     file = tmp_path / 'export.txt'
     file.write_text(
-        '# Netscape HTTP Cookie File\n.school.getcourse.ru\tTRUE\t/\tTRUE\t2147483647\tsid\tsynthetic-school\n.other.getcourse.ru\tTRUE\t/\tTRUE\t2147483647\tsid\tother-school\n.google.com\tTRUE\t/\tTRUE\t2147483647\tSID\tunrelated\n',
+        '# Netscape HTTP Cookie File\n'
+        '.school.getcourse.ru\tTRUE\t/\tTRUE\t2147483647\tsid\tsynthetic-school\n'
+        '.other.getcourse.ru\tTRUE\t/\tTRUE\t2147483647\tsid\tother-school\n'
+        '.google.com\tTRUE\t/\tTRUE\t2147483647\tSID\tunrelated\n',
         encoding='utf-8',
     )
     original = file.read_bytes()
@@ -278,7 +281,9 @@ def test_gateway_import_does_not_load_webengine_or_tk(tmp_path):
         [
             sys.executable,
             '-c',
-            'import sys; import clipflow.infrastructure.auth; assert "tkinter" not in sys.modules; assert "PySide6.QtWebEngineWidgets" not in sys.modules',
+            'import sys; import clipflow.infrastructure.auth; '
+            'assert "tkinter" not in sys.modules; '
+            'assert "PySide6.QtWebEngineWidgets" not in sys.modules',
         ],
         capture_output=True,
         text=True,
@@ -417,7 +422,9 @@ def test_parent_close_during_auth_startup_is_not_lost(tmp_path, monkeypatch):
         command = [
             arguments[0],
             '-c',
-            'import time; time.sleep(.4); from clipflow.infrastructure.auth_process.__main__ import main; raise SystemExit(main())',
+            'import time; time.sleep(.4); '
+            'from clipflow.infrastructure.auth_process.__main__ import main; '
+            'raise SystemExit(main())',
             *arguments[3:],
         ]
         return original(command, **kwargs)

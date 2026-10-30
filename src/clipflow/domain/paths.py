@@ -142,7 +142,8 @@ def output_path(
             stem = f'{code} - {item.index:02d}'
     else:
         if request.playlist:
-            # Owner-visible "Title [ID]"; the title already separates case-only ID variants in practice.
+            # Owner-visible "Title [ID]"; the title already separates case-only ID
+            # variants in practice.
             identity = request.playlist.playlist_id
             directory /= (
                 safe_name(request.playlist.title, 48) + ' [' + safe_name(identity, 72) + ']'
@@ -152,7 +153,8 @@ def output_path(
         position = request.playlist.index if request.playlist else item.index
         listed = request.link.kind == ContentKind.PLAYLIST or request.playlist is not None
         if request.link.service == Service.YOUTUBE:
-            # Clean owner-facing names; the pipeline resolves equal names via the embedded identity tag.
+            # Clean owner-facing names; the pipeline resolves equal names via the
+            # embedded identity tag.
             prefix = f'{position:03d} - ' if listed and request.options.numbering else ''
             stem = prefix + safe_name(_track_title(item), YOUTUBE_STEM - len(prefix))
         else:

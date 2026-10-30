@@ -34,14 +34,18 @@ class RateLimitStore:
             if version not in (0, 1):
                 raise ValueError('Unsupported Instagram rate schema')
             db.execute(
-                'CREATE TABLE IF NOT EXISTS budget (id INTEGER PRIMARY KEY CHECK(id=1), last_seen REAL NOT NULL, slot REAL NOT NULL, gap REAL NOT NULL, deadline REAL NOT NULL, strikes INTEGER NOT NULL, owner TEXT, lease REAL NOT NULL)'
+                'CREATE TABLE IF NOT EXISTS budget (id INTEGER PRIMARY KEY CHECK(id=1), '
+                'last_seen REAL NOT NULL, slot REAL NOT NULL, gap REAL NOT NULL, '
+                'deadline REAL NOT NULL, strikes INTEGER NOT NULL, owner TEXT, lease REAL NOT NULL)'
             )
             db.execute('INSERT OR IGNORE INTO budget VALUES (1,0,0,0,0,0,NULL,0)')
             db.execute(
-                'CREATE TABLE IF NOT EXISTS checkpoints (key TEXT PRIMARY KEY, cursor TEXT, codes TEXT NOT NULL, complete INTEGER NOT NULL)'
+                'CREATE TABLE IF NOT EXISTS checkpoints (key TEXT PRIMARY KEY, cursor TEXT, '
+                'codes TEXT NOT NULL, complete INTEGER NOT NULL)'
             )
             db.execute(
-                'CREATE TABLE IF NOT EXISTS completed (profile TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(profile,code))'
+                'CREATE TABLE IF NOT EXISTS completed '
+                '(profile TEXT NOT NULL, code TEXT NOT NULL, PRIMARY KEY(profile,code))'
             )
             db.execute('PRAGMA user_version=1')
 
