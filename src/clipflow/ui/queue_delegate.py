@@ -7,10 +7,9 @@ from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.ui.history import result_status
 from clipflow.ui.i18n import Translator
+from clipflow.ui.job_status import error_text, meta_text
 from clipflow.ui.queue_model import JobListModel
 from clipflow.ui.themes import PALETTES
-
-SOURCE_NAMES = {'youtube': 'YouTube', 'instagram': 'Instagram', 'getcourse': 'GetCourse'}
 
 
 class QueueDelegate(QStyledItemDelegate):
@@ -20,6 +19,12 @@ class QueueDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self.theme = theme
         self.tr = translator or Translator(parent=self)
+
+    def second_line(self, job):
+        """The failure reason for a failed job, otherwise its source and quality."""
+        if job.state == JobState.FAILED:
+            return error_text(job.error, job.request.link.service, self.tr)
+        return meta_text(job, self.tr)
 
     def sizeHint(self, option, index):
         return QSize(400, 96)
@@ -76,20 +81,15 @@ class QueueDelegate(QStyledItemDelegate):
         font.setPixelSize(11)
         font.setBold(False)
         painter.setFont(font)
-        painter.setPen(QColor(muted))
-        quality = (
-            f'{job.request.options.max_height}p'
-            if job.request.options.max_height
-            else self.tr.text('best_quality')
-        )
-        meta = (
-            f'{SOURCE_NAMES[job.request.link.service.value]}  ·  '
-            f'{job.request.options.format.upper()}  ·  {quality}'
+        painter.setPen(
+            QColor(t['error'] if job.state == JobState.FAILED and not selected else muted)
         )
         painter.drawText(
             QRect(left, rect.top() + 39, available, 19),
             Qt.AlignmentFlag.AlignVCenter,
-            painter.fontMetrics().elidedText(meta, Qt.TextElideMode.ElideRight, available),
+            painter.fontMetrics().elidedText(
+                self.second_line(job), Qt.TextElideMode.ElideRight, available
+            ),
         )
         progress = index.data(JobListModel.ProgressRole)
         label = self.tr.text('state_' + job.state.value)

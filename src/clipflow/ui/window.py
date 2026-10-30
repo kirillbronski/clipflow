@@ -34,7 +34,8 @@ from clipflow.ui.batch_dialog import BatchDialog
 from clipflow.ui.composer import Composer
 from clipflow.ui.i18n import CATALOG, Translator
 from clipflow.ui.input import InputActions
-from clipflow.ui.queue_delegate import SOURCE_NAMES, QueueDelegate
+from clipflow.ui.job_status import SOURCE_NAMES
+from clipflow.ui.queue_delegate import QueueDelegate
 from clipflow.ui.queue_model import JobListModel, QueueFilter
 from clipflow.ui.settings_page import SettingsPage
 from clipflow.ui.themes import ThemeManager, application_icon

@@ -5,6 +5,7 @@ from PySide6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyMode
 from clipflow.domain.events import ProgressChanged, TitleChanged
 from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.ui.i18n import Translator
+from clipflow.ui.job_status import error_tooltip
 
 
 class JobListModel(QAbstractListModel):
@@ -64,7 +65,11 @@ class JobListModel(QAbstractListModel):
             self.FilesRole: job.result_files,
             self.SourceRole: job.request.link.service.value,
             self.JobRole: job,
-            int(Qt.ItemDataRole.ToolTipRole): title,
+            int(Qt.ItemDataRole.ToolTipRole): (
+                error_tooltip(job.error, job.request.link.service, self.translator)
+                if job.state == JobState.FAILED
+                else title
+            ),
         }.get(role)
 
     def set_jobs(self, jobs):

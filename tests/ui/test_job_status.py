@@ -4,9 +4,13 @@ import re
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QPainter, QPixmap
+from PySide6.QtWidgets import QStyleOptionViewItem
 
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState, Service
 from clipflow.domain.urls import parse_url
+from clipflow.infrastructure.repository import SqliteJobRepository
 from clipflow.ui.i18n import Translator
 from clipflow.ui.job_status import (
     AUTH_SETTINGS_CODES,
@@ -15,6 +19,8 @@ from clipflow.ui.job_status import (
     error_tooltip,
     meta_text,
 )
+from clipflow.ui.queue_model import JobListModel
+from tests.ui.test_workbench import make_window
 
 SOURCE = Path(__file__).resolve().parents[2] / 'src' / 'clipflow'
 NETWORK_RU = 'Не удалось скачать. Проверьте интернет и повторите.'
@@ -184,3 +190,91 @@ INSTAGRAM = 'https://www.instagram.com/p/ABC/'
 def test_meta_text(ru, en, url, options, russian, english):
     assert meta_text(job(url, **options), ru) == russian
     assert meta_text(job(url, **options), en) == english
+
+
+class Recorder(QPainter):
+    """Keeps every text the delegate draws and the pen colour it used."""
+
+    def __init__(self, device):
+        super().__init__(device)
+        self.drawn = []
+
+    def drawText(self, *args):  # noqa: N802 - overrides the Qt method
+        self.drawn.append((args[-1], self.pen().color().name()))
+        super().drawText(*args)
+
+
+def seeded_window(make_window, tmp_path, *jobs):
+    repository = SqliteJobRepository(tmp_path / 'status.sqlite3')
+    for item in jobs:
+        repository.add(item)
+    window, _ = make_window(repository=repository)
+    return window
+
+
+def painted(window, row=0):
+    view = window.queue_view
+    index = view.model().index(row, 0)
+    option = QStyleOptionViewItem()
+    option.rect = view.visualRect(index)
+    option.font = view.font()
+    pixmap = QPixmap(option.rect.size() + QSize(1, 1))
+    painter = Recorder(pixmap)
+    try:
+        view.itemDelegate().paint(painter, option, index)
+    finally:
+        painter.end()
+    return painter.drawn
+
+
+def failed(code, url=INSTAGRAM, identity='bad'):
+    request = DownloadRequest(parse_url(url), DownloadOptions(Path.home()))
+    return Job(identity, request, JobState.FAILED, error=code)
+
+
+def tooltip(window, row=0):
+    return window.queue_view.model().index(row, 0).data(Qt.ItemDataRole.ToolTipRole)
+
+
+def test_failed_row_tooltip_has_reason_and_code(make_window, tmp_path):
+    window = seeded_window(make_window, tmp_path, failed('auth_required'))
+    assert tooltip(window) == 'Нужен вход в Instagram. Откройте «Аккаунты».\nКод: auth_required'
+
+
+def test_failed_row_second_line_is_reason(make_window, tmp_path):
+    done = Job(
+        'ok', DownloadRequest(parse_url(YOUTUBE), DownloadOptions(Path.home())), JobState.COMPLETED
+    )
+    window = seeded_window(make_window, tmp_path, failed('tool_missing'), done)
+    delegate = window.queue_view.itemDelegate()
+    rows = {window.queue_view.model().index(n, 0).data(JobListModel.JobIdRole): n for n in (0, 1)}
+    reason = 'Не найден FFmpeg. Переустановите ClipFlow.'
+    assert delegate.second_line(failed('tool_missing')) == reason
+    assert delegate.second_line(done) == 'YouTube  ·  MP4  ·  Лучшее качество'
+    error = window.theme.tokens()['error']
+    assert (reason, error) in painted(window, rows['bad'])
+    assert ('YouTube  ·  MP4  ·  Лучшее качество', window.theme.tokens()['muted']) in painted(
+        window, rows['ok']
+    )
+    assert tooltip(window, rows['ok']) == window.queue_view.model().index(rows['ok'], 0).data(
+        JobListModel.TitleRole
+    )
+
+
+def test_reason_follows_language_switch(make_window, tmp_path):
+    window = seeded_window(make_window, tmp_path, failed('auth_required'))
+    window.tr.set_language('en')
+    assert (
+        tooltip(window) == 'Sign-in to Instagram is required. Open Accounts.\nCode: auth_required'
+    )
+    assert any(text.startswith('Sign-in to Instagram') for text, _ in painted(window))
+
+
+def test_long_reason_is_elided_in_narrow_window(make_window, tmp_path, qtbot):
+    code = 'instagram_item_failed:003:instagram_invalid_metadata'
+    window = seeded_window(make_window, tmp_path, failed(code))
+    window.resize(880, 700)
+    qtbot.wait(50)
+    full = window.queue_view.itemDelegate().second_line(failed(code))
+    shown = [text for text, _ in painted(window) if text.endswith('…')]
+    assert len(shown) == 1 and full.startswith(shown[0][:-1]) and shown[0] != full
