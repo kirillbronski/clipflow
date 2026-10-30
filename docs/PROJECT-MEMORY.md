@@ -423,3 +423,13 @@ Mac work must be performed on a Mac: native Cocoa/clipboard/DPI/auth, final macO
 Launch Services on macOS 27.0.1, install/upgrade preserving the profile, cleanup of temporary
 registered apps, and final DMG verification. Existing T15 DMG is a candidate, not Mac acceptance.
 Do not mark Mac T15/T16 complete or infer success from Windows/mock tests.
+
+## 30 октября 2026 — установка последней поставки на основном Windows ПК
+
+По прямому указанию владельца прочитаны актуальная Agents-память и новые Mac-коммиты; основной checkout dev обновлён ff-only до a3b13bc. Прежние два локальных изменения сохранены в именованном Git stash, не восстановлены поверх нового upstream.
+Установлен существующий проверенный ClipFlow2.0.0 candidate в Program Files/ClipFlow, compiled source bfd5726c408068dc94ecb580a04d8d4c05dfa938 (runtime идентичен verification head d09a1dc и documentation head a3b13bc).
+EXE SHA256 702751e66a4b175a3986c07126c53d4f724b191a96eecf346dc572376b2aec96; innounp integrity3058entries PASS; installer exit0, reboot не требуется. Ярлык Public Desktop указывает на установленный ClipFlow.exe.
+До обновления541файл LocalAppData/ClipFlow скопирован в локальный ClipFlow-Backups и проверен по SHA256; после installer все541без изменений. Ничего из профиля не отправлялось в Git/Drive.
+Выявлены1319лишних файлов от прежних overlay-установок, в том числе Tcl/Tk/старые Qt DLL. После полного сравнения с SHA-проверенным portable ZIP они перемещены пофайлово в тот же локальный backup; текущие package files, uninstaller и language.txt сохранены. Рекурсивного удаления не было.
+На реальном Windows11 build28000 AMD64 именно установленная поставка прошла frozen Qt/local HTTP transfer/FFmpeg/FFprobe/Node и оба protected WebEngine self-tests на synthetic data, clean resources PASS. Это дополняет прежнюю Parallels ARM64 проверку. Личный вход/закрытые материалы этими self-tests не подтверждаются.
+Текущие открытые Mac/manual/live gates из T16a и FINAL-REVIEW не закрываются установкой на Windows. Main не менялся, новый бинарник не пересобирался: установлен проверенный существующий артефакт.
