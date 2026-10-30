@@ -12,6 +12,17 @@ python scripts/check.py
 
 requirements-dev устанавливает editable пакет и pytest. Для исходников нужны FFmpeg, FFprobe и Node в PATH либо `.runtime/<windows|macos>/bin`; точные пути можно задавать CLIPFLOW_FFMPEG_PATH/CLIPFLOW_FFPROBE_PATH/CLIPFLOW_NODE_PATH при сборке. Не копировать .venv между машинами.
 
+## Стиль кода
+
+Весь Python-код форматируется и проверяется ruff (версия закреплена в `pyproject.toml`, ставится из requirements-dev): длина строки 100, одинарные кавычки, правила E/W/F/I/B/UP/SIM. Перед коммитом:
+
+```sh
+python -m ruff format .
+python -m ruff check --fix .
+```
+
+`scripts/check.py` начинает с `ruff format --check` и `ruff check` и останавливается при замечаниях — то же происходит в CI. `# noqa` допускается только с кодом правила и причиной. Механическое форматирование 30.10.2026 скрыто из `git blame` списком `.git-blame-ignore-revs`; подключить локально: `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+
 Для экспериментов задать CLIPFLOW_DATA_DIR на отдельную временную папку. Реальные профили не переносить в репозиторий. Runtime не импортирует Tk/CustomTkinter, `--qt-preview` удалён; оба entrypoint запускают Qt. Реальные аккаунты вводит владелец.
 
 См. ARCHITECTURE, TESTING, BUILDING и PROJECT-MEMORY. Изменения проверяются перед commit/push; точный SHA обязательных Windows/macOS Checks фиксируется в handoff. Mac завершение вынесено в T16a.
