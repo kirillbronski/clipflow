@@ -1,6 +1,6 @@
 """Qt workbench following the approved desktop composition and shared commands."""
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QActionGroup, QColor, QFont, QIcon, QKeySequence, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -488,9 +488,16 @@ class MainWindow(QMainWindow):
             f'QPushButton#statusTab:checked {{border-bottom-color:{color};}}'
         )
         self.queue_view.viewport().update()
-        self.composer.add_button.setIcon(glyph_icon('↓', t['accent_text']))
-        self.start_button.setIcon(glyph_icon('▷', t['text']))
-        self.batch_button.setIcon(glyph_icon('+', t['text']))
+        for button, glyph, color in (
+            (self.composer.add_button, '↓', t['accent_text']),
+            (self.start_button, '▷', t['text']),
+            (self.batch_button, '+', t['text']),
+        ):
+            # Never taller than the text line, so the button keeps its neighbours' height.
+            button.ensurePolished()
+            size = min(16, button.fontMetrics().height())
+            button.setIconSize(QSize(size, size))
+            button.setIcon(glyph_icon(glyph, color, size))
         for button in self.nav_buttons:
             service = button.property('nav_key').lower()
             if service in {'youtube', 'instagram', 'getcourse'}:

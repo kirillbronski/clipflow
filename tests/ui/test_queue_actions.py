@@ -83,3 +83,12 @@ def test_clear_all_confirmation_names_the_action_without_ellipsis(make_window, q
     box = window.findChild(QMessageBox)
     assert box.button(QMessageBox.StandardButton.Yes).text() == 'Очистить всё'
     box.button(QMessageBox.StandardButton.No).click()
+
+
+def test_icon_never_makes_its_button_taller_than_its_neighbours(make_window):
+    window, _ = make_window()
+    row = (window.start_button, window.cancel_queue_button, window.clear_all_button)
+    for widget in row:  # a text line shorter than a 16 px icon, as with some Windows fonts
+        widget.setStyleSheet('font-size: 9px;')
+    window._accent()
+    assert len({widget.sizeHint().height() for widget in row}) == 1
