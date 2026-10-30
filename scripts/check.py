@@ -1,6 +1,7 @@
 """Run the style gate, the supported Qt suite and all runtime coverage gates."""
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,8 @@ def main(argv=None):
         '--qt', action='store_true', help='Compatibility alias; Qt is the only runtime'
     )
     parser.parse_args(argv)
+    # pytest writes .coverage under the repository root; read it from there too.
+    os.chdir(ROOT)
     result = lint()
     if result:
         return result

@@ -216,3 +216,12 @@ def test_offline_check_runs_lint_then_tests(monkeypatch):
         [sys.executable, '-m', 'ruff', 'check', '.'],
     ]
     assert tests.calls == 1
+
+
+def test_offline_check_runs_tests_from_repository_root(monkeypatch, tmp_path):
+    check, _, _ = offline_check(monkeypatch, [0, 0])
+    seen = []
+    monkeypatch.setattr(sys.modules['check_coverage'], 'run', lambda: seen.append(Path.cwd()) or 0)
+    monkeypatch.chdir(tmp_path)
+    assert check.main([]) == 0
+    assert seen == [ROOT]
