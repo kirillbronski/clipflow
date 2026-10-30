@@ -369,6 +369,46 @@ MESSAGES.update(
             'Этот профиль не относится к выбранному сервису или школе.',
             'This profile belongs to another service or school.',
         ),
+        'job_error.signin': (
+            'Нужен вход в {service}. Откройте «Аккаунты».',
+            'Sign-in to {service} is required. Open Accounts.',
+        ),
+        'job_error.access': (
+            'Материал недоступен: удалён, закрыт или нет доступа.',
+            'Item unavailable: removed, private or no access.',
+        ),
+        'job_error.network': (
+            'Не удалось скачать. Проверьте интернет и повторите.',
+            'Download failed. Check your connection and try again.',
+        ),
+        'job_error.save': (
+            'Не удалось сохранить файл. Проверьте папку и свободное место.',
+            'Could not save the file. Check the folder and free space.',
+        ),
+        'job_error.processing': (
+            'Файл получен, но не обработан. Повторите загрузку.',
+            'File received but not processed. Download it again.',
+        ),
+        'job_error.tool': (
+            'Не найден FFmpeg. Переустановите ClipFlow.',
+            'FFmpeg not found. Reinstall ClipFlow.',
+        ),
+        'job_error.changed': (
+            'Содержимое по ссылке изменилось. Добавьте её заново.',
+            'The link content has changed. Add it again.',
+        ),
+        'job_error.empty': (
+            'По ссылке нет подходящих материалов.',
+            'No matching items at this link.',
+        ),
+        'job_error.internal': (
+            'Внутренняя ошибка ClipFlow. Повторите; если не помогло — сообщите код.',
+            'Internal ClipFlow error. Try again; if it persists, report the code.',
+        ),
+        'job_error.item': ('Элемент {number} не скачан: ', 'Item {number} failed: '),
+        'job_error.code': ('Код: {code}', 'Code: {code}'),
+        'meta.mp3_quality': ('320 кбит/с', '320 kbps'),
+        'meta.photos_videos': ('Фото и видео', 'Photos and videos'),
     }
 )
 CATALOG = {
