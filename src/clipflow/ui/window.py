@@ -258,7 +258,7 @@ class MainWindow(QMainWindow):
         return self.presenter.update_preset(service,options,limit)
 
     def _commit_options(self):
-        try: options=self.composer.options()
+        try: options=self.composer.preset_options()
         except ValueError: self._show_error('invalid_folder'); return False
         return self._save_preset(self.composer.service,options,self.composer.limit_box.currentData())
 

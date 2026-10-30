@@ -216,14 +216,18 @@ class Composer(QFrame):
     def _options_changed(self,*args):
         if self._loading: return
         if self.mode!='profile': self._post_preference=self.post_folder.isChecked()
-        try: options=self.options()
+        try: options=self.preset_options()
         except ValueError: self._hint('check_folder'); return
-        if self._is_music():
-            previous=self._presets[self.service]
-            options=replace(options,format=previous.format,max_height=previous.max_height)
         self._presets[self.service]=options; self._profile_limit=self.limit_box.currentData()
         self._loading=True; self._mode_ui(); self._summary(); self._loading=False
         self.preset_changed.emit(self.service,options,self._profile_limit); self._invalidate()
+
+    def preset_options(self):
+        options=self.options()
+        if self._is_music():
+            previous=self._presets[self.service]
+            return replace(options,format=previous.format,max_height=previous.max_height)
+        return options
 
     def _summary(self):
         options=self._presets[self.service]
@@ -262,7 +266,8 @@ class Composer(QFrame):
     def apply_probe(self,request_id,heights,error=''):
         if request_id!=self._probe_id: return
         self.quality_pending=False
-        self._loading=True; self._quality(heights,self._presets[self.service].max_height); self._loading=False
+        music=self._is_music()
+        self._loading=True; self._quality(() if music else heights,None if music else self._presets[self.service].max_height); self._loading=False
         self._hint('probe_cancelled' if error=='probe_cancelled' else 'probe_unavailable' if error else
                    'best_selected' if heights else 'quality_per_item')
 

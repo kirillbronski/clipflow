@@ -13,7 +13,7 @@ from clipflow.ui.batch_dialog import BatchDialog
 from tests.ui.test_workbench import make_window
 
 
-def test_music_locks_mp3_and_restores_video_preset(make_window,qtbot,tmp_path):
+def test_music_locks_mp3_and_restores_video_preset(make_window,qtbot,tmp_path,monkeypatch):
     window,_=make_window();composer=window.composer
     composer.format_box.setCurrentIndex(composer.format_box.findData('mkv'))
     window.url_input.setText('https://music.youtube.com/watch?v=track')
@@ -30,13 +30,48 @@ def test_music_locks_mp3_and_restores_video_preset(make_window,qtbot,tmp_path):
     window.url_input.clear()
     assert composer.format_box.currentData()=='mkv' and composer.format_box.isEnabled()
     from PySide6.QtWidgets import QApplication
-    QApplication.clipboard().setText('https://music.youtube.com/watch?v=track')
-    qtbot.mouseClick(composer.paste_button,Qt.MouseButton.LeftButton)
+    from types import SimpleNamespace
+    # Native clipboard mechanics have their own platform tests. Isolate this
+    # format-switch test so it cannot contaminate those tests' MIME ownership.
+    with monkeypatch.context() as patch:
+        patch.setattr(QApplication,'clipboard',staticmethod(lambda:SimpleNamespace(text=lambda:'https://music.youtube.com/watch?v=track')))
+        qtbot.mouseClick(composer.paste_button,Qt.MouseButton.LeftButton)
     assert composer.format_box.currentData()=='mp3' and not composer.format_box.isEnabled()
     composer.set_service(Service.INSTAGRAM);composer.set_service(Service.YOUTUBE)
     assert composer.format_box.currentData()=='mp3'
     window.url_input.clear()
     assert composer.format_box.currentData()=='mkv'
+
+
+@pytest.mark.parametrize('action',['submit','batch'])
+def test_music_commit_does_not_change_normal_youtube_preset(make_window,qtbot,action):
+    window,_=make_window();composer=window.composer
+    composer.format_box.setCurrentIndex(composer.format_box.findData('mkv'))
+    window.url_input.setText('https://music.youtube.com/watch?v=track')
+    if action=='submit':
+        qtbot.mouseClick(composer.add_button,Qt.MouseButton.LeftButton)
+        assert window.presenter.repository.list()[0].request.options.format=='mp3'
+        assert not window.url_input.text()
+    else:
+        dialog=batch(window,qtbot)
+        dialog.text_input.setPlainText('https://music.youtube.com/watch?v=track\nhttps://youtube.com/watch?v=video')
+        assert [r.options.format for r in dialog.preview().requests]==['mp3','mkv']
+        dialog.reject()
+    assert window.presenter.settings.presets[Service.YOUTUBE].format=='mkv'
+    window.url_input.setText('https://youtube.com/watch?v=other')
+    assert composer.format_box.currentData()=='mkv'
+
+
+def test_matching_music_probe_never_displays_video_height(make_window,qtbot):
+    window,_=make_window();composer=window.composer
+    composer.quality_box.addItem('720p',720)
+    composer.quality_box.setCurrentIndex(composer.quality_box.findData(720))
+    assert window.presenter.settings.presets[Service.YOUTUBE].max_height==720
+    window.url_input.setText('https://music.youtube.com/watch?v=track')
+    composer.apply_probe(composer._probe_id,(),'')
+    assert composer.quality_box.currentData() is None and composer.quality_box.count()==1
+    window.url_input.clear()
+    assert composer.quality_box.currentData()==720
 
 
 def batch(window,qtbot):

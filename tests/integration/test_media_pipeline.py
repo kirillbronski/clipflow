@@ -57,10 +57,12 @@ def media_server(tmp_path_factory, tools):
     class Handler(SimpleHTTPRequestHandler):
         hits = 0
         ranges = []
+        paths = []
         def log_message(self, *args):
             pass
         def do_GET(self):
             type(self).hits += 1
+            type(self).paths.append(self.path)
             if self.path == '/protected.png':
                 if self.headers.get('Referer') != 'https://www.instagram.com/':
                     self.send_error(403)
@@ -114,6 +116,20 @@ def test_mp3_uses_320k_audio_only(tmp_path,context,media_server,tools):
     streams=probe(path,tools)['streams']
     assert {stream['codec_type'] for stream in streams}=={'audio'}
     assert streams[0]['codec_name']=='mp3' and int(streams[0]['bit_rate'])==320000
+
+
+def test_music_downloads_best_audio_without_fetching_video(tmp_path,context,media_server,tools):
+    ctx,_=context;base,_,handler=media_server;before=len(handler.paths)
+    req=DownloadRequest(parse_url('https://music.youtube.com/watch?v=track'),DownloadOptions(tmp_path))
+    media=MediaItem('track',1,'video','Best audio',{'id':'track','title':'Best audio','formats':[
+        {'format_id':'video','url':base+'/video-only.mp4','ext':'mp4','vcodec':'h264','acodec':'none','height':720},
+        {'format_id':'low','url':base+'/never-low.m4a','ext':'m4a','vcodec':'none','acodec':'aac','abr':64},
+        {'format_id':'audio','url':base+'/audio.m4a','ext':'m4a','vcodec':'none','acodec':'aac','abr':128},
+    ]})
+    path=MediaPipeline(ffmpeg=tools[0],ffprobe=tools[1]).save(media,req,ctx)[0]
+    assert '/audio.m4a' in handler.paths[before:]
+    assert '/video-only.mp4' not in handler.paths[before:] and '/never-low.m4a' not in handler.paths[before:]
+    assert path.suffix=='.mp3' and {s['codec_type'] for s in probe(path,tools)['streams']}=={'audio'}
 
 
 @pytest.mark.parametrize('fmt,container,codecs', [
