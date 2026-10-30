@@ -10,7 +10,7 @@ from threading import Thread
 import pytest
 from yt_dlp import YoutubeDL
 
-from clipflow.domain.events import CancellationToken, FilesSaved, RequestsDiscovered, StageChanged
+from clipflow.domain.events import CancellationToken, FilesSaved, RequestsDiscovered, StageChanged, TitleChanged
 from clipflow.domain.models import DownloadOptions, DownloadRequest, JobState
 from clipflow.domain.urls import parse_url
 from clipflow.providers.base import ExecutionContext
@@ -95,12 +95,14 @@ def test_same_artist_title_gets_numbered_copy_and_retry_reuses_own_file(tmp_path
         info = metadata(url, parse_url(page).canonical_id)
         return dict(info, artists=['Пропаганда'], track='Мелом')
     monkeypatch.setattr(YoutubeDL,'extract_info',extract)
-    ctx=ExecutionContext(CancellationToken(),lambda event:None,Auth())
+    events=[]; ctx=ExecutionContext(CancellationToken(),events.append,Auth())
     provider=YouTubeProvider(MediaPipeline())
     def run(identity):
         return provider.execute(DownloadRequest(parse_url(f'https://www.youtube.com/watch?v={identity}'),DownloadOptions(tmp_path,format=fmt)),ctx).files[0]
     first=run('track_A'); second=run('track_B')
     assert first.name==f'Пропаганда - Мелом.{fmt}' and second.name==f'Пропаганда - Мелом (2).{fmt}'
+    names=[e.title for e in events if isinstance(e,TitleChanged)]
+    assert names[0]=='Пропаганда - Мелом' and names[-1]=='Пропаганда - Мелом (2)'
     foreign=tmp_path/'YouTube'/f'Пропаганда - Мелом (3).{fmt}'; foreign.write_bytes(b'not media')
     third=run('track_C')
     assert third.name==f'Пропаганда - Мелом (4).{fmt}' and foreign.read_bytes()==b'not media'

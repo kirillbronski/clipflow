@@ -24,6 +24,7 @@ class PostRef:
     code: str
     published_at: datetime
     author: str
+    caption: str | None = None
 
     def __post_init__(self):
         if (not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',self.code) or self.published_at.tzinfo is None
@@ -64,8 +65,9 @@ class InstagramProfileProvider:
             batch=[]
             for post in posts:
                 context.cancel.raise_if_cancelled()
+                line=next((l.strip() for l in (post.caption or '').splitlines() if l.strip()),'')
                 batch.append(DownloadRequest(parse_url(f'https://www.instagram.com/p/{post.code}/'),
-                             replace(request.options,post_folder=True)))
+                             replace(request.options,post_folder=True),label=line[:100] or post.code))
                 if len(batch)==25:
                     context.emit(RequestsDiscovered(tuple(batch))); count+=len(batch); batch=[]
             if batch: context.emit(RequestsDiscovered(tuple(batch))); count+=len(batch)
@@ -177,7 +179,8 @@ class InstaloaderPageSource:
                 for post in method():
                     context.cancel.raise_if_cancelled()
                     published=post.date_utc.replace(tzinfo=timezone.utc)
-                    batch.append(PostRef(post.shortcode,published,request.link.canonical_id))
+                    caption=getattr(post,'caption',None)  # read from the already fetched node, no request
+                    batch.append(PostRef(post.shortcode,published,request.link.canonical_id,caption if isinstance(caption,str) else None))
                     if len(batch)==25:
                         page+=1
                         yield ProfilePage(tuple(batch),f'page-{page}',False,frozenset())

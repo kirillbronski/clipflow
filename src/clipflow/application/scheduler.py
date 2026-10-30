@@ -225,6 +225,15 @@ class Scheduler:
         self._drained=False
         self._pump()
 
+    def set_title(self, job_id: str, title: str) -> None:
+        """Name a waiting job ahead of its download; a running job names itself."""
+        job = self.repository.get(job_id)
+        title = ' '.join(title.split())[:240]
+        if not title or job.title == title or job.state not in {JobState.QUEUED, JobState.PAUSED}:
+            return
+        self.repository.update(replace(job, title=title))
+        self._publish(JobEvent(job.id, job.attempt_id or '', TitleChanged(title)))
+
     def shutdown(self) -> None:
         self._closed = True
         self._running = False  # Must precede stop(): synchronous ack cannot start next.
@@ -271,6 +280,8 @@ class Scheduler:
                 if key not in keys:
                     self.repository.add(Job(uuid4().hex, request, parent_id=job.id))
                     keys.add(key)
+        elif isinstance(payload, TitleChanged):
+            self.repository.update(replace(job, title=' '.join(payload.title.split())[:240] or None))
         elif isinstance(payload, SelectionRequired):
             self._save(replace(job, state=JobState.PAUSED, pause_reason='selection_required'))
             self._stop(job.id, 'pause')
@@ -292,7 +303,7 @@ class Scheduler:
             else:
                 updated = replace(job, state=JobState.PAUSED, pause_reason='worker_stopped')
             self._save(updated)
-        elif not isinstance(payload, (ProgressChanged,TitleChanged)):
+        elif not isinstance(payload, ProgressChanged):
             return
         self._publish(event)
         self._pump()

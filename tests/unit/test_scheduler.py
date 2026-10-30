@@ -422,3 +422,17 @@ def test_rediscovery_keeps_verified_completed_output_and_active_work(tmp_path):
     worker=ControlledExecutor(); scheduler=Scheduler(repo,worker); scheduler.start()
     worker.emit(RequestsDiscovered((child,child)))
     assert len(repo.list())==2
+
+
+def test_title_events_persist_and_named_queued_jobs_are_relabelled(queue):
+    from clipflow.domain.events import TitleChanged
+    repo, worker, scheduler = queue
+    seen = []; scheduler.subscribe(seen.append)
+    scheduler.start()
+    worker.emit(TitleChanged('Пропаганда - Мелом'))
+    assert repo.get('one').title == 'Пропаганда - Мелом'
+    scheduler.set_title('two', 'Оскар - Между Мной')
+    assert repo.get('two').title == 'Оскар - Между Мной'
+    assert any(e.job_id == 'two' and e.payload == TitleChanged('Оскар - Между Мной') for e in seen)
+    scheduler.set_title('one', 'Другое')  # active jobs are named by their own worker
+    assert repo.get('one').title == 'Пропаганда - Мелом'

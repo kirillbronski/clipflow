@@ -4,8 +4,9 @@ import re
 
 from yt_dlp import YoutubeDL
 
-from clipflow.domain.events import RequestsDiscovered, StageChanged, WorkCancelled
+from clipflow.domain.events import RequestsDiscovered, StageChanged, TitleChanged, WorkCancelled
 from clipflow.domain.models import ContentKind, DownloadRequest, JobState, PlaylistPosition, Service
+from clipflow.domain.paths import UnsafePath, output_path
 from clipflow.domain.urls import parse_url
 from clipflow.providers.base import DownloadResult, ExecutionContext, MediaFailure, MediaItem, ProbeResult
 from clipflow.providers.media import MediaPipeline, _QuietLogger
@@ -58,10 +59,22 @@ class YouTubeProvider:
             heights.add(info['height'])
         return ProbeResult((item,), tuple(sorted(heights, reverse=True)) if request.options.format != 'mp3' else ())
 
+    def planned_title(self, request: DownloadRequest, context: ExecutionContext) -> str:
+        """The file name this single video will get, from one metadata request."""
+        if request.link.kind != ContentKind.VIDEO:
+            raise MediaFailure('invalid_request')
+        item = self.probe(request, context).items[0]
+        try:
+            return output_path(request, item, None, None).stem
+        except UnsafePath:
+            return item.title
+
     def execute(self, request: DownloadRequest, context: ExecutionContext) -> DownloadResult:
         result = self.probe(request, context)
         if request.link.kind != ContentKind.PLAYLIST:
             return DownloadResult(self.pipeline.save(result.items[0], request, context))
+        if result.collection_title:
+            context.emit(TitleChanged(result.collection_title))
         pending = []
         count = 0
         for item in result.items:
@@ -69,7 +82,8 @@ class YouTubeProvider:
             # Persist only canonical identities/options, never raw CDN URLs or credentials.
             origin='music.youtube.com' if request.link.is_music else 'www.youtube.com'
             child = replace(request, link=parse_url(f'https://{origin}/watch?v={item.id}'),
-                            selection=None, playlist=PlaylistPosition(request.link.canonical_id, item.index,result.collection_title))
+                            selection=None, playlist=PlaylistPosition(request.link.canonical_id, item.index,result.collection_title),
+                            label=item.title[:1000])
             pending.append(child)
             count += 1
             if len(pending) == 25:

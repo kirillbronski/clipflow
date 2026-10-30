@@ -81,13 +81,13 @@ def _encode(job):
         'result_files':[str(p) for p in job.result_files],'error':_safe_error(job.error),
         'pause_reason':_safe_error(job.pause_reason),
         'next_allowed_at':job.next_allowed_at.isoformat() if job.next_allowed_at else None,
-        'automatic_retry':job.automatic_retry,'source_required':redacted or job.source_required,
+        'automatic_retry':job.automatic_retry,'source_required':redacted or job.source_required,'title':job.title,
         'request':{'link':{'service':link.service.value,'kind':link.kind.value,'canonical_id':link.canonical_id,
                            'canonical_url':link.canonical_url},
                    'options':encode_options(job.request.options),'selection':selection,
                    'profile_limit':job.request.profile_limit,
                    'playlist':{'playlist_id':job.request.playlist.playlist_id,'index':job.request.playlist.index,'title':job.request.playlist.title}
-                              if job.request.playlist else None},
+                              if job.request.playlist else None,'label':job.request.label},
     }
     if job.attempt_id is not None: _identifier(job.attempt_id)
     return json.dumps(raw,ensure_ascii=False,allow_nan=False),redacted
@@ -104,7 +104,9 @@ def _decode(text):
     if safe!=parsed: raise ValueError('unsafe_persisted_source')
     request=DownloadRequest(parsed,decode_options(data['options']),
                             tuple(data['selection']) if data['selection'] is not None else None,
-                            data['profile_limit'],PlaylistPosition(**data['playlist']) if data['playlist'] else None)
+                            data['profile_limit'],PlaylistPosition(**data['playlist']) if data['playlist'] else None,
+                            data.get('label'))  # names arrived in 2.0.4
+    raw.setdefault('title',None)
     raw['state']=JobState(raw['state'])
     raw['result_files']=tuple(path_value(p) for p in raw['result_files'])
     raw['next_allowed_at']=datetime.fromisoformat(raw['next_allowed_at']) if raw['next_allowed_at'] else None

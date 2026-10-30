@@ -82,3 +82,12 @@ def test_expired_checkpoint_reenumerates_and_never_reuses_old_completeness(tmp_p
     source.values=[ProfilePage((post(2),post(1)),None,False,frozenset())]
     assert InstagramProfileProvider(source).execute(item,ctx).discovered_count==2
     assert codes(events)==['C2','C1']
+
+
+def test_children_are_labelled_with_caption_or_code(tmp_path):
+    captioned=PostRef('C1',datetime(2026,1,2,tzinfo=timezone.utc),'alice','Закат над морем\nвторая строка')
+    source=Source([ProfilePage((captioned,post(0)),None,False,frozenset())])
+    ctx,events,_=context()
+    InstagramProfileProvider(source).execute(req(tmp_path),ctx)
+    labels={r.link.canonical_id:r.label for e in events if isinstance(e,RequestsDiscovered) for r in e.requests}
+    assert labels=={'C1':'Закат над морем','C0':'C0'}

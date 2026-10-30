@@ -270,3 +270,24 @@ def test_file_saved_before_commit_is_reconciled_on_explicit_resume(tmp_path):
     assert repo.get('one').state==JobState.COMPLETED
     assert repo.get('one').result_files==(target,) and target.stat().st_mtime_ns==before
     repo.close()
+
+
+def test_display_title_and_label_persist_and_old_records_load(tmp_path):
+    import json
+    request=DownloadRequest(parse_url('https://music.youtube.com/watch?v=track'),DownloadOptions(tmp_path),label='Мелом')
+    path=tmp_path/'titles.sqlite3';repo=SqliteJobRepository(path)
+    repo.add(Job('titled',request,title='Пропаганда - Мелом'));repo.close()
+    repo=SqliteJobRepository(path)
+    try:
+        saved=repo.get('titled')
+        assert saved.title=='Пропаганда - Мелом' and saved.request.label=='Мелом'
+    finally:repo.close()
+    with sqlite3.connect(path) as db:
+        payload=json.loads(db.execute('SELECT payload FROM jobs').fetchone()[0])
+        payload.pop('title');payload['request'].pop('label')
+        db.execute('UPDATE jobs SET payload=?',(json.dumps(payload),))
+    repo=SqliteJobRepository(path)
+    try:
+        old=repo.get('titled')
+        assert old.title is None and old.request.label is None
+    finally:repo.close()

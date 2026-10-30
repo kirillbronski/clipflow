@@ -1,5 +1,5 @@
 """Immutable content identities and download parameter snapshots."""
-from dataclasses import dataclass,replace
+from dataclasses import dataclass,field,replace
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
@@ -73,6 +73,11 @@ class PlaylistPosition:
             raise ValueError('Invalid playlist title')
 
 
+def _display_name(value):
+    if value is not None and (not isinstance(value, str) or len(value) > 1000):
+        raise ValueError('Invalid display name')
+
+
 @dataclass(frozen=True)
 class DownloadRequest:
     link: ParsedLink
@@ -80,8 +85,11 @@ class DownloadRequest:
     selection: tuple[str, ...] | None = None
     profile_limit: int | None = None
     playlist: PlaylistPosition | None = None
+    # Display-only name known at discovery; never part of identity or equality.
+    label: str | None = field(default=None, compare=False)
 
     def __post_init__(self):
+        _display_name(self.label)
         if self.link.is_music and (self.options.format!='mp3' or self.options.max_height is not None):
             object.__setattr__(self,'options',replace(self.options,format='mp3',max_height=None))
         if self.playlist is not None and (not isinstance(self.playlist, PlaylistPosition)
@@ -122,3 +130,7 @@ class Job:
     next_allowed_at: datetime | None = None
     automatic_retry: bool = False
     source_required: bool = False
+    title: str | None = None  # resolved file/display name shown in the queue
+
+    def __post_init__(self):
+        _display_name(self.title)

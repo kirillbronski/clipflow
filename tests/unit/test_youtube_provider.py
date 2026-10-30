@@ -268,3 +268,25 @@ def test_unresolved_or_unavailable_video_is_not_saved(tmp_path,monkeypatch,info)
     with pytest.raises(MediaFailure,match='unavailable_media'):
         YouTubeProvider(MediaPipeline()).execute(request(tmp_path),ctx)
     assert not any(isinstance(e,FilesSaved) for e in events)
+
+
+def test_playlist_children_carry_entry_titles_and_parent_reports_playlist_title(tmp_path, monkeypatch):
+    from clipflow.domain.events import RequestsDiscovered, TitleChanged
+    extract_fixture(monkeypatch, playlist())
+    ctx, events = context()
+    YouTubeProvider(MediaPipeline()).execute(DownloadRequest(parse_url('https://youtube.com/playlist?list=PL_music'), DownloadOptions(tmp_path)), ctx)
+    children = [r for e in events if isinstance(e, RequestsDiscovered) for r in e.requests]
+    assert [r.label for r in children] == ['Первый', '[Private video]', 'Последний']
+    assert TitleChanged('Музыка') in events
+
+
+def test_planned_title_is_the_future_file_name(tmp_path, monkeypatch):
+    from dataclasses import replace
+    from clipflow.domain.models import PlaylistPosition
+    extract_fixture(monkeypatch, dict(video(), title='Мелом', artists=['Пропаганда'], track='Мелом'))
+    ctx, _ = context()
+    request = DownloadRequest(parse_url('https://music.youtube.com/watch?v=video_A'), DownloadOptions(tmp_path))
+    provider = YouTubeProvider(MediaPipeline())
+    assert provider.planned_title(request, ctx) == 'Пропаганда - Мелом'
+    numbered = replace(request, options=replace(request.options, numbering=True), playlist=PlaylistPosition('PL_music', 3, 'Sound City'))
+    assert provider.planned_title(numbered, ctx) == '003 - Пропаганда - Мелом'

@@ -154,4 +154,6 @@ def test_tight_generic_path_budget_rejects_instead_of_clipping_identity(tmp_path
         output_path(req,MediaItem('v',1,'video','A'*100,{}),None,None)
     # YouTube has no name suffix to protect: it clips, identity lives in the file tag.
     clipped=output_path(request(root,url='https://youtu.be/AAAAAAAAAAA'),MediaItem('v',1,'video','A'*100,{}),None,None)
-    assert clipped.stem=='A'*18
+    # Drive-qualified roots (Windows) shorten the budget: assert the invariant, not one OS's number.
+    assert set(clipped.stem)=={'A'} and 8<=len(clipped.stem)<100
+    assert len(str(clipped).encode('utf-16-le'))//2<=200

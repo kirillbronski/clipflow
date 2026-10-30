@@ -43,6 +43,9 @@ class WorkbenchPresenter(QObject):
         self.executor.error.connect(self._executor_error)
         self.executor.available.connect(self._tick)
         self._timer=QTimer(self); self._timer.setInterval(500); self._timer.timeout.connect(self._tick); self._timer.start()
+        # Background naming: one metadata lookup at a time, paced to stay polite to the site.
+        self.title_interval_ms=1000; self._titled=set()
+        self._title_timer=QTimer(self); self._title_timer.setSingleShot(True); self._title_timer.timeout.connect(self._name_next)
 
     def _command(self,action):
         if self._closing:
@@ -326,6 +329,23 @@ class WorkbenchPresenter(QObject):
         if not self._closing:
             self._command(self._flush_clear)
             self._command(self.scheduler.tick)
+            if not self._title_timer.isActive() and not self.executor.naming:
+                self._title_timer.start(self.title_interval_ms)
+
+    @Slot()
+    def _name_next(self):
+        if self._closing or self.executor.naming: return
+        for job in self.repository.list():
+            if (job.title is None and job.id not in self._titled
+                    and job.state in {JobState.QUEUED,JobState.PAUSED} and self.executor.can_name(job)):
+                self._titled.add(job.id)  # one attempt per session; a failure keeps the label
+                if self.executor.request_title(job,self._title_ready): return
+
+    def _title_ready(self,identity,title):
+        if title and not self._closing:
+            try: self._command(lambda:self.scheduler.set_title(identity,title))
+            except KeyError: pass
+        if not self._closing: self._title_timer.start(self.title_interval_ms)
 
     @Slot(str)
     def _executor_error(self,code):
@@ -334,7 +354,7 @@ class WorkbenchPresenter(QObject):
 
     def shutdown(self):
         if self._closing: return
-        self._closing=True; self._timer.stop(); self._auth_timer.stop()
+        self._closing=True; self._timer.stop(); self._auth_timer.stop(); self._title_timer.stop()
         if self.auth_gateway is not None: self.auth_gateway.close()
         try: self.scheduler.shutdown()
         except Exception: self.error_raised.emit('queue_update_failed')

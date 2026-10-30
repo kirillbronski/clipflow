@@ -31,6 +31,20 @@ class _ProbeWorker(QThread):
         except Exception: self.error='probe_failed'
 
 
+class _TitleWorker(QThread):
+    def __init__(self,job,provider,auth,parent):
+        super().__init__(parent); self.job=job; self.provider=provider; self.auth=auth
+        self.cancel=CancellationToken(); self.title=None
+
+    def run(self):
+        try:
+            context=ExecutionContext(self.cancel,lambda event:None,self.auth)
+            title=self.provider.planned_title(self.job.request,context)
+            self.cancel.raise_if_cancelled()
+            self.title=title if isinstance(title,str) and title.strip() else None
+        except Exception: self.title=None  # names are cosmetic: never surface lookup errors
+
+
 class _Worker(QThread):
     event=Signal(object)
 
@@ -73,7 +87,7 @@ class ThreadExecutor(QObject):
         self.registry=provider_registry; self.auth=auth_gateway; self.instagram_rate=instagram_rate
         self._cleanup=cleanup or (lambda:None)
         self._workers={}; self._closing=False; self._closed=False
-        self._probe=None; self._pending_probe=None
+        self._probe=None; self._pending_probe=None; self._naming=None
 
     @property
     def is_idle(self): return not self._workers and self._probe is None
@@ -118,6 +132,31 @@ class ThreadExecutor(QObject):
         self._try_close()
         if self.is_idle and not self._closing: self.available.emit()
 
+    def can_name(self,job):
+        return callable(getattr(self.registry.get((job.request.link.service,job.request.link.kind)),'planned_title',None))
+
+    @property
+    def naming(self): return self._naming is not None
+
+    def request_title(self,job,callback):
+        """One background name lookup at a time, beside (not instead of) the download slot."""
+        if self._closing or self._naming is not None or not self.can_name(job): return False
+        worker=_TitleWorker(job,self.registry[(job.request.link.service,job.request.link.kind)],self.auth,self)
+        self._naming=(worker,callback)
+        worker.finished.connect(self._title_finished,Qt.ConnectionType.QueuedConnection)
+        worker.start(); return True
+
+    @Slot()
+    def _title_finished(self): self._finish_title(self.sender())
+
+    def _finish_title(self,worker):
+        if self._naming is None or self._naming[0] is not worker: return
+        _,callback=self._naming; self._naming=None; worker.wait()
+        if not self._closing:
+            try: callback(worker.job.id,worker.title)
+            except Exception: self.error.emit('queue_update_failed')
+        worker.deleteLater(); self._try_close()
+
     def request_probe(self,request,request_id,callback):
         if self._closing: return
         self.cancel_probes()
@@ -152,11 +191,12 @@ class ThreadExecutor(QObject):
     def shutdown(self):
         self._closing=True
         self.cancel_probes()
+        if self._naming: self._naming[0].cancel.cancel('shutdown')
         for worker,_ in tuple(self._workers.values()): worker.cancel.cancel('shutdown')
         self._try_close()
 
     def _try_close(self):
-        if self._closing and self.is_idle and not self._closed:
+        if self._closing and self.is_idle and self._naming is None and not self._closed:
             try: self._cleanup()
             except Exception: self.error.emit('worker_cleanup_failed')
             self._closed=True
@@ -165,8 +205,9 @@ class ThreadExecutor(QObject):
     def drain(self):
         """After QApplication.exec exits: reap workers, never destroy a live QThread."""
         self.shutdown()
-        while not self.is_idle:
+        while not self.is_idle or self._naming is not None:
             QCoreApplication.processEvents()
+            if self._naming and self._naming[0].wait(25): self._finish_title(self._naming[0])
             for worker,_ in tuple(self._workers.values()):
                 if worker.wait(25): self._finish_worker(worker)
             if self._probe and self._probe[0].wait(25): self._finish_probe(self._probe[0])

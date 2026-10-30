@@ -244,7 +244,7 @@ class GetCourseProvider:
                     return DownloadResult(())
                 for offset in range(0,len(items),25):
                     context.cancel.raise_if_cancelled()
-                    context.emit(RequestsDiscovered(tuple(replace(request,selection=(item.id,)) for item in items[offset:offset+25])))
+                    context.emit(RequestsDiscovered(tuple(replace(request,selection=(item.id,),label=item.title[:1000]) for item in items[offset:offset+25])))
                 context.cancel.raise_if_cancelled()
                 return DownloadResult((),len(items))
             item = self._resolve(ydl,items[0],context)

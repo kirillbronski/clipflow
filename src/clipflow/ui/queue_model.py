@@ -26,8 +26,9 @@ class JobListModel(QAbstractListModel):
     def data(self,index,role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0<=index.row()<len(self.jobs): return None
         job=self.jobs[index.row()]
-        title=self._titles.get(job.id) or (job.result_files[0].stem if job.result_files else
-              '@'+job.request.link.canonical_id if job.request.link.kind.value=='profile' else self.translator.text('new_download'))
+        profile='@'+job.request.link.canonical_id if job.request.link.kind.value=='profile' else None
+        title=(self._titles.get(job.id) or (job.result_files[0].stem if job.result_files else None)
+               or job.title or job.request.label or profile or self.translator.text('new_download'))
         return {int(Qt.ItemDataRole.DisplayRole):title,self.TitleRole:title,self.JobIdRole:job.id,
                 self.StateRole:job.state.value,self.ProgressRole:self._progress.get(job.id),
                 self.FilesRole:job.result_files,self.SourceRole:job.request.link.service.value,

@@ -107,6 +107,7 @@ def test_selection_required_and_selected_ids(tmp_path,school):
     children=[r for e in events if isinstance(e,RequestsDiscovered) for r in e.requests]
     assert result.discovered_count==2 and result.files==()
     assert [r.selection for r in children]==[('first',),('second',)]
+    assert all(r.label for r in children) and children[0].label!=children[1].label
     assert all(r.link==parse_url(LESSON) for r in children)
 
 

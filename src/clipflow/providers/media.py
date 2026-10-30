@@ -38,7 +38,6 @@ class MediaPipeline:
     def save(self, item: MediaItem, request: DownloadRequest,
              context: ExecutionContext) -> tuple[Path, ...]:
         context.cancel.raise_if_cancelled()
-        context.emit(TitleChanged(item.title))
         try:
             post = None
             if request.link.service == Service.INSTAGRAM:
@@ -52,6 +51,9 @@ class MediaPipeline:
             tag = 'clipflow:'+media_identity(request, item) if request.link.service == Service.YOUTUBE else None
             work = target.with_name(target.stem+'.'+tag[9:]) if tag else target
             existing = self._tagged(target, tag, context) if tag else (target if target.exists() else None)
+            # YouTube rows show the file name they will get; other services keep their media title.
+            planned = (existing or target).stem if tag else item.title
+            context.emit(TitleChanged(planned))
             if existing is not None:
                 target = existing
                 self._verify(target, item, request, context)
@@ -79,6 +81,8 @@ class MediaPipeline:
                         context.emit(StageChanged(JobState.PROCESSING))
                         target = self._convert(source, target, request, context, work, tag)
                         self._verify(target, item, request, context)
+                        if tag and target.stem != planned:
+                            context.emit(TitleChanged(target.stem))  # a name collision added " (n)"
                         source.unlink(missing_ok=True)
                         Path(str(source)+'.ytdl').unlink(missing_ok=True)
             context.cancel.raise_if_cancelled()
