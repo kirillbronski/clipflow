@@ -1,12 +1,13 @@
 from dataclasses import replace
 
 import pytest
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QBoxLayout, QMessageBox
 
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
 from clipflow.domain.urls import parse_url
+from clipflow.ui.queue_model import JobListModel
 
 
 def completed(window, tmp_path, identity='done', files=None):
@@ -458,3 +459,89 @@ def test_clear_all_reads_the_queue_a_fixed_number_of_times(make_window, tmp_path
     window.presenter.clear_all(delete_files=True)
     assert repository.list() == ()
     assert len(reads) <= 7
+
+
+def batch_dialogs(window):
+    from clipflow.ui.batch_dialog import BatchDialog
+
+    return [d for d in window._dialogs if isinstance(d, BatchDialog)]
+
+
+def test_asking_for_batch_again_keeps_the_one_open_dialog(make_window, qtbot):
+    from tests.support.workbench import batch
+
+    window, _ = make_window()
+    first = batch(window, qtbot)
+    window.batch_button.click()
+    assert batch_dialogs(window) == [first]
+    first.reject()
+
+
+def test_batch_is_not_opened_without_a_valid_folder(make_window):
+    window, _ = make_window()
+    window.folder_input.setText('   ')
+    window.batch_button.click()
+    assert batch_dialogs(window) == []
+    assert window.error_label.toolTip() == 'invalid_folder'
+
+
+def test_batch_of_only_queued_links_says_so_and_closes(make_window, qtbot):
+    from tests.support.workbench import add, batch
+
+    window, _ = make_window()
+    add(window, qtbot, 'https://youtu.be/ABC')
+    dialog = batch(window, qtbot)
+    dialog.text_input.setPlainText('https://youtu.be/ABC')
+    qtbot.mouseClick(dialog.accept_button, Qt.MouseButton.LeftButton)
+    assert window.error_label.toolTip() == 'already_queued'
+    assert not dialog.isVisible()
+    assert window.presenter.model.rowCount() == 1
+
+
+def test_menu_below_the_rows_opens_nothing(make_window, tmp_path):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QMenu
+
+    window, _ = make_window()
+    completed(window, tmp_path)
+    before = len(window.findChildren(QMenu))
+    window._history_menu(QPoint(5, window.queue_view.viewport().height() - 2))
+    assert len(window.findChildren(QMenu)) == before
+
+
+def test_menu_on_an_unselected_row_acts_on_that_row(make_window, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMenu
+
+    window, _ = make_window()
+    completed(window, tmp_path, 'first')
+    completed(window, tmp_path, 'second')
+    window.queue_view.setCurrentIndex(window.proxy.index(0, 0))
+    other = window.proxy.index(1, 0)
+    target = other.data(JobListModel.JobIdRole)
+    opened = []
+    monkeypatch.setattr(window.presenter, 'open_result', opened.append)
+    window._history_menu(window.queue_view.visualRect(other).center())
+    menu = window.findChildren(QMenu)[-1]
+    menu.actions()[0].trigger()
+    menu.close()
+    assert opened == [target]
+
+
+def test_clearing_an_empty_list_asks_nothing(make_window):
+    window, _ = make_window()
+    window._confirm_clear_all()
+    assert window._dialogs == []
+
+
+def test_deleting_jobs_without_files_asks_nothing(make_window, tmp_path):
+    window, _ = make_window()
+    job, _ = completed(window, tmp_path, files=())
+    window._confirm_delete((job.id,))
+    assert window._dialogs == []
+
+
+def test_choice_lost_after_restart_asks_to_refresh_it(make_window):
+    window, _ = make_window()
+    window._select_dialog('job-1', None)
+    assert window._dialogs == []
+    assert window.error_label.toolTip() == 'selection_refresh_required'
