@@ -53,6 +53,8 @@ def test_delete_requires_confirmation_and_containment(make_window, tmp_path):
     window.presenter.repository.update(job)
     window.presenter.delete_files((job.id,), True)
     assert not target.exists()
+    assert not (tmp_path / 'downloads' / 'author').exists()
+    assert (tmp_path / 'downloads').is_dir()
     assert outside.exists()
     assert window.presenter.repository.get(job.id).state == JobState.COMPLETED
 
@@ -332,6 +334,7 @@ def test_clear_all_optional_file_deletion_waits_for_worker(make_window, tmp_path
     assert provider.torn_down.is_set()
     assert window.presenter.executor.is_idle
     assert not target.exists()
+    assert not (tmp_path / 'downloads' / 'author').exists()
 
 
 def test_clear_all_delete_failure_keeps_records_and_does_not_retry(

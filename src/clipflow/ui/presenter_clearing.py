@@ -1,6 +1,11 @@
 """Removing jobs from the list and, only on confirmation, their recorded files."""
 
-from clipflow.application.history import HistoryError, deletion_paths, removable_targets
+from clipflow.application.history import (
+    HistoryError,
+    deletion_paths,
+    prune_empty_folders,
+    removable_targets,
+)
 from clipflow.domain.models import TERMINAL_STATES
 
 
@@ -67,6 +72,7 @@ class ClearingController:
             except HistoryError:
                 self.presenter._reload_jobs()
                 raise
+            prune_empty_folders(selected)
         self._repository.remove(tuple(targets))
         self.presenter._reload_jobs()
 
@@ -77,6 +83,7 @@ class ClearingController:
         paths = deletion_paths(jobs, self._repository.list())
         try:
             self._unlink(paths)
+            prune_empty_folders(jobs)
         finally:
             self.presenter._reload_jobs()
 

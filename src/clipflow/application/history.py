@@ -1,4 +1,4 @@
-"""History file actions: recorded outputs only, never recursive folder deletion."""
+"""History file actions: recorded outputs; folders go once only system junk is left."""
 
 from collections.abc import Iterable
 from pathlib import Path
@@ -51,6 +51,29 @@ def deletion_paths(jobs, all_jobs):
                 raise HistoryError('job_busy')
             paths.append(path)
     return tuple(dict.fromkeys(paths))
+
+
+# Files the OS drops into folders a person has opened; they never hold anything of theirs.
+_SYSTEM_JUNK = frozenset({'.DS_Store', 'Thumbs.db', 'desktop.ini'})
+
+
+def prune_empty_folders(jobs):
+    """After deleting results, remove folders they leave empty, up to but not including the root."""
+    for job in jobs:
+        root = job.request.options.folder
+        for value in job.result_files:
+            folder = Path(value).parent
+            while folder != root and folder.is_relative_to(root):
+                try:
+                    entries = list(folder.iterdir())
+                    if any(entry.name not in _SYSTEM_JUNK for entry in entries):
+                        break
+                    for entry in entries:
+                        entry.unlink()
+                    folder.rmdir()
+                except OSError:
+                    break
+                folder = folder.parent
 
 
 def removable_targets(jobs: Iterable[Job], pending: set[str]) -> set[str]:

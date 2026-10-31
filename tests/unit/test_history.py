@@ -7,6 +7,7 @@ import pytest
 from clipflow.application.history import (
     HistoryError,
     deletion_paths,
+    prune_empty_folders,
     removable_targets,
     result_status,
 )
@@ -82,3 +83,43 @@ def test_deletion_lists_each_recorded_file_once(tmp_path):
     first = job('a', folder=tmp_path, files=(media,))
     second = job('b', folder=tmp_path, files=(media,))
     assert deletion_paths((first, second), (first, second)) == (media,)
+
+
+def test_emptied_folders_go_up_to_but_not_including_the_root(tmp_path):
+    root = tmp_path / 'downloads'
+    post = root / 'Instagram' / 'author' / 'post'
+    post.mkdir(parents=True)
+    media = post / '01.jpg'
+    prune_empty_folders((job('a', folder=root, files=(media,)),))
+    assert root.is_dir()
+    assert list(root.iterdir()) == []
+
+
+def test_a_folder_with_anything_else_stays(tmp_path):
+    root = tmp_path / 'downloads'
+    post = root / 'Instagram' / 'author' / 'post'
+    other = root / 'Instagram' / 'author' / 'other post'
+    post.mkdir(parents=True)
+    other.mkdir()
+    (other / '01.jpg').write_bytes(b'keep')
+    prune_empty_folders((job('a', folder=root, files=(post / '01.jpg',)),))
+    assert not post.exists()
+    assert (other / '01.jpg').read_bytes() == b'keep'
+
+
+def test_folder_left_with_only_system_junk_goes(tmp_path):
+    root = tmp_path / 'downloads'
+    post = root / 'author' / 'post'
+    post.mkdir(parents=True)
+    for name in ('.DS_Store', 'Thumbs.db', 'desktop.ini'):
+        (post / name).write_bytes(b'junk')
+    (root / 'author' / '.DS_Store').write_bytes(b'junk')
+    prune_empty_folders((job('a', folder=root, files=(post / '01.jpg',)),))
+    assert list(root.iterdir()) == []
+
+
+def test_files_saved_straight_into_the_root_leave_it_alone(tmp_path):
+    root = tmp_path / 'downloads'
+    root.mkdir()
+    prune_empty_folders((job('a', folder=root, files=(root / 'a.mp4',)),))
+    assert root.is_dir()
