@@ -1,3 +1,4 @@
+import time
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 
@@ -198,3 +199,88 @@ def test_manual_cooldown_does_not_auto_resume():
     worker.emit(WorkStopped())
     scheduler.tick()
     assert repo.get('ig').state == JobState.PAUSED
+
+
+def test_unknown_request_kind_is_a_programming_error(tmp_path):
+    gate, _, token = policy(tmp_path)
+    with pytest.raises(ValueError, match='Unknown request category'):
+        gate.acquire('video', token)
+
+
+def test_slot_more_than_a_minute_away_defers_instead_of_waiting(tmp_path):
+    gate, clock, token = policy(tmp_path)
+    for _ in range(7):  # other instances already booked the next minute of pages
+        gate.store.reserve('page', clock.now, 10)
+    with pytest.raises(InstagramDeferred) as deferred:
+        gate.acquire('page', token)
+    assert deferred.value.decision.reason == 'rate_spacing'
+    assert clock.waits == []
+
+
+def test_429_from_another_instance_during_the_wait_defers_this_request(tmp_path):
+    gate, clock, token = policy(tmp_path)
+    other = InstagramRatePolicy(RateLimitStore(gate.store.path), clock=clock, random=lambda: 0)
+
+    def wait_while_other_is_limited(cancel, seconds):
+        clock.wait(cancel, seconds)
+        other.record_429('120')
+
+    gate.wait = wait_while_other_is_limited
+    gate.acquire('metadata', token)
+    with pytest.raises(InstagramDeferred) as deferred:
+        gate.acquire('metadata', token)
+    assert deferred.value.decision.reason == 'rate_limit'
+
+
+def test_completed_post_after_the_cooldown_forgives_earlier_429s(tmp_path):
+    gate, clock, _ = policy(tmp_path)
+    gate.record_429('')
+    gate.record_completed_post()
+    assert gate.store.load().strikes == 1
+    clock.now += timedelta(hours=1)
+    gate.record_completed_post()
+    assert gate.store.load().strikes == 0
+
+
+def test_lease_held_elsewhere_for_a_minute_defers_the_request(tmp_path):
+    gate, clock, token = policy(tmp_path)
+    start = clock.now
+    gate.monotonic = lambda: (clock.now - start).total_seconds()
+    gate.store.claim('other-window', clock.now)
+    with pytest.raises(InstagramDeferred) as deferred, gate.request('page', token):
+        pass
+    assert deferred.value.decision.reason == 'rate_spacing'
+    assert deferred.value.decision.next_allowed_at >= start + timedelta(seconds=90)
+    assert sum(clock.waits) > 60
+
+
+@pytest.mark.parametrize('renewal', ['taken', 'broken'])
+def test_losing_the_lease_mid_download_pauses_it(tmp_path, monkeypatch, renewal):
+    import threading
+
+    class Brisk(threading.Event):
+        """The lease is renewed every few milliseconds instead of every 20 seconds."""
+
+        def wait(self, timeout=None):
+            return super().wait(None if timeout is None else min(timeout, 0.005))
+
+    monkeypatch.setattr(threading, 'Event', Brisk)
+    gate, _, token = policy(tmp_path)
+    claims = []
+    original = gate.store.claim
+
+    def claim(owner, now):
+        claims.append(owner)
+        if len(claims) == 1:
+            return original(owner, now)
+        if renewal == 'broken':
+            raise OSError('database is locked')
+        return False
+
+    gate.store.claim = claim
+    with gate.request('cdn', token) as check:
+        deadline = time.monotonic() + 5
+        while len(claims) < 2 and time.monotonic() < deadline:
+            time.sleep(0.005)
+        with pytest.raises(WorkCancelled, match='pause'):
+            check()
