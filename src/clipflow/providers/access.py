@@ -11,6 +11,8 @@ from types import SimpleNamespace
 from yt_dlp import YoutubeDL
 from yt_dlp.networking.common import Response
 
+from clipflow.providers.processes import run_process
+
 
 class SessionAuth:
     """An in-memory metadata session handed to transfers, never a saved profile."""
@@ -116,8 +118,8 @@ class _CancellableDownloader(YoutubeDL):
         finally:
             super().close()
 
-    def run_pp(self, pp, info):  # noqa: C901  # подпроект 3
-        # yt-dlp's internal merger/fixup bypasses MediaPipeline._convert.
+    def run_pp(self, pp, info):
+        # yt-dlp's internal merger/fixup bypasses MediaTools.convert.
         # Adapt only this processor instance; never patch global Popen/yt-dlp.
         from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
 
@@ -126,29 +128,12 @@ class _CancellableDownloader(YoutubeDL):
         original = pp.real_run_ffmpeg
 
         def run(inputs, outputs, *, expected_retcodes=(0,)):
-            from clipflow.providers.media import MediaPipeline
-
             self.cancel.raise_if_cancelled()
             pp.check_version()
             inputs = tuple(inputs)
             outputs = tuple(outputs)
-            args = [pp.executable, '-nostdin', '-y', '-loglevel', 'error']
-            for kind, paths in (('i', inputs), ('o', outputs)):
-                for number, (path, options) in enumerate(paths, 1):
-                    if not path:
-                        continue
-                    keys = [f'_{kind}{number}', f'_{kind}']
-                    if kind == 'o' and number == 1:
-                        keys.append('')
-                    args.extend(options)
-                    if kind == 'o':
-                        args.extend(['-movflags', '+faststart'])
-                    args.extend(pp._configuration_args(pp.basename, keys))
-                    if kind == 'i':
-                        args.append('-i')
-                    args.append(pp._ffmpeg_filename_argument(path))
-            result = MediaPipeline._run(
-                args,
+            result = run_process(
+                _ffmpeg_arguments(pp, inputs, outputs),
                 SimpleNamespace(cancel=self.cancel),
                 capture_error=True,
                 expected_retcodes=expected_retcodes,
@@ -164,6 +149,26 @@ class _CancellableDownloader(YoutubeDL):
             return super().run_pp(pp, info)
         finally:
             pp.real_run_ffmpeg = original
+
+
+def _ffmpeg_arguments(pp, inputs, outputs):
+    """The command yt-dlp would run, with fast-start outputs and no interactive input."""
+    args = [pp.executable, '-nostdin', '-y', '-loglevel', 'error']
+    for kind, paths in (('i', inputs), ('o', outputs)):
+        for number, (path, options) in enumerate(paths, 1):
+            if not path:
+                continue
+            keys = [f'_{kind}{number}', f'_{kind}']
+            if kind == 'o' and number == 1:
+                keys.append('')
+            args.extend(options)
+            if kind == 'o':
+                args.extend(['-movflags', '+faststart'])
+            args.extend(pp._configuration_args(pp.basename, keys))
+            if kind == 'i':
+                args.append('-i')
+            args.append(pp._ffmpeg_filename_argument(path))
+    return args
 
 
 @contextmanager
