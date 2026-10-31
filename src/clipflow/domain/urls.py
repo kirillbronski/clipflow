@@ -14,108 +14,126 @@ class InvalidLink(ValueError):
     """A user-supplied link is not a supported content URL."""
 
 
-def parse_url(text: str) -> ParsedLink:  # noqa: C901  # подпроект 3
-    try:
-        parsed = urlparse(text.strip())
-        host = (parsed.hostname or '').lower()
-        if (
-            parsed.scheme not in ('https', 'http')
-            or parsed.username
-            or parsed.password
-            or parsed.port not in (None, 80, 443)
-        ):
-            raise InvalidLink('Unsupported or credential-bearing URL')
-        path = unquote(parsed.path)
-        if any(part in ('.', '..') for part in path.split('/')):
-            raise InvalidLink('Invalid URL path')
-        query = parse_qs(parsed.query)
-        if host == 'youtu.be' or host == 'youtube.com' or host.endswith('.youtube.com'):
-            kind = ContentKind.VIDEO
-            if host == 'youtu.be':
-                identity = path.strip('/')
-            elif path.rstrip('/') == '/watch':
-                identity = query.get('v', [''])[0]
-            elif re.fullmatch(r'/(?:shorts|live|embed)/[A-Za-z0-9_-]+/?', path):
-                identity = path.strip('/').split('/')[1]
-            elif path.rstrip('/') == '/playlist':
-                identity = query.get('list', [''])[0]
-                kind = ContentKind.PLAYLIST
-            else:
-                raise InvalidLink('Expected a YouTube video or playlist')
-            if not re.fullmatch(r'[A-Za-z0-9_-]+', identity):
-                raise InvalidLink('Missing content ID')
-            key = 'list' if kind == ContentKind.PLAYLIST else 'v'
-            route = 'playlist' if kind == ContentKind.PLAYLIST else 'watch'
-            origin = 'music.youtube.com' if host == 'music.youtube.com' else 'www.youtube.com'
-            return ParsedLink(
-                Service.YOUTUBE, kind, identity, f'https://{origin}/{route}?{key}={identity}'
-            )
-        if host == 'instagram.com' or host.endswith('.instagram.com'):
-            match = re.fullmatch(r'/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)/?', path)
-            if match:
-                identity = match.group(1)
-                return ParsedLink(
-                    Service.INSTAGRAM,
-                    ContentKind.POST,
-                    identity,
-                    f'https://www.instagram.com/p/{identity}/',
-                )
-            name = path.strip('/')
-            reserved = {
-                'p',
-                'reel',
-                'reels',
-                'tv',
-                'stories',
-                'accounts',
-                'explore',
-                'direct',
-                'about',
-                'legal',
-                'developer',
-            }
-            if (
-                re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.]{0,29}', name)
-                and name.lower() not in reserved
-            ):
-                name = name.lower()
-                return ParsedLink(
-                    Service.INSTAGRAM,
-                    ContentKind.PROFILE,
-                    name,
-                    f'https://www.instagram.com/{name}/',
-                )
-            raise InvalidLink('Expected an Instagram post or profile')
-        regional_player = (
-            re.fullmatch(r'[a-z0-9-]+\.(?:vhcdn|gceuproxy)\.com', host)
-            and path.rstrip('/') == '/sign-player'
-            and query.get('json', [''])[0]
+_INSTAGRAM_RESERVED = {
+    'p',
+    'reel',
+    'reels',
+    'tv',
+    'stories',
+    'accounts',
+    'explore',
+    'direct',
+    'about',
+    'legal',
+    'developer',
+}
+
+
+def _youtube(host: str, path: str, query: dict) -> ParsedLink:
+    kind = ContentKind.VIDEO
+    if host == 'youtu.be':
+        identity = path.strip('/')
+    elif path.rstrip('/') == '/watch':
+        identity = query.get('v', [''])[0]
+    elif re.fullmatch(r'/(?:shorts|live|embed)/[A-Za-z0-9_-]+/?', path):
+        identity = path.strip('/').split('/')[1]
+    elif path.rstrip('/') == '/playlist':
+        identity = query.get('list', [''])[0]
+        kind = ContentKind.PLAYLIST
+    else:
+        raise InvalidLink('Expected a YouTube video or playlist')
+    if not re.fullmatch(r'[A-Za-z0-9_-]+', identity):
+        raise InvalidLink('Missing content ID')
+    key = 'list' if kind == ContentKind.PLAYLIST else 'v'
+    route = 'playlist' if kind == ContentKind.PLAYLIST else 'watch'
+    origin = 'music.youtube.com' if host == 'music.youtube.com' else 'www.youtube.com'
+    return ParsedLink(Service.YOUTUBE, kind, identity, f'https://{origin}/{route}?{key}={identity}')
+
+
+def _instagram(path: str) -> ParsedLink:
+    match = re.fullmatch(r'/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)/?', path)
+    if match:
+        identity = match.group(1)
+        return ParsedLink(
+            Service.INSTAGRAM,
+            ContentKind.POST,
+            identity,
+            f'https://www.instagram.com/p/{identity}/',
         )
-        if (
-            regional_player
-            or host == 'getcourse.ru'
-            or host.endswith(('.getcourse.ru', '.getcourse.io'))
-        ):
-            if not path or path == '/':
-                raise InvalidLink('Expected a GetCourse lesson or player')
-            parameters = sorted(
-                (key, value)
-                for key, value in parse_qsl(parsed.query, keep_blank_values=True)
-                if not key.lower().startswith('utm_') and key.lower() not in {'fbclid', 'gclid'}
-            )
-            suffix = '?' + urlencode(parameters) if parameters else ''
-            kind = (
-                ContentKind.PLAYER
-                if '/sign-player' in path or '/player/' in path
-                else ContentKind.LESSON
-            )
-            identity = host + path + suffix
-            return ParsedLink(Service.GETCOURSE, kind, identity, 'https://' + identity)
+    name = path.strip('/')
+    if (
+        re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.]{0,29}', name)
+        and name.lower() not in _INSTAGRAM_RESERVED
+    ):
+        name = name.lower()
+        return ParsedLink(
+            Service.INSTAGRAM, ContentKind.PROFILE, name, f'https://www.instagram.com/{name}/'
+        )
+    raise InvalidLink('Expected an Instagram post or profile')
+
+
+def _is_getcourse(host: str, path: str, query: dict) -> bool:
+    regional_player = (
+        re.fullmatch(r'[a-z0-9-]+\.(?:vhcdn|gceuproxy)\.com', host)
+        and path.rstrip('/') == '/sign-player'
+        and query.get('json', [''])[0]
+    )
+    return bool(
+        regional_player
+        or host == 'getcourse.ru'
+        or host.endswith(('.getcourse.ru', '.getcourse.io'))
+    )
+
+
+def _getcourse(host: str, path: str, raw_query: str) -> ParsedLink:
+    if not path or path == '/':
+        raise InvalidLink('Expected a GetCourse lesson or player')
+    parameters = sorted(
+        (key, value)
+        for key, value in parse_qsl(raw_query, keep_blank_values=True)
+        if not key.lower().startswith('utm_') and key.lower() not in {'fbclid', 'gclid'}
+    )
+    suffix = '?' + urlencode(parameters) if parameters else ''
+    kind = (
+        ContentKind.PLAYER if '/sign-player' in path or '/player/' in path else ContentKind.LESSON
+    )
+    identity = host + path + suffix
+    return ParsedLink(Service.GETCOURSE, kind, identity, 'https://' + identity)
+
+
+def _route(text: str) -> ParsedLink | None:
+    parsed = urlparse(text.strip())
+    host = (parsed.hostname or '').lower()
+    if (
+        parsed.scheme not in ('https', 'http')
+        or parsed.username
+        or parsed.password
+        or parsed.port not in (None, 80, 443)
+    ):
+        raise InvalidLink('Unsupported or credential-bearing URL')
+    path = unquote(parsed.path)
+    if any(part in ('.', '..') for part in path.split('/')):
+        raise InvalidLink('Invalid URL path')
+    query = parse_qs(parsed.query)
+    if host == 'youtu.be' or host == 'youtube.com' or host.endswith('.youtube.com'):
+        return _youtube(host, path, query)
+    if host == 'instagram.com' or host.endswith('.instagram.com'):
+        return _instagram(path)
+    if _is_getcourse(host, path, query):
+        return _getcourse(host, path, parsed.query)
+    return None
+
+
+def parse_url(text: str) -> ParsedLink:
+    try:
+        link = _route(text)
     except (ValueError, AttributeError, TypeError) as error:
         if isinstance(error, InvalidLink):
             raise
         raise InvalidLink('Invalid URL') from error
-    raise InvalidLink('Unsupported service')
+    if link is None:
+        raise InvalidLink('Unsupported service')
+    return link
 
 
 def source_reference(link: ParsedLink) -> str:
