@@ -56,3 +56,13 @@ def violations():
 
 def test_layer_dependencies():
     assert violations() == []
+
+
+def test_no_pending_markers():
+    marked = [
+        f'{path.relative_to(SOURCE)}:{number}'
+        for path in sorted((SOURCE / 'clipflow').rglob('*.py'))
+        for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1)
+        if '# подпроект 3' in line
+    ]
+    assert marked == []

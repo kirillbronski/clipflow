@@ -441,3 +441,30 @@ def test_parent_close_during_auth_startup_is_not_lost(tmp_path, monkeypatch):
         assert gateway.is_closed and handle.process.returncode == 0 and not handle._terminated
     finally:
         gateway.drain()
+
+
+LESSON = 'https://school.getcourse.ru/pl/teach/control/lesson/view?id=123'
+
+
+@pytest.mark.parametrize('failure', [OSError('auth_protection_failed'), ValueError('bad json')])
+def test_getcourse_storage_failure_is_reported_as_storage(tmp_path, monkeypatch, failure):
+    gateway = NativeAuthGateway(tmp_path)
+
+    def broken(data, decrypt=False):
+        raise failure
+
+    monkeypatch.setattr(gateway.platform, 'protect', broken)
+    with pytest.raises(MediaFailure) as raised:
+        gateway.configure_getcourse(LESSON, 'email', email='a@b', password='p')
+    assert raised.value.code == 'auth_storage_failed'
+
+
+def test_getcourse_storage_bug_is_not_disguised_as_storage(tmp_path, monkeypatch):
+    gateway = NativeAuthGateway(tmp_path)
+
+    def buggy(data, decrypt=False):
+        raise RuntimeError('programming error')
+
+    monkeypatch.setattr(gateway.platform, 'protect', buggy)
+    with pytest.raises(RuntimeError):
+        gateway.configure_getcourse(LESSON, 'email', email='a@b', password='p')

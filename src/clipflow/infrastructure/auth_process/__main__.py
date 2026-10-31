@@ -173,7 +173,7 @@ def _start_self_test(app, window, launch, platform, theme, report):
                 'domain scope, no Tk; theme=' + theme.mode
             )
             app.exit(0)
-        except Exception as error:  # noqa: BLE001  # подпроект 3
+        except Exception as error:  # noqa: BLE001  # самопроверка окна входа сообщает о любом сбое
             if report:
                 frame = traceback.extract_tb(error.__traceback__)[-1]
                 _write_report(

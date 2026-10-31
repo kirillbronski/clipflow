@@ -122,7 +122,7 @@ class InstagramRatePolicy:
                     if not self.store.claim(owner, self.clock()):
                         lost.set()
                         return
-                except Exception:  # noqa: BLE001  # подпроект 3
+                except Exception:  # noqa: BLE001  # граница потока: любой сбой продления аренды — аренда потеряна
                     lost.set()
                     return
 

@@ -220,7 +220,7 @@ class GetCourseProvider:
                 yield ydl, access
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception as error:  # noqa: BLE001  # подпроект 3
+        except Exception as error:  # noqa: BLE001  # сторонняя библиотека: наружу только безопасный код, без секретов
             context.cancel.raise_if_cancelled()
             raise MediaFailure(_failure_code(error)) from None
 

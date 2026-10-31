@@ -76,7 +76,7 @@ class InstagramProfileProvider:
             return DownloadResult((), count)
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # сторонняя библиотека: наружу только безопасный код, без секретов
             raise MediaFailure('instagram_profile_failed') from None
 
     def _enumerate(self, request, context):
@@ -253,7 +253,7 @@ class InstaloaderPageSource:
             yield from _paged(_post_refs(profile, request, context))
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # сторонняя библиотека: наружу только безопасный код, без секретов
             raise MediaFailure('instagram_profile_failed') from None
 
     def _sign_in(self, request, context):

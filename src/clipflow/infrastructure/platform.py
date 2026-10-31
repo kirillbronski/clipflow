@@ -49,7 +49,7 @@ class PlatformServices:
                     keychain.set_password(service, account, key)
                 cipher = Fernet(key.encode('ascii'))
                 return cipher.decrypt(data) if decrypt else cipher.encrypt(data)
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # keyring и cryptography: наружу только безопасный код, без ключей
             raise OSError('auth_protection_failed') from None
 
     def reveal(self, path: Path):

@@ -144,7 +144,7 @@ class NativeAuthGateway:
             return self._getcourse_options(profile, url, link)
         except MediaFailure:
             raise
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # сторонняя библиотека: наружу только безопасный код, без секретов
             raise MediaFailure('auth_required') from None
 
     @staticmethod
@@ -237,7 +237,7 @@ class NativeAuthGateway:
         }
         try:
             atomic_protected(self._gc_path(profile), payload, self.platform.protect)
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except (OSError, TypeError, ValueError):  # disk, protection (as OSError) or JSON
             raise MediaFailure('auth_storage_failed') from None
         self._selected_gc = profile
         return profile

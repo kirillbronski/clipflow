@@ -155,7 +155,7 @@ def _run(app, window, root, proof, served):
             timer.stop()
             assert jobs[0].state == JobState.COMPLETED
             _accept(app, window, pipeline, context, jobs[0], root, proof)
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # самопроверка сборки сообщает о любом сбое
             timer.stop()
             app.exit(1)
             return
@@ -216,7 +216,7 @@ def main(argv=None):
     served = []
     try:
         proof['passed'] = _run(app, window, root, proof, served)
-    except Exception:  # noqa: BLE001  # подпроект 3
+    except Exception:  # noqa: BLE001  # самопроверка сборки сообщает о любом сбое
         proof['error'] = 'package_ui_self_test_failed'
     finally:
         _finish(window, served, proof, report)

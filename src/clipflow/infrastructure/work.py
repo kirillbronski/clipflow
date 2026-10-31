@@ -39,7 +39,7 @@ def run_probe(request, provider, context) -> tuple[tuple[int, ...], str]:
         return (), 'rate_limit' if hasattr(error, 'decision') else 'probe_cancelled'
     except MediaFailure as error:
         return (), error.code
-    except Exception:  # noqa: BLE001  # подпроект 3
+    except Exception:  # noqa: BLE001  # граница потока: сбой становится кодом, поток не падает
         return (), 'probe_failed'
 
 
@@ -47,7 +47,7 @@ def run_title(request, provider, context) -> str | None:
     try:
         title = provider.planned_title(request, context)
         context.cancel.raise_if_cancelled()
-    except Exception:  # noqa: BLE001  # подпроект 3
+    except Exception:  # noqa: BLE001  # граница потока: названия косметические, ошибки не показываются
         return None  # names are cosmetic: never surface lookup errors
     return title if isinstance(title, str) and title.strip() else None
 
@@ -62,7 +62,7 @@ def run_download(request, provider, context) -> WorkFinished | WorkStopped | Wor
         return WorkStopped()
     except MediaFailure as error:
         return WorkFailed(str(error))
-    except Exception:  # noqa: BLE001  # подпроект 3
+    except Exception:  # noqa: BLE001  # граница потока: сбой становится кодом, поток не падает
         return WorkFailed('worker_failed')
 
 

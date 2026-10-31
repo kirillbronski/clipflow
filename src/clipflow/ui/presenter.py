@@ -71,7 +71,7 @@ class WorkbenchPresenter(QObject):
             return None
         try:
             return action()
-        except Exception as error:  # noqa: BLE001  # подпроект 3
+        except Exception as error:  # noqa: BLE001  # команда интерфейса: любой сбой — код ошибки, окно живо
             self.error_raised.emit(getattr(error, 'code', 'action_failed'))
             return None
 
@@ -372,7 +372,7 @@ class WorkbenchPresenter(QObject):
             self.auth_gateway.close()
         try:
             self.scheduler.shutdown()
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # закрытие: сбой записи очереди — код ошибки, выход продолжается
             self.error_raised.emit('queue_update_failed')
         self.executor.shutdown()
 

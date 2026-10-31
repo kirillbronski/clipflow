@@ -165,7 +165,7 @@ class YouTubeProvider:
             return info if isinstance(info, dict) else None
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # сторонняя библиотека: наружу только безопасный код, без секретов
             context.cancel.raise_if_cancelled()
             raise MediaFailure('probe_failed') from None
 

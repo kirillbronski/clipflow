@@ -120,7 +120,7 @@ class ThreadExecutor(QObject):
         if record:
             try:
                 record[1](event)
-            except Exception:  # noqa: BLE001  # подпроект 3
+            except Exception:  # noqa: BLE001  # колбэк Qt: исключение в слоте не должно ронять цикл событий
                 record[0].cancel.cancel('pause')
                 self.error.emit('queue_update_failed')
 
@@ -136,7 +136,7 @@ class ThreadExecutor(QObject):
         worker.wait()
         try:
             record[1](JobEvent(*key, worker.terminal))
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # колбэк Qt: исключение в слоте не должно ронять цикл событий
             self.error.emit('queue_update_failed')
         worker.deleteLater()
         self._start_probe()
@@ -182,7 +182,7 @@ class ThreadExecutor(QObject):
         if not self._closing:
             try:
                 callback(worker.job.id, worker.title)
-            except Exception:  # noqa: BLE001  # подпроект 3
+            except Exception:  # noqa: BLE001  # колбэк Qt: исключение в слоте не должно ронять цикл событий
                 self.error.emit('queue_update_failed')
         worker.deleteLater()
         self._try_close()
@@ -223,7 +223,7 @@ class ThreadExecutor(QObject):
         if not self._closing:
             try:
                 callback(worker.request_id, worker.heights, worker.error)
-            except Exception:  # noqa: BLE001  # подпроект 3
+            except Exception:  # noqa: BLE001  # колбэк Qt: исключение в слоте не должно ронять цикл событий
                 self.error.emit('probe_failed')
         worker.deleteLater()
         self._start_probe()
@@ -244,7 +244,7 @@ class ThreadExecutor(QObject):
         if self._closing and self.is_idle and self._naming is None and not self._closed:
             try:
                 self._cleanup()
-            except Exception:  # noqa: BLE001  # подпроект 3
+            except Exception:  # noqa: BLE001  # колбэк Qt: исключение в слоте не должно ронять цикл событий
                 self.error.emit('worker_cleanup_failed')
             self._closed = True
             self.closed.emit()

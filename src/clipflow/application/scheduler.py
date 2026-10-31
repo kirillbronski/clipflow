@@ -131,7 +131,7 @@ class Scheduler:
                 self._launched = True
                 try:
                     self.executor.start(job, self.handle)
-                except Exception:  # noqa: BLE001  # подпроект 3
+                except Exception:  # noqa: BLE001  # адаптер исполнителя: наружу только безопасный код, без секретов
                     # Do not leak arbitrary adapter exceptions (may contain secrets).
                     self.handle(JobEvent(job.id, job.attempt_id, WorkFailed('worker_start_failed')))
         finally:

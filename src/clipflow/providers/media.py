@@ -69,7 +69,7 @@ class MediaPipeline:
         except OSError:
             context.cancel.raise_if_cancelled()
             raise MediaFailure('write_failed') from None
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # сторонняя библиотека: наружу только безопасный код, без секретов
             context.cancel.raise_if_cancelled()
             raise MediaFailure('download_failed') from None
 

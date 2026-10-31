@@ -250,7 +250,7 @@ class AuthWindow(QMainWindow):
             return False
         try:
             return self.session.save(self.session_cookies())
-        except Exception:  # noqa: BLE001  # подпроект 3
+        except Exception:  # noqa: BLE001  # колбэк Qt: исключение в слоте не должно ронять цикл событий
             self.status.setText(self.tr.text('error.auth_storage_failed'))
             return False
 
