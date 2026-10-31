@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 from clipflow.application.history import result_status
 from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.ui.i18n import Translator
-from clipflow.ui.job_status import error_text, meta_text
+from clipflow.ui.job_status import error_text, group_text, meta_text
 from clipflow.ui.queue_model import JobListModel
 from clipflow.ui.themes import PALETTES
 
@@ -35,9 +35,25 @@ class QueueDelegate(QStyledItemDelegate):
             rect.right() - 40, rect.top() + 26, 30, 30
         )
 
+    @staticmethod
+    def _group_buttons(rect):
+        """Folder, menu and «›» (open the group) at the right of a group row."""
+        return tuple(QRect(rect.right() - x, rect.top() + 26, 30, 30) for x in (116, 78, 40))
+
+    def _group_line(self, index, summary):
+        source = index.model()
+        while hasattr(source, 'sourceModel'):
+            source = source.sourceModel()
+        title, percent = source.current_label(summary.current) if summary.current else (None, None)
+        return group_text(summary, self.tr, title, percent)
+
     def paint(self, painter, option, index):
         job = index.data(JobListModel.JobRole)
         if job is None:
+            return
+        summary = index.data(JobListModel.GroupRole)
+        if summary is not None:
+            self._paint_group(painter, option, index, job, summary)
             return
         t = self.theme.tokens() if self.theme else PALETTES['dark']
         painter.save()
@@ -94,6 +110,50 @@ class QueueDelegate(QStyledItemDelegate):
                 painter, QRect(left, rect.top() + 71, 0, 3), rect, job, t, progress
             )
         self._paint_buttons(painter, rect, job, muted)
+        painter.restore()
+
+    def _paint_group(self, painter, option, index, job, summary):
+        t = self.theme.tokens() if self.theme else PALETTES['dark']
+        painter.save()
+        rect = option.rect.adjusted(0, 0, -2, 0)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        if selected:
+            painter.fillRect(rect, QColor(t['selection']))
+        foreground = t['selection_text'] if selected else t['text']
+        muted = t['selection_text'] if selected else t['muted']
+        painter.setPen(QColor(t['border']))
+        painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+        font = QFont(option.font)
+        self._paint_badge(painter, font, rect, job, t)
+        left = rect.left() + 60
+        available = max(50, rect.width() - 190)
+        font.setPixelSize(13)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QColor(foreground))
+        painter.drawText(
+            QRect(left, rect.top() + 16, available, 23),
+            Qt.AlignmentFlag.AlignVCenter,
+            painter.fontMetrics().elidedText(
+                index.data(JobListModel.TitleRole), Qt.TextElideMode.ElideRight, available
+            ),
+        )
+        font.setPixelSize(11)
+        font.setBold(False)
+        painter.setFont(font)
+        failing = (summary.failed and not summary.active) or (
+            not summary.total and job.state == JobState.FAILED
+        )
+        painter.setPen(QColor(t['error'] if failing and not selected else muted))
+        line = self._group_line(index, summary) or self.second_line(job)
+        painter.drawText(
+            QRect(left, rect.top() + 39, available, 19),
+            Qt.AlignmentFlag.AlignVCenter,
+            painter.fontMetrics().elidedText(line, Qt.TextElideMode.ElideRight, available),
+        )
+        painter.setPen(QPen(QColor(muted), 1.5))
+        for button, glyph in zip(self._group_buttons(rect), ('▭', '⋮', '›'), strict=True):
+            painter.drawText(button, Qt.AlignmentFlag.AlignCenter, glyph)
         painter.restore()
 
     @staticmethod
@@ -173,6 +233,15 @@ class QueueDelegate(QStyledItemDelegate):
             event.type() == QEvent.Type.MouseButtonRelease
             and event.button() == Qt.MouseButton.LeftButton
         ):
+            point = event.position().toPoint()
+            if index.data(JobListModel.GroupRole) is not None:
+                buttons = self._group_buttons(option.rect.adjusted(0, 0, -2, 0))
+                actions = ('group_folder', 'group_menu', 'open_group')
+                for button, action in zip(buttons, actions, strict=True):
+                    if button.contains(point):
+                        self.action_requested.emit(index.data(JobListModel.JobIdRole), action)
+                        return True
+                return super().editorEvent(event, model, option, index)
             primary, secondary = self._buttons(option.rect.adjusted(0, 0, -2, 0))
             if primary.contains(event.position().toPoint()):
                 self.action_requested.emit(index.data(JobListModel.JobIdRole), 'toggle')

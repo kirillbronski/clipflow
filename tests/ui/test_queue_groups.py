@@ -1,10 +1,16 @@
 """Playlists and profiles as one row: model, filter, row painting and the group screen."""
 
+from dataclasses import replace
 from pathlib import Path
+
+from PySide6.QtCore import Qt
 
 from clipflow.domain.events import ProgressChanged
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
 from clipflow.domain.urls import parse_url
+from clipflow.ui.i18n import Translator
+from clipflow.ui.job_status import group_text
+from clipflow.ui.queue_delegate import QueueDelegate
 from clipflow.ui.queue_model import JobListModel, QueueFilter
 
 PLAYLIST = 'https://www.youtube.com/playlist?list=PLgroup'
@@ -108,3 +114,63 @@ def test_history_shows_a_group_with_finished_members(qapp):
     proxy = QueueFilter(JobListModel(big_playlist(done=1, failed=0, queued=3)))
     proxy.show_source(history=True)
     assert [proxy.index(0, 0).data(JobListModel.JobIdRole)] == ['p']
+
+
+PROFILE = 'https://www.instagram.com/someone/'
+
+
+def summary(parent_state=JobState.COMPLETED, url=PLAYLIST, **counts):
+    from clipflow.application.groups import GroupSummary
+
+    values = dict(total=76, completed=40, failed=0, active=0, size_bytes=0, current=None)
+    values.update(counts)
+    parent = replace(job('p', url=url, state=parent_state), error='youtube_unavailable')
+    return GroupSummary(parent=parent, **values)
+
+
+def test_group_text_variants(qapp):
+    tr = Translator('ru')
+    gb = int(4.3 * 1024**3)
+    assert group_text(summary(size_bytes=gb), tr) == '76 видео  ·  скачано 40  ·  4,3 ГБ'
+    assert group_text(summary(completed=70, failed=6, size_bytes=5 * 1024**2), tr) == (
+        '76 видео  ·  скачано 70  ·  6 с ошибкой  ·  5,0 МБ'
+    )
+    working = summary(active=36, current=job('c1', 'p', JobState.DOWNLOADING))
+    assert group_text(working, tr, title='Урок 5', percent=35) == (
+        'скачано 40 из 76  ·  сейчас: Урок 5  ·  35%'
+    )
+    assert group_text(working, tr, title='Урок 5') == 'скачано 40 из 76  ·  сейчас: Урок 5'
+    failed = summary(JobState.FAILED, total=0, completed=0)
+    assert group_text(failed, tr).startswith('Не удалось получить список  ·  ')
+    assert group_text(summary(JobState.PROBING, total=0, completed=0), tr) is None
+    assert group_text(summary(url=PROFILE, total=12, completed=12), tr) == (
+        '12 постов  ·  скачано 12'
+    )
+    assert group_text(summary(url=PROFILE, total=1, completed=0), tr) == '1 пост  ·  скачано 0'
+    en = Translator('en')
+    assert group_text(summary(total=1, completed=1), en) == '1 video  ·  1 downloaded'
+
+
+def test_group_row_buttons_emit_actions(qapp, tmp_path):
+    from PySide6.QtCore import QEvent, QPointF, QRect
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QStyleOptionViewItem
+
+    model = JobListModel(playlist(tmp_path))
+    delegate = QueueDelegate()
+    seen = []
+    delegate.action_requested.connect(lambda *args: seen.append(args))
+    option = QStyleOptionViewItem()
+    option.rect = QRect(0, 0, 800, 96)
+    for button in delegate._group_buttons(option.rect.adjusted(0, 0, -2, 0)):
+        point = QPointF(button.center())
+        event = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            point,
+            point,
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        delegate.editorEvent(event, model, option, model.index(0))
+    assert seen == [('p', 'group_folder'), ('p', 'group_menu'), ('p', 'open_group')]

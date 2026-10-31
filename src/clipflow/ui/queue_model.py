@@ -72,7 +72,11 @@ class JobListModel(QAbstractListModel):
             self.JobRole: job,
             self.GroupRole: self._summary(job) if role == self.GroupRole else None,
             int(Qt.ItemDataRole.ToolTipRole): (
-                error_tooltip(job.error, job.request.link.service, self.translator)
+                self.translator.text(
+                    'show_posts' if job.request.link.service.value == 'instagram' else 'show_tracks'
+                )
+                if job.id in self._groups
+                else error_tooltip(job.error, job.request.link.service, self.translator)
                 if job.state == JobState.FAILED
                 else title
             ),
@@ -107,6 +111,17 @@ class JobListModel(QAbstractListModel):
                     continue
             cached = self._sizes[job.id] = (job.result_files, total)
         return cached[1]
+
+    def current_label(self, job):
+        """Title and percent of a member being worked on, for its group's row."""
+        title = self._titles.get(job.id) or job.title or job.request.label
+        progress = self._progress.get(job.id)
+        percent = (
+            min(99, int(progress.downloaded_bytes / progress.total_bytes * 100))
+            if progress and progress.total_bytes
+            else None
+        )
+        return title, percent
 
     def _summary(self, job):
         if job.id not in self._groups:

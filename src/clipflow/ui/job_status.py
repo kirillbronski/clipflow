@@ -2,8 +2,9 @@
 
 import re
 
+from clipflow.application.groups import GroupSummary
 from clipflow.domain.failures import AUTH_SETTINGS_CODES, failure_group
-from clipflow.domain.models import Job, Service
+from clipflow.domain.models import Job, JobState, Service
 from clipflow.ui.i18n import Translator
 
 SOURCE_NAMES = {
@@ -53,3 +54,66 @@ def meta_text(job: Job, translator: Translator) -> str:
     else:
         parts = [options.format.upper(), translator.text('best_quality')]
     return SEPARATOR.join([SOURCE_NAMES[service], *parts])
+
+
+def _plural(count: int) -> str:
+    """Russian plural form for a count: one, few or many."""
+    if count % 10 == 1 and count % 100 != 11:
+        return 'one'
+    if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+        return 'few'
+    return 'many'
+
+
+_ITEM_WORDS = {
+    'video': {'one': 'group_video_one', 'few': 'group_video_few', 'many': 'group_video_many'},
+    'post': {'one': 'group_post_one', 'few': 'group_post_few', 'many': 'group_post_many'},
+}
+
+
+def size_text(size: int, translator: Translator) -> str:
+    """Bytes as KB, MB or GB with one decimal; Russian uses a decimal comma."""
+    for unit, scale in (('gb', 1024**3), ('mb', 1024**2), ('kb', 1024)):
+        if size >= scale or unit == 'kb':
+            value = f'{size / scale:.1f}'
+            if translator.language == 'ru':
+                value = value.replace('.', ',')
+            return value + ' ' + translator.text(unit)
+    raise AssertionError('unreachable')
+
+
+def group_text(
+    summary: GroupSummary,
+    translator: Translator,
+    title: str | None = None,
+    percent: int | None = None,
+) -> str | None:
+    """The second line of a playlist or profile row; None while its list is still awaited."""
+    parent = summary.parent
+    service = parent.request.link.service
+    if summary.total == 0:
+        if parent.state == JobState.FAILED:
+            reason = error_text(parent.error, service, translator)
+            return translator.text('group_list_failed') + SEPARATOR + reason
+        return None
+    if summary.current is not None:
+        parts = [translator.text('group_progress', done=summary.completed, total=summary.total)]
+        if title:
+            parts.append(translator.text('group_now', title=title))
+        if percent is not None:
+            parts.append(f'{percent}%')
+        return SEPARATOR.join(parts)
+    if translator.language == 'ru':
+        form = _plural(summary.total)
+    else:
+        form = 'one' if summary.total == 1 else 'many'
+    word = _ITEM_WORDS['post' if service == Service.INSTAGRAM else 'video'][form]
+    parts = [
+        translator.text(word, count=summary.total),
+        translator.text('group_downloaded', count=summary.completed),
+    ]
+    if summary.failed:
+        parts.append(translator.text('group_failed', count=summary.failed))
+    if summary.size_bytes:
+        parts.append(size_text(summary.size_bytes, translator))
+    return SEPARATOR.join(parts)
