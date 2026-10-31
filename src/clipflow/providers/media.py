@@ -8,7 +8,6 @@ import shutil
 import signal
 import subprocess
 import time
-from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlsplit
@@ -24,9 +23,10 @@ from clipflow.domain.events import (
     WorkCancelled,
 )
 from clipflow.domain.models import DownloadRequest, JobState, Service
-from clipflow.domain.paths import PostIdentity, UnsafePath, media_identity, output_path
+from clipflow.domain.paths import UnsafePath
 from clipflow.providers.access import open_downloader
 from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
+from clipflow.providers.media_plan import plan_media
 
 
 class _QuietLogger:
@@ -53,24 +53,9 @@ class MediaPipeline:
     ) -> tuple[Path, ...]:
         context.cancel.raise_if_cancelled()
         try:
-            post = None
-            if request.link.service == Service.INSTAGRAM:
-                code = item.info.get('post_code') or request.link.canonical_id
-                published = item.info.get('published_at')
-                post = PostIdentity(
-                    str(code),
-                    item.info.get('post_title'),
-                    published if isinstance(published, datetime) else None,
-                )
-            target = output_path(request, item, item.info.get('author'), post)
+            plan = plan_media(request, item)
+            target, work, tag = plan.target, plan.work, plan.tag
             target.parent.mkdir(parents=True, exist_ok=True)
-            # YouTube names carry no identity: temporaries do, and finished files carry it as a tag.
-            tag = (
-                'clipflow:' + media_identity(request, item)
-                if request.link.service == Service.YOUTUBE
-                else None
-            )
-            work = target.with_name(target.stem + '.' + tag[9:]) if tag else target
             existing = (
                 self._tagged(target, tag, context) if tag else (target if target.exists() else None)
             )
