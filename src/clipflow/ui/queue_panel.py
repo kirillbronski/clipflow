@@ -1,6 +1,6 @@
 """The queue: count and bulk buttons, status tabs, the job list and its empty state."""
 
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QBoxLayout,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from clipflow.domain.models import JobState
+from clipflow.ui.job_status import group_details
 from clipflow.ui.queue_delegate import QueueDelegate
 from clipflow.ui.queue_model import JobListModel, QueueFilter
 
@@ -25,8 +26,13 @@ STATUSES = ('all', 'active', 'completed', 'failed')
 class QueueView(QListView):
     """Return/Enter activate once on both platforms; keep native navigation."""
 
+    escaped = Signal()
+
     def keyPressEvent(self, event):
-        if event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter} and event.modifiers() in {
+        if event.key() == Qt.Key.Key_Escape:
+            self.escaped.emit()
+            event.accept()
+        elif event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter} and event.modifiers() in {
             Qt.KeyboardModifier.NoModifier,
             Qt.KeyboardModifier.KeypadModifier,
         }:
@@ -61,7 +67,11 @@ class QueuePanel(QWidget):
         layout.setSpacing(20)
         layout.addWidget(self._toolbar())
         layout.addWidget(self._status_tabs())
+        layout.addWidget(self._group_bar())
         layout.addWidget(self._queue_view(theme), 1)
+        self.group_id = None
+        self._list_place = None  # scroll and current job of the main list while a group is open
+        presenter.jobs_changed.connect(self._group_check)
         self.empty = self.tr.widget(QLabel, 'empty')
         self.empty.setObjectName('muted')
         self.empty.setWordWrap(True)
@@ -111,6 +121,82 @@ class QueuePanel(QWidget):
         tab_layout.addStretch()
         return self.status_tabs
 
+    def _group_bar(self):
+        self.group_bar = QWidget()
+        bar = QHBoxLayout(self.group_bar)
+        bar.setContentsMargins(0, 0, 0, 0)
+        bar.setSpacing(12)
+        self.back_button = self.tr.widget(QPushButton, 'group_back')
+        self.back_button.clicked.connect(self.close_group)
+        bar.addWidget(self.back_button)
+        self.group_title = QLabel()
+        self.group_title.setStyleSheet('font-weight: 600;')
+        bar.addWidget(self.group_title)
+        self.group_details = QLabel()
+        self.group_details.setObjectName('muted')
+        bar.addWidget(self.group_details)
+        bar.addStretch()
+        self.group_bar.hide()
+        return self.group_bar
+
+    def _activate(self, index):
+        if index.data(JobListModel.GroupRole) is not None:
+            self.open_group(index.data(JobListModel.JobIdRole))
+        else:
+            self.presenter.toggle_job(index.data(JobListModel.JobIdRole))
+
+    def open_group(self, group_id):
+        """Show one playlist or profile in place of the list; the list's place is kept."""
+        if self.group_id is None:
+            current = self.queue_view.currentIndex()
+            self._list_place = (
+                self.queue_view.verticalScrollBar().value(),
+                current.data(JobListModel.JobIdRole) if current.isValid() else None,
+            )
+        self.group_id = group_id
+        self.proxy.show_group(group_id)
+        self.queue_view.scrollToTop()
+        self.group_bar.show()
+        self._group_header()
+        self.status_changed.emit(self.proxy.status)
+
+    def close_group(self):
+        if self.group_id is None:
+            return
+        self.group_id = None
+        self.proxy.show_group(None)
+        self.group_bar.hide()
+        scroll, current = self._list_place or (0, None)
+        self._list_place = None
+        model = self.presenter.model
+        row = model._rows.get(current)
+        if row is not None:
+            index = self.proxy.mapFromSource(model.index(row))
+            if index.isValid():
+                self.queue_view.setCurrentIndex(index)
+        # The view lays rows out later; restore the scroll once it has.
+        QTimer.singleShot(0, self, lambda: self.queue_view.verticalScrollBar().setValue(scroll))
+        self.status_changed.emit(self.proxy.status)
+
+    def _group_header(self):
+        model = self.presenter.model
+        row = model._rows.get(self.group_id)
+        if row is None:
+            return
+        index = model.index(row)
+        self.group_title.setText(index.data(JobListModel.TitleRole))
+        summary = index.data(JobListModel.GroupRole)
+        self.group_details.setText(group_details(summary, self.tr) if summary else '')
+
+    def _group_check(self):
+        """Leave a group's screen once the group is gone; otherwise refresh its header."""
+        if self.group_id is None:
+            return
+        if self.group_id not in self.presenter.model._rows:
+            self.close_group()
+        else:
+            self._group_header()
+
     def _queue_view(self, theme):
         view = self.queue_view = QueueView()
         view.setObjectName('queue')
@@ -122,9 +208,8 @@ class QueuePanel(QWidget):
         delegate = QueueDelegate(view, theme=theme, translator=self.tr)
         view.setItemDelegate(delegate)
         delegate.action_requested.connect(self.row_action.emit)
-        view.activated.connect(
-            lambda index: self.presenter.toggle_job(index.data(JobListModel.JobIdRole))
-        )
+        view.activated.connect(self._activate)
+        view.escaped.connect(self.close_group)
         view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         view.customContextMenuRequested.connect(self.context_menu.emit)
@@ -177,18 +262,5 @@ class QueuePanel(QWidget):
         self.cancel_queue_button.setVisible(downloads and not self.proxy.history)
         self.clear_all_button.setVisible(downloads)
         self.empty.setVisible(downloads and count == 0)
-        scoped = [j for j in self.presenter.model.jobs if self._in_scope(j)]
-        counts = {
-            'all': len(scoped),
-            'active': sum(j.state not in _HISTORY_STATES for j in scoped),
-            'completed': sum(j.state == JobState.COMPLETED for j in scoped),
-            'failed': sum(j.state == JobState.FAILED for j in scoped),
-        }
         for status, button in self.status_buttons.items():
-            button.setText(self.tr.text('filter_' + status) + '  ' + str(counts[status]))
-
-    def _in_scope(self, job):
-        service = self.proxy.service
-        return (service is None or job.request.link.service.value == service) and (
-            not self.proxy.history or job.state in _HISTORY_STATES
-        )
+            button.setText(self.tr.text('filter_' + status) + '  ' + str(self.proxy.count(status)))

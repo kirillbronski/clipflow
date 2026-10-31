@@ -174,3 +174,77 @@ def test_group_row_buttons_emit_actions(qapp, tmp_path):
         )
         delegate.editorEvent(event, model, option, model.index(0))
     assert seen == [('p', 'group_folder'), ('p', 'group_menu'), ('p', 'open_group')]
+
+
+def window_with_playlist(make_window, singles=30, members=76):
+    window, _ = make_window()
+    repository = window.presenter.repository
+    repository.add(job('p', url=PLAYLIST, state=JobState.COMPLETED))
+    for n in range(members):
+        repository.add(job(f'c{n:02d}', 'p', JobState.COMPLETED))
+    for n in range(singles):
+        repository.add(job(f's{n:02d}', state=JobState.COMPLETED))
+    window.presenter._reload_jobs()
+    window.resize(1000, 700)
+    return window
+
+
+def group_index(window):
+    proxy = window.queue_panel.proxy
+    return next(
+        proxy.index(n, 0)
+        for n in range(proxy.rowCount())
+        if proxy.index(n, 0).data(JobListModel.JobIdRole) == 'p'
+    )
+
+
+def test_open_and_back_restore_the_list(make_window, qtbot):
+    window = window_with_playlist(make_window)
+    panel, view = window.queue_panel, window.queue_view
+    qtbot.waitUntil(lambda: view.verticalScrollBar().maximum() > 0)
+    view.setCurrentIndex(panel.proxy.index(5, 0))
+    view.verticalScrollBar().setValue(view.verticalScrollBar().maximum())
+    scroll = view.verticalScrollBar().value()
+    window._row_action('p', 'open_group')
+    assert panel.group_id == 'p'
+    assert panel.group_bar.isVisibleTo(window)
+    assert panel.proxy.rowCount() == 76
+    panel.back_button.click()
+    assert panel.group_id is None
+    assert not panel.group_bar.isVisibleTo(window)
+    assert panel.proxy.rowCount() == 31
+    qtbot.waitUntil(lambda: view.verticalScrollBar().value() == scroll)
+    assert view.currentIndex().row() == 5
+
+
+def test_escape_returns_from_a_group(make_window, qtbot):
+    window = window_with_playlist(make_window, singles=1)
+    window.queue_panel.open_group('p')
+    qtbot.keyClick(window.queue_view, Qt.Key.Key_Escape)
+    assert window.queue_panel.group_id is None
+
+
+def test_activating_a_group_row_opens_it(make_window):
+    window = window_with_playlist(make_window, singles=1)
+    window.queue_view.activated.emit(group_index(window))
+    assert window.queue_panel.group_id == 'p'
+    assert window.presenter.repository.get('p').state == JobState.COMPLETED
+
+
+def test_screen_returns_when_its_group_disappears(make_window, qtbot):
+    window = window_with_playlist(make_window, singles=1)
+    window.queue_panel.open_group('p')
+    window.presenter.clear_all()
+    qtbot.waitUntil(lambda: window.queue_panel.group_id is None)
+
+
+def test_counts_follow_the_screen(make_window, qtbot):
+    window = window_with_playlist(make_window, singles=1)
+    panel = window.queue_panel
+    qtbot.waitUntil(lambda: ' 2 ' in panel.count_label.text() + ' ')
+    assert panel.status_buttons['all'].text().endswith(' 2')
+    panel.open_group('p')
+    qtbot.waitUntil(lambda: '76' in panel.count_label.text())
+    assert panel.status_buttons['all'].text().endswith(' 76')
+    assert panel.group_title.text() == window.presenter.model.index(0).data(JobListModel.TitleRole)
+    assert panel.group_details.text() == '76 видео'

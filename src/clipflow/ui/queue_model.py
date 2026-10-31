@@ -203,32 +203,39 @@ class QueueFilter(QSortFilterProxyModel):
         self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
 
     def filterAcceptsRow(self, row, parent):
+        return self._accepts(row, self.status)
+
+    def count(self, status):
+        """Rows the current screen would show under a status tab."""
+        return sum(self._accepts(row, status) for row in range(self.sourceModel().rowCount()))
+
+    def _accepts(self, row, status):
         model = self.sourceModel()
         job = model.jobs[row]
         if self.group_id is not None:
-            return model.group_of(job.id) == self.group_id and self._matches(job)
+            return model.group_of(job.id) == self.group_id and self._matches(job, status)
         if job.parent_id is not None:
             return False
         members = model.members(job.id) if model.is_group_row(row) else ()
         if not members:
-            return self._matches(job)
+            return self._matches(job, status)
         # A group shows under a tab when any of its members would.
-        return self._service_matches(job) and any(self._matches(m) for m in members)
+        return self._service_matches(job) and any(self._matches(m, status) for m in members)
 
     def _service_matches(self, job):
         return self.service is None or job.request.link.service.value == self.service
 
-    def _matches(self, job):
+    def _matches(self, job, status):
         return (
             self._service_matches(job)
             and (not self.history or job.state in TERMINAL_STATES)
             and (
-                self.status == 'all'
-                or self.status == 'active'
+                status == 'all'
+                or status == 'active'
                 and job.state not in TERMINAL_STATES
-                or self.status == 'completed'
+                or status == 'completed'
                 and job.state == JobState.COMPLETED
-                or self.status == 'failed'
+                or status == 'failed'
                 and job.state == JobState.FAILED
             )
         )

@@ -82,6 +82,24 @@ def size_text(size: int, translator: Translator) -> str:
     raise AssertionError('unreachable')
 
 
+def count_text(summary: GroupSummary, translator: Translator) -> str:
+    """«76 видео» / «12 постов» for a group's members."""
+    total = summary.total
+    english = 'one' if total == 1 else 'many'
+    form = _plural(total) if translator.language == 'ru' else english
+    service = summary.parent.request.link.service
+    word = _ITEM_WORDS['post' if service == Service.INSTAGRAM else 'video'][form]
+    return translator.text(word, count=total)
+
+
+def group_details(summary: GroupSummary, translator: Translator) -> str:
+    """The group screen's header: member count and the size downloaded so far."""
+    parts = [count_text(summary, translator)]
+    if summary.size_bytes:
+        parts.append(size_text(summary.size_bytes, translator))
+    return SEPARATOR.join(parts)
+
+
 def group_text(
     summary: GroupSummary,
     translator: Translator,
@@ -103,13 +121,8 @@ def group_text(
         if percent is not None:
             parts.append(f'{percent}%')
         return SEPARATOR.join(parts)
-    if translator.language == 'ru':
-        form = _plural(summary.total)
-    else:
-        form = 'one' if summary.total == 1 else 'many'
-    word = _ITEM_WORDS['post' if service == Service.INSTAGRAM else 'video'][form]
     parts = [
-        translator.text(word, count=summary.total),
+        count_text(summary, translator),
         translator.text('group_downloaded', count=summary.completed),
     ]
     if summary.failed:

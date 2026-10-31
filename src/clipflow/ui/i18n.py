@@ -225,6 +225,7 @@ MESSAGES = {
     'group_failed': ('{count} с ошибкой', '{count} failed'),
     'group_list_failed': ('Не удалось получить список', 'Could not get the list'),
     'show_tracks': ('Показать треки', 'Show tracks'),
+    'group_back': ('← Назад', '← Back'),
     'show_posts': ('Показать посты', 'Show posts'),
     'mb_s': ('МБ/с', 'MB/s'),
     'menu_downloads': ('Загрузки', 'Downloads'),

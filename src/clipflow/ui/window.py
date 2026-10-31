@@ -334,6 +334,8 @@ class MainWindow(QMainWindow):
     def _row_action(self, identity, action):
         if action == 'cancel':
             self.presenter.cancel_job(identity)
+        elif action == 'open_group':
+            self.queue_panel.open_group(identity)
         else:
             self.presenter.toggle_job(identity)
 

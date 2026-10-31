@@ -152,7 +152,10 @@ class QueueDelegate(QStyledItemDelegate):
             painter.fontMetrics().elidedText(line, Qt.TextElideMode.ElideRight, available),
         )
         painter.setPen(QPen(QColor(muted), 1.5))
-        for button, glyph in zip(self._group_buttons(rect), ('▭', '⋮', '›'), strict=True):
+        font.setPixelSize(17)
+        painter.setFont(font)
+        # «↗» opens the folder as on a finished row; «⋮» the group menu; «❯» its screen.
+        for button, glyph in zip(self._group_buttons(rect), ('↗', '⋮', '❯'), strict=True):
             painter.drawText(button, Qt.AlignmentFlag.AlignCenter, glyph)
         painter.restore()
 
