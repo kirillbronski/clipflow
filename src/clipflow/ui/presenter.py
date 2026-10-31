@@ -8,7 +8,12 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
-from clipflow.application.history import HistoryError, deletion_paths, result_status
+from clipflow.application.history import (
+    HistoryError,
+    deletion_paths,
+    removable_targets,
+    result_status,
+)
 from clipflow.domain.events import RequestsDiscovered, SelectionRequired
 from clipflow.domain.models import TERMINAL_STATES, JobState, Service
 from clipflow.domain.urls import parse_url
@@ -309,14 +314,7 @@ class WorkbenchPresenter(QObject):
         if not self._clear_pending or not self.executor.is_idle:
             return
         jobs = self.repository.list()
-        targets = self._clear_pending.copy()
-        # A completed child may still need its original parent; retain ancestors.
-        while True:
-            parents = {j.parent_id for j in jobs if j.id not in targets}
-            smaller = targets - parents
-            if smaller == targets:
-                break
-            targets = smaller
+        targets = removable_targets(jobs, self._clear_pending)
         delete_ids = targets & self._clear_delete_ids
         # Never retry destructive IO on the periodic tick after an error.
         self._clear_pending.clear()

@@ -1,8 +1,9 @@
 """History file actions: recorded outputs only, never recursive folder deletion."""
 
+from collections.abc import Iterable
 from pathlib import Path
 
-from clipflow.domain.models import TERMINAL_STATES
+from clipflow.domain.models import TERMINAL_STATES, Job
 
 
 class HistoryError(Exception):
@@ -50,3 +51,15 @@ def deletion_paths(jobs, all_jobs):
                 raise HistoryError('job_busy')
             paths.append(path)
     return tuple(dict.fromkeys(paths))
+
+
+def removable_targets(jobs: Iterable[Job], pending: set[str]) -> set[str]:
+    """Cleared jobs that may go: a kept child still needs its parent, and so on upwards."""
+    jobs = tuple(jobs)
+    targets = set(pending)
+    while True:
+        parents = {job.parent_id for job in jobs if job.id not in targets}
+        smaller = targets - parents
+        if smaller == targets:
+            return targets
+        targets = smaller
