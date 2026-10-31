@@ -313,7 +313,7 @@ class Scheduler:
             self.cancel(identity)
         return identities
 
-    def handle(self, event: JobEvent) -> None:  # noqa: C901  # подпроект 3
+    def handle(self, event: JobEvent) -> None:
         if (event.job_id, event.attempt_id) != self._active:
             return
         job = self.repository.get(event.job_id)
@@ -324,74 +324,104 @@ class Scheduler:
                 self._stopping = False
                 self._pump()
             return
-        if isinstance(payload, StageChanged):
-            if payload.state not in _STAGES or _STAGES.index(payload.state) < _STAGES.index(
-                job.state
-            ):
-                return
-            self.repository.update(replace(job, state=payload.state))
-        elif isinstance(payload, FilesSaved):
-            self.repository.update(
-                replace(job, result_files=tuple(dict.fromkeys(job.result_files + payload.files)))
-            )
-        elif isinstance(payload, RequestsDiscovered):
-            self._discovered = self._discovered or bool(payload.requests)
-            # Historical cancelled/failed jobs must not suppress a new explicit
-            # collection retry. Completed children deduplicate only while their
-            # published outputs still exist; deleted media can be restored.
-            keys = {
-                request_key(j.request)
-                for j in self.repository.list()
-                if j.state not in {JobState.CANCELLED, JobState.FAILED}
-                and (
-                    j.state != JobState.COMPLETED
-                    or (j.result_files and all(path.is_file() for path in j.result_files))
-                )
-            }
-            for request in payload.requests:
-                key = request_key(request)
-                if key not in keys:
-                    self.repository.add(Job(uuid4().hex, request, parent_id=job.id))
-                    keys.add(key)
-        elif isinstance(payload, TitleChanged):
-            self.repository.update(
-                replace(job, title=' '.join(payload.title.split())[:240] or None)
-            )
-        elif isinstance(payload, SelectionRequired):
-            self._save(replace(job, state=JobState.PAUSED, pause_reason='selection_required'))
-            self._stop(job.id, 'pause')
-        elif isinstance(payload, RateLimitDeferred):
-            self._instagram_deferred = payload
-            self._save(
-                replace(
-                    job,
-                    state=JobState.PAUSED,
-                    pause_reason=payload.reason,
-                    next_allowed_at=payload.next_allowed_at,
-                    automatic_retry=payload.automatic_retry,
-                )
-            )
-            self._defer_waiting_instagram()
-            self._stop(job.id, 'pause')
-        elif isinstance(payload, _ACKS):
-            self._active = None
-            if isinstance(payload, WorkFinished):
-                has_output = (
-                    bool(job.result_files)
-                    or self._discovered
-                    or any(j.parent_id == job.id for j in self.repository.list())
-                )
-                updated = replace(
-                    job,
-                    state=JobState.COMPLETED if has_output else JobState.FAILED,
-                    error=None if has_output else 'no_output',
-                )
-            elif isinstance(payload, WorkFailed):
-                updated = replace(job, state=JobState.FAILED, error=payload.error)
-            else:
-                updated = replace(job, state=JobState.PAUSED, pause_reason='worker_stopped')
-            self._save(updated)
-        elif not isinstance(payload, ProgressChanged):
+        handler = next(
+            (_EVENT_HANDLERS[kind] for kind in type(payload).__mro__ if kind in _EVENT_HANDLERS),
+            None,
+        )
+        # Unknown events and stage regressions change nothing and are not published.
+        if handler is None or handler(self, job, payload) is False:
             return
         self._publish(event)
         self._pump()
+
+    def _on_stage(self, job: Job, payload: StageChanged) -> bool:
+        if payload.state not in _STAGES or _STAGES.index(payload.state) < _STAGES.index(job.state):
+            return False
+        self.repository.update(replace(job, state=payload.state))
+        return True
+
+    def _on_files(self, job: Job, payload: FilesSaved) -> None:
+        self.repository.update(
+            replace(job, result_files=tuple(dict.fromkeys(job.result_files + payload.files)))
+        )
+
+    def _on_discovered(self, job: Job, payload: RequestsDiscovered) -> None:
+        self._discovered = self._discovered or bool(payload.requests)
+        # Historical cancelled/failed jobs must not suppress a new explicit
+        # collection retry. Completed children deduplicate only while their
+        # published outputs still exist; deleted media can be restored.
+        keys = {
+            request_key(j.request)
+            for j in self.repository.list()
+            if j.state not in {JobState.CANCELLED, JobState.FAILED}
+            and (
+                j.state != JobState.COMPLETED
+                or (j.result_files and all(path.is_file() for path in j.result_files))
+            )
+        }
+        for request in payload.requests:
+            key = request_key(request)
+            if key not in keys:
+                self.repository.add(Job(uuid4().hex, request, parent_id=job.id))
+                keys.add(key)
+
+    def _on_title(self, job: Job, payload: TitleChanged) -> None:
+        self.repository.update(replace(job, title=' '.join(payload.title.split())[:240] or None))
+
+    def _on_selection(self, job: Job, payload: SelectionRequired) -> None:
+        self._save(replace(job, state=JobState.PAUSED, pause_reason='selection_required'))
+        self._stop(job.id, 'pause')
+
+    def _on_rate_limit(self, job: Job, payload: RateLimitDeferred) -> None:
+        self._instagram_deferred = payload
+        self._save(
+            replace(
+                job,
+                state=JobState.PAUSED,
+                pause_reason=payload.reason,
+                next_allowed_at=payload.next_allowed_at,
+                automatic_retry=payload.automatic_retry,
+            )
+        )
+        self._defer_waiting_instagram()
+        self._stop(job.id, 'pause')
+
+    def _on_progress(self, job: Job, payload: ProgressChanged) -> None:
+        pass  # published as is; the job record does not change
+
+    def _on_finished(self, job: Job, payload: WorkFinished) -> None:
+        self._active = None
+        has_output = (
+            bool(job.result_files)
+            or self._discovered
+            or any(j.parent_id == job.id for j in self.repository.list())
+        )
+        self._save(
+            replace(
+                job,
+                state=JobState.COMPLETED if has_output else JobState.FAILED,
+                error=None if has_output else 'no_output',
+            )
+        )
+
+    def _on_failed(self, job: Job, payload: WorkFailed) -> None:
+        self._active = None
+        self._save(replace(job, state=JobState.FAILED, error=payload.error))
+
+    def _on_stopped(self, job: Job, payload: WorkStopped) -> None:
+        self._active = None
+        self._save(replace(job, state=JobState.PAUSED, pause_reason='worker_stopped'))
+
+
+_EVENT_HANDLERS = {
+    StageChanged: Scheduler._on_stage,
+    FilesSaved: Scheduler._on_files,
+    RequestsDiscovered: Scheduler._on_discovered,
+    TitleChanged: Scheduler._on_title,
+    SelectionRequired: Scheduler._on_selection,
+    RateLimitDeferred: Scheduler._on_rate_limit,
+    ProgressChanged: Scheduler._on_progress,
+    WorkFinished: Scheduler._on_finished,
+    WorkFailed: Scheduler._on_failed,
+    WorkStopped: Scheduler._on_stopped,
+}
