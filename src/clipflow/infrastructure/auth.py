@@ -131,68 +131,70 @@ class NativeAuthGateway:
                 )
         return AuthStatus(service)
 
-    def options_for(self, profile, url):  # noqa: C901  # подпроект 3
+    def options_for(self, profile, url):
         if profile is None:
             return {}
         try:
             link = parse_url(url)
             for service, store in self.sessions.items():
                 if profile == service.value + '-default':
-                    if link.service != service:
-                        raise MediaFailure('auth_scope_mismatch')
-                    saved = store.saved()
-                    if not saved:
-                        raise MediaFailure('auth_required')
-                    return {'_cookiejar': cookie_jar(saved)}
+                    return self._session_options(service, store, link)
             if link.service != Service.GETCOURSE:
                 raise MediaFailure('auth_scope_mismatch')
-            payload = load_protected(self._gc_path(profile), self.platform.protect)
-            if not isinstance(payload, dict):
-                raise MediaFailure('auth_required')
-            # A shared player/CDN host cannot identify a school. Signed/public
-            # player links work without releasing another school's credentials.
-            if link.kind == ContentKind.PLAYER:
-                return {}
-            if self.school(url) != payload.get('school'):
-                raise MediaFailure('auth_scope_mismatch')
-            if payload.get('method') == 'email':
-                if not payload.get('email') or not payload.get('password'):
-                    raise MediaFailure('auth_required')
-                return {'username': payload['email'], 'password': payload['password']}
-            if payload.get('method') == 'cookies':
-                from clipflow.providers.access import _cookie_text
-
-                jar = MozillaCookieJar()
-                jar._really_load(
-                    StringIO(_cookie_text(payload['file'])), payload['file'], True, False
-                )
-            elif payload.get('method') == 'browser':
-                from yt_dlp import YoutubeDL
-                from yt_dlp.cookies import load_cookies
-
-                class Quiet:
-                    def debug(self, *a, **k):
-                        pass
-
-                    info = warning = error = debug
-
-                with YoutubeDL({'quiet': True, 'no_warnings': True, 'logger': Quiet()}) as ydl:
-                    jar = load_cookies(None, self.browser_source(payload['browser']), ydl)
-            else:
-                return {}
-            scoped = MozillaCookieJar()
-            host = payload['school']
-            for cookie in jar:
-                domain = cookie.domain.lstrip('.').lower()
-                if domain == host or domain.endswith('.' + host):
-                    scoped.set_cookie(copy(cookie))
-            if not tuple(scoped):
-                raise MediaFailure('auth_required')
-            return {'_cookiejar': scoped}
+            return self._getcourse_options(profile, url, link)
         except MediaFailure:
             raise
         except Exception:  # noqa: BLE001  # подпроект 3
             raise MediaFailure('auth_required') from None
+
+    @staticmethod
+    def _session_options(service, store, link):
+        if link.service != service:
+            raise MediaFailure('auth_scope_mismatch')
+        saved = store.saved()
+        if not saved:
+            raise MediaFailure('auth_required')
+        return {'_cookiejar': cookie_jar(saved)}
+
+    def _getcourse_options(self, profile, url, link):
+        payload = load_protected(self._gc_path(profile), self.platform.protect)
+        if not isinstance(payload, dict):
+            raise MediaFailure('auth_required')
+        # A shared player/CDN host cannot identify a school. Signed/public
+        # player links work without releasing another school's credentials.
+        if link.kind == ContentKind.PLAYER:
+            return {}
+        if self.school(url) != payload.get('school'):
+            raise MediaFailure('auth_scope_mismatch')
+        if payload.get('method') == 'email':
+            if not payload.get('email') or not payload.get('password'):
+                raise MediaFailure('auth_required')
+            return {'username': payload['email'], 'password': payload['password']}
+        jar = self._getcourse_jar(payload)
+        if jar is None:
+            return {}
+        return {'_cookiejar': _school_cookies(jar, payload['school'])}
+
+    def _getcourse_jar(self, payload):
+        if payload.get('method') == 'cookies':
+            from clipflow.providers.access import _cookie_text
+
+            jar = MozillaCookieJar()
+            jar._really_load(StringIO(_cookie_text(payload['file'])), payload['file'], True, False)
+            return jar
+        if payload.get('method') == 'browser':
+            from yt_dlp import YoutubeDL
+            from yt_dlp.cookies import load_cookies
+
+            class Quiet:
+                def debug(self, *a, **k):
+                    pass
+
+                info = warning = error = debug
+
+            with YoutubeDL({'quiet': True, 'no_warnings': True, 'logger': Quiet()}) as ydl:
+                return load_cookies(None, self.browser_source(payload['browser']), ydl)
+        return None
 
     @staticmethod
     def browser_source(browser):
@@ -350,3 +352,15 @@ class NativeAuthGateway:
         self.close()
         while not self.is_closed:
             time.sleep(0.025)
+
+
+def _school_cookies(jar, host):
+    """Only the school's own cookies leave the store; none at all means not signed in."""
+    scoped = MozillaCookieJar()
+    for cookie in jar:
+        domain = cookie.domain.lstrip('.').lower()
+        if domain == host or domain.endswith('.' + host):
+            scoped.set_cookie(copy(cookie))
+    if not tuple(scoped):
+        raise MediaFailure('auth_required')
+    return scoped
