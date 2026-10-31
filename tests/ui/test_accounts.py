@@ -137,3 +137,71 @@ def test_auth_change_refreshes_probe_without_clearing_link(make_window, tmp_path
     seed(tmp_path, Service.YOUTUBE, gateway.platform.protect)
     window.presenter.set_auth_gateway(gateway)
     assert window.url_input.text() == url and window.composer._probe_id != previous
+
+
+class FakeGateway:
+    """Signed in to YouTube as profile 'a'; Instagram as 'b'."""
+
+    def __init__(self):
+        self.profiles = {Service.YOUTUBE: 'a', Service.INSTAGRAM: 'b'}
+        self.logged_out = []
+        self.is_closed = False
+
+    def activate_profile(self, service, profile):
+        pass
+
+    def poll(self):
+        pass
+
+    def status(self, service):
+        from clipflow.infrastructure.auth import AuthStatus
+
+        profile = self.profiles.get(service)
+        return AuthStatus(service, profile, connected=profile is not None)
+
+    def logout(self, profile):
+        self.logged_out.append(profile)
+        self.profiles = {s: p for s, p in self.profiles.items() if p != profile}
+
+    def options_for(self, profile, url):
+        return {}
+
+    def close(self):
+        self.is_closed = True
+
+
+def test_logout_pauses_only_active_jobs_of_that_profile(make_window, tmp_path):
+    from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
+    from clipflow.domain.urls import parse_url
+
+    window, _ = make_window()
+    presenter = window.presenter
+    paused = []
+    presenter.scheduler.pause = paused.append
+
+    def job(identity, profile, state):
+        options = DownloadOptions(tmp_path, auth_profile=profile)
+        request = DownloadRequest(parse_url('https://youtu.be/' + identity), options)
+        return Job(identity, request, state=state)
+
+    for item in (
+        job('a1', 'a', JobState.DOWNLOADING),
+        job('a2', 'a', JobState.COMPLETED),
+        job('b1', 'b', JobState.PROCESSING),
+    ):
+        presenter.repository.add(item)
+    presenter.set_auth_gateway(FakeGateway())
+    presenter.logout_account(Service.YOUTUBE)
+    assert paused == ['a1']
+    assert presenter.auth_gateway.logged_out == ['a']
+
+
+def test_auth_change_clears_probe_cache(make_window):
+    window, _ = make_window()
+    presenter = window.presenter
+    gateway = FakeGateway()
+    presenter.set_auth_gateway(gateway)
+    presenter._probe_cache.put(('key',), (720,))
+    gateway.profiles.pop(Service.INSTAGRAM)
+    presenter._poll_auth()
+    assert presenter._probe_cache.get(('key',)) is None

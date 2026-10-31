@@ -13,8 +13,9 @@ from clipflow.application.history import (
 )
 from clipflow.application.probe_cache import ProbeCache
 from clipflow.domain.events import RequestsDiscovered, SelectionRequired
-from clipflow.domain.models import JobState, Service
+from clipflow.domain.models import JobState
 from clipflow.domain.urls import parse_url
+from clipflow.ui.presenter_accounts import AccountsController
 from clipflow.ui.presenter_clearing import ClearingController
 from clipflow.ui.queue_model import JobListModel
 
@@ -48,11 +49,7 @@ class WorkbenchPresenter(QObject):
         self._probe_id = ''
         self._probe_cache = ProbeCache()
         self._clearing = ClearingController(self)
-        self.auth_gateway = None
-        self._auth_snapshot = None
-        self._auth_timer = QTimer(self)
-        self._auth_timer.setInterval(1000)
-        self._auth_timer.timeout.connect(self._poll_auth)
+        self._accounts = AccountsController(self)
         self._close_timer = QTimer(self)
         self._close_timer.setInterval(50)
         self._close_timer.timeout.connect(self._finish_shutdown)
@@ -300,80 +297,35 @@ class WorkbenchPresenter(QObject):
     def update_preferences(self, **values):
         return self._command(lambda: self._save_settings(replace(self.settings, **values)))
 
+    @property
+    def auth_gateway(self):
+        return self._accounts.gateway
+
+    @auth_gateway.setter
+    def auth_gateway(self, gateway):
+        self._accounts.gateway = gateway
+
     def set_auth_gateway(self, gateway):
-        self.auth_gateway = gateway
-        self.executor.auth = gateway
-        gateway.activate_profile(
-            Service.GETCOURSE, self.settings.presets[Service.GETCOURSE].auth_profile
-        )
-        self._poll_auth()
-        self._auth_timer.start()
+        self._accounts.attach(gateway)
 
     def _poll_auth(self):
         if self._closing or self.auth_gateway is None:
             return
-
-        def action():
-            self.auth_gateway.poll()
-            snapshot = tuple(self.auth_gateway.status(service) for service in Service)
-            if snapshot == self._auth_snapshot:
-                return
-            self.clear_probe_cache()
-            presets = dict(self.settings.presets)
-            for status in snapshot:
-                presets[status.service] = replace(
-                    presets[status.service],
-                    auth_profile=status.profile if status.connected else None,
-                )
-            if presets != dict(self.settings.presets):
-                self._save_settings(replace(self.settings, presets=presets))
-            self._auth_snapshot = snapshot
-            self.auth_changed.emit()
-
-        self._command(action)
+        self._command(self._accounts.poll)
 
     def sign_in_account(self, service):
         if self.auth_gateway is not None:
-            return self._command(lambda: self.auth_gateway.sign_in(service, self.settings.language))
+            return self._command(lambda: self._accounts.sign_in(service))
+        return None
 
     def logout_account(self, service):
-        def action():
-            if self.auth_gateway is None:
-                return
-            status = self.auth_gateway.status(service)
-            if status.profile is None:
-                return
-            for job in self.repository.list():
-                if job.request.options.auth_profile == status.profile and job.state in {
-                    JobState.PROBING,
-                    JobState.DOWNLOADING,
-                    JobState.PROCESSING,
-                }:
-                    self.scheduler.pause(job.id)
-            self.auth_gateway.logout(status.profile)
-            self._poll_auth()
-
-        return self._command(action)
+        return self._command(lambda: self._accounts.logout(service))
 
     def configure_getcourse(self, url, method, **values):
-        def action():
-            if self.auth_gateway is None:
-                return None
-            profile = self.auth_gateway.configure_getcourse(url, method, **values)
-            self._poll_auth()
-            return profile
-
-        return self._command(action)
+        return self._command(lambda: self._accounts.configure_getcourse(url, method, **values))
 
     def import_getcourse(self, url):
-        def action():
-            if self.auth_gateway is None:
-                return None
-            profile = self.auth_gateway.import_legacy_getcourse(url)
-            self._poll_auth()
-            return profile
-
-        return self._command(action)
+        return self._command(lambda: self._accounts.import_getcourse(url))
 
     def _save_settings(self, settings):
         if self.settings_store:
@@ -433,7 +385,7 @@ class WorkbenchPresenter(QObject):
             return
         self._closing = True
         self._timer.stop()
-        self._auth_timer.stop()
+        self._accounts.stop()
         self._title_timer.stop()
         if self.auth_gateway is not None:
             self.auth_gateway.close()
