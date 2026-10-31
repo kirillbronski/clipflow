@@ -15,6 +15,15 @@ python -m pytest tests/platform tests/ui tests/integration/test_shutdown_recover
 
 На Mac — то же с `QT_QPA_PLATFORM=cocoa` (экран не заблокирован, окно может получить фокус); затем выполнить [T16a](MAC-T16A.md). Offscreen не заменяет native clipboard/DPI. Windows symlink test может явно пропускаться без системной привилегии; причины всех skips должны присутствовать в отчёте.
 
-`scripts/check_coverage.py --reuse` принимает отчёт только для того же runtime fingerprint. В знаменателе все собственные src файлы, включая child-only модули; нет исключений ради процента. CI проверяет Windows и macOS на точном commit.
+`scripts/check_coverage.py --reuse` принимает отчёт только для того же runtime fingerprint. В знаменателе все собственные src файлы, включая child-only модули; нет исключений ради процента. Пороги: ядро (`domain`, `application`) — 95% строк и 90% ветвей, весь runtime — 90% строк. CI проверяет Windows и macOS на точном commit.
+
+Замер включает дочерние процессы, запущенные тестами (окно входа, самопроверка сборки): `[tool.coverage.run]` — `parallel = true`, `patch = ["subprocess"]`; `check_coverage.py` объединяет файлы `.coverage.*` перед отчётом. Тела `QThread.run` coverage не видит (поток запускает Qt), поэтому их логика вынесена в `infrastructure/work.py` и проверяется напрямую. Код, который может исполниться только на другой ОС и не проверяется подменой, помечается `# pragma: only windows` или `# pragma: only macos`: он исключается из замера только на другой ОС (`CLIPFLOW_FOREIGN_OS` выставляет `check_coverage.py`). Обычный `# pragma: no cover` не используется.
+
+## Как устроены тесты
+
+- Общие фикстуры — только в `conftest.py` того уровня, где ими пользуются (`tests/conftest.py`, `tests/integration/conftest.py`); помощники-не-фикстуры — в `tests/support/` и `tests/helpers.py`. Тестовый модуль не импортирует другой `test_*.py` (проверяет `tests/unit/test_layers.py`).
+- ruff для тестов действует целиком, включая `F401`/`F811`, `PT` (`pytest.raises` с `match=` или точным типом, имена `parametrize` кортежем, без составных `assert a and b`) и `RUF005`/`RUF012`/`RUF059`/`RUF100`.
+- Тест называет поведение, а не строку кода. Новый тест для уже существующего поведения проверяется мутацией: проверяемая строка временно ломается — тест должен упасть. Тест удаляется, только если мутацию ловит другой тест.
+- Ожидание — по условию (`qtbot.waitUntil`, `tests.helpers.wait_until`, `Event.wait`), не `time.sleep` с жёстким сроком.
 
 `scripts/package_smoke.py --executable ABS_PATH --data-dir FRESH_DIR` проверяет frozen distribution, инструменты, Qt UI/local transfer и оба embedded-auth self-tests; data-dir должен быть новым. Затем Windows installer проверяется innounp integrity. В отчёте различаются source tests, native GUI, frozen package и live providers. Не прикладывать реальные токены/профили/подписанные URL.
