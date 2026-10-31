@@ -1,40 +1,30 @@
 """Qt workbench following the approved desktop composition and shared commands."""
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QActionGroup, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
-    QDialog,
-    QDialogButtonBox,
     QFrame,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
-    QMenu,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
-from clipflow.domain.models import JobState, Service
-from clipflow.domain.urls import request_key
+from clipflow.domain.models import Service
 from clipflow.ui.accounts import AccountsPage
-from clipflow.ui.batch_dialog import BatchDialog
 from clipflow.ui.composer import Composer
 from clipflow.ui.i18n import CATALOG, Translator
 from clipflow.ui.input import InputActions
 from clipflow.ui.job_status import SOURCE_NAMES
-from clipflow.ui.queue_model import JobListModel
 from clipflow.ui.queue_panel import QueuePanel
 from clipflow.ui.settings_page import SettingsPage
 from clipflow.ui.sidebar import Sidebar
 from clipflow.ui.themes import ThemeManager, application_icon, glyph_icon
+from clipflow.ui.window_dialogs import WindowDialogs
+from clipflow.ui.window_menus import build_menus
 from clipflow.version import APP_VERSION
 
 
@@ -46,6 +36,7 @@ class MainWindow(QMainWindow):
         self._closing_requested = False
         self._ui_disposed = False
         self._dialogs = []
+        self.dialogs = WindowDialogs(self)
         self._service = Service.YOUTUBE
         self.setWindowTitle(f'ClipFlow {APP_VERSION}')
         self.setMinimumSize(880, 680)
@@ -215,90 +206,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, self, apply)
 
     def _menus(self):
-        bar = self.menuBar()
-        bar.setNativeMenuBar(True)
-        downloads = self.downloads_menu = bar.addMenu('')
-        self.tr.bind(downloads, 'menu_downloads', setter='setTitle')
-        action = downloads.addAction('')
-        self.tr.bind(action, 'batch')
-        action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.New))
-        action.triggered.connect(self._open_batch)
-        self.addAction(action)
-        action = downloads.addAction('')
-        self.tr.bind(action, 'start_queue')
-        action.triggered.connect(self.presenter.start_queue)
-        downloads.addSeparator()
-        for key, command in [
-            ('cancel_queue', self.presenter.cancel_queue),
-            ('clear_all', self._confirm_clear_all),
-            ('clear_queue', self.presenter.clear_queue),
-            ('clear_history', self.presenter.clear_history),
-        ]:
-            action = downloads.addAction('')
-            self.tr.bind(action, key)
-            if key in {'clear_queue', 'clear_history'}:
-                self.tr.bind(action, 'keeps_files_hint', setter='setToolTip')
-            action.triggered.connect(command)
-        downloads.setToolTipsVisible(True)
-        edit = bar.addMenu('')
-        self.tr.bind(edit, 'menu_edit', setter='setTitle')
-        for key, method, standard in [
-            ('undo', 'undo', 'Undo'),
-            ('redo', 'redo', 'Redo'),
-            ('cut', 'cut', 'Cut'),
-            ('copy', 'copy', 'Copy'),
-            ('paste', 'paste', 'Paste'),
-            ('select_all', 'selectAll', 'SelectAll'),
-        ]:
-            action = edit.addAction('')
-            self.tr.bind(action, key)
-            action.setShortcuts(
-                QKeySequence.keyBindings(getattr(QKeySequence.StandardKey, standard))
-            )
-            self.addAction(action)
-            action.triggered.connect(lambda checked=False, m=method: self._edit(m))
-        edit.aboutToShow.connect(lambda: self._edit_enabled(edit))
-        view = bar.addMenu('')
-        self.tr.bind(view, 'menu_view', setter='setTitle')
-        themes = view.addMenu('')
-        self.tr.bind(themes, 'theme', setter='setTitle')
-        self.theme_actions = {}
-        group = QActionGroup(self)
-        for mode in ('dark', 'light', 'system'):
-            action = themes.addAction('')
-            self.tr.bind(action, mode)
-            action.setCheckable(True)
-            group.addAction(action)
-            self.theme_actions[mode] = action
-            action.triggered.connect(lambda checked=False, m=mode: self._preferences(theme=m))
-        settings = bar.addMenu('')
-        self.tr.bind(settings, 'menu_settings', setter='setTitle')
-        languages = settings.addMenu('')
-        self.tr.bind(languages, 'language', setter='setTitle')
-        self.language_actions = {}
-        group = QActionGroup(self)
-        for code, label in [('ru', 'Русский'), ('en', 'English')]:
-            action = languages.addAction(label)
-            action.setCheckable(True)
-            group.addAction(action)
-            self.language_actions[code] = action
-            action.triggered.connect(lambda checked=False, c=code: self._preferences(language=c))
-        # Explicit wrappers keep the native menu/language-binding lifetime clear.
-        self._menu_objects = [downloads, edit, view, themes, settings, languages]
-
-    def _edit(self, method):
-        widget = QApplication.focusWidget()
-        if widget is not None and self._input_actions.owns(widget) and hasattr(widget, method):
-            getattr(widget, method)()
-
-    def _edit_enabled(self, menu):
-        widget = QApplication.focusWidget()
-        for action in menu.actions():
-            action.setEnabled(widget is not None and hasattr(widget, 'paste'))
-
-    def _preferences(self, **values):
-        self.presenter.update_preferences(**values)
-        self._settings_changed()  # Also roll back checkmarks if persistence failed.
+        build_menus(self)
 
     def _accent(self, *args):
         t = self.theme.tokens()
@@ -392,43 +300,10 @@ class MainWindow(QMainWindow):
         )
 
     def _open_batch(self):
-        for dialog in self._dialogs:
-            if isinstance(dialog, BatchDialog) and dialog.isVisible():
-                dialog.raise_()
-                return
-        if not self._commit_options():
-            return
-        existing = {request_key(job.request) for job in self.presenter.model.jobs}
-        dialog = BatchDialog(
-            self.presenter.submission,
-            self.presenter.settings.presets,
-            self.composer.limit_box.currentData(),
-            self,
-            existing_keys=existing,
-            translator=self.tr,
-        )
-
-        def confirm(preview):
-            result = self.presenter.submit_preview(preview)
-            if result is not None:
-                self.error_label.hide()
-                if not result.added and result.existing:
-                    self._show_error('already_queued')
-                dialog.accept()
-
-        dialog.confirmed.connect(confirm)
-        self._track_dialog(dialog)
-        dialog.open()
+        return self.dialogs.open_batch()
 
     def _track_dialog(self, dialog):
-        self._dialogs.append(dialog)
-
-        def finished(result):
-            if dialog in self._dialogs:
-                self._dialogs.remove(dialog)
-            dialog.deleteLater()
-
-        dialog.finished.connect(finished)
+        return self.dialogs.track(dialog)
 
     def _input_accepted(self, text):
         self.composer.accept_input(text)
@@ -452,85 +327,13 @@ class MainWindow(QMainWindow):
             self.presenter.toggle_job(identity)
 
     def _history_menu(self, position):
-        index = self.queue_view.indexAt(position)
-        if not index.isValid():
-            return
-        if not self.queue_view.selectionModel().isSelected(index):
-            self.queue_view.setCurrentIndex(index)
-        identities = tuple(
-            i.data(JobListModel.JobIdRole) for i in self.queue_view.selectionModel().selectedRows()
-        )
-        jobs = tuple(self.presenter.repository.get(identity) for identity in identities)
-        menu = QMenu(self)
-        action = menu.addAction(self.tr.text('open_folder'))
-        action.triggered.connect(lambda: self.presenter.open_result(identities[0]))
-        terminal = all(
-            j.state in {JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED} for j in jobs
-        )
-        action = menu.addAction(self.tr.text('repeat_job'))
-        action.setEnabled(terminal)
-        action.triggered.connect(
-            lambda: [self.presenter.repeat_job(identity) for identity in identities]
-        )
-        menu.addSeparator()
-        action = menu.addAction(self.tr.text('remove_list'))
-        action.setEnabled(terminal and self.presenter.executor.is_idle)
-        action.triggered.connect(lambda: self.presenter.remove_jobs(identities))
-        action = menu.addAction(self.tr.text('delete_files'))
-        action.setEnabled(
-            terminal and self.presenter.executor.is_idle and any(j.result_files for j in jobs)
-        )
-        action.triggered.connect(lambda: self._confirm_delete(identities))
-        menu.aboutToHide.connect(menu.deleteLater)
-        menu.popup(self.queue_view.viewport().mapToGlobal(position))
+        return self.dialogs.history_menu(position)
 
     def _confirm_clear_all(self):
-        count = len(self.presenter.repository.list())
-        if not count:
-            return
-        dialog = QMessageBox(self)
-        self.tr.bind(dialog, 'clear_all_confirm', setter='setWindowTitle')
-        self.tr.bind(dialog, 'clear_all_confirmation', count=count)
-        dialog.setIcon(QMessageBox.Icon.Warning)
-        checkbox = self.tr.widget(QCheckBox, 'clear_all_delete_files')
-        checkbox.setChecked(False)
-        dialog.setCheckBox(checkbox)
-        dialog.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        dialog.setDefaultButton(QMessageBox.StandardButton.No)
-        self.tr.bind(dialog.button(QMessageBox.StandardButton.Yes), 'clear_all_confirm')
-        self.tr.bind(dialog.button(QMessageBox.StandardButton.No), 'cancel')
-        dialog.finished.connect(
-            lambda result: (
-                self.presenter.clear_all(delete_files=checkbox.isChecked())
-                if result == QMessageBox.StandardButton.Yes
-                else None
-            )
-        )
-        self._track_dialog(dialog)
-        dialog.open()
+        return self.dialogs.confirm_clear_all()
 
     def _confirm_delete(self, identities):
-        jobs = tuple(self.presenter.repository.get(identity) for identity in identities)
-        count = len({path for job in jobs for path in job.result_files})
-        if not count:
-            return
-        dialog = QMessageBox(self)
-        self.tr.bind(dialog, 'delete_files', setter='setWindowTitle')
-        self.tr.bind(dialog, 'delete_confirmation', count=count)
-        dialog.setIcon(QMessageBox.Icon.Warning)
-        dialog.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        dialog.setDefaultButton(QMessageBox.StandardButton.No)
-        self.tr.bind(dialog.button(QMessageBox.StandardButton.Yes), 'delete_files')
-        self.tr.bind(dialog.button(QMessageBox.StandardButton.No), 'cancel')
-        dialog.finished.connect(
-            lambda result: (
-                self.presenter.delete_files(identities, True)
-                if result == QMessageBox.StandardButton.Yes
-                else None
-            )
-        )
-        self._track_dialog(dialog)
-        dialog.open()
+        return self.dialogs.confirm_delete(identities)
 
     def _navigate(self, service, history, title):
         self.sidebar.select(nav_key=title)
@@ -572,60 +375,10 @@ class MainWindow(QMainWindow):
         self.error_label.show()
 
     def _select_dialog(self, identity, selection):
-        if selection is None:
-            self._show_error('selection_refresh_required')
-            return
-        dialog = QDialog(self)
-        self.tr.bind(dialog, 'select_lesson', setter='setWindowTitle')
-        dialog.resize(520, 350)
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(self.tr.widget(QLabel, 'select_materials'))
-        items = QListWidget()
-        layout.addWidget(items)
-        for number, code in enumerate(selection.ids):
-            title = (
-                selection.titles[number]
-                if number < len(selection.titles)
-                else self.tr.text('video_number', number=number + 1)
-            )
-            item = QListWidgetItem(title)
-            item.setData(Qt.ItemDataRole.UserRole, code)
-            item.setCheckState(Qt.CheckState.Checked)
-            items.addItem(item)
-            if number >= len(selection.titles):
-                self.tr.bind(item, 'video_number', number=number + 1)
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        layout.addWidget(buttons)
-        self.tr.bind(buttons.button(QDialogButtonBox.StandardButton.Cancel), 'cancel')
-        self.tr.bind(buttons.button(QDialogButtonBox.StandardButton.Ok), 'ok')
-        buttons.rejected.connect(dialog.reject)
-
-        def accept():
-            ids = tuple(
-                items.item(n).data(Qt.ItemDataRole.UserRole)
-                for n in range(items.count())
-                if items.item(n).checkState() == Qt.CheckState.Checked
-            )
-            if ids:
-                self.presenter.select_items(identity, ids)
-                dialog.accept()
-
-        buttons.accepted.connect(accept)
-        self._track_dialog(dialog)
-        dialog.open()
+        return self.dialogs.select(identity, selection)
 
     def _source_dialog(self, identity):
-        dialog = QInputDialog(self)
-        self.tr.bind(dialog, 'restore_source', setter='setWindowTitle')
-        self.tr.bind(dialog, 'original_link', setter='setLabelText')
-        self.tr.bind(dialog, 'cancel', setter='setCancelButtonText')
-        self.tr.bind(dialog, 'ok', setter='setOkButtonText')
-        dialog.setInputMode(QInputDialog.InputMode.TextInput)
-        dialog.textValueSelected.connect(lambda text: self.presenter.provide_source(identity, text))
-        self._track_dialog(dialog)
-        dialog.open()
+        return self.dialogs.source(identity)
 
     def _shutdown_finished(self):
         if self._closing_requested:
