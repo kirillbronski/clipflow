@@ -75,12 +75,7 @@ class WorkbenchPresenter(QObject):
         try:
             return action()
         except Exception as error:  # noqa: BLE001  # подпроект 3
-            code = getattr(error, 'code', 'action_failed')
-            if isinstance(error, ValueError) and str(error).startswith('Source changed'):
-                code = 'source_changed'
-            elif isinstance(error, ValueError) and 'Cooldown' in str(error):
-                code = 'cooldown_active'
-            self.error_raised.emit(code)
+            self.error_raised.emit(getattr(error, 'code', 'action_failed'))
             return None
 
     def submit(self, text, mode='single', profile_limit=_UNSET):

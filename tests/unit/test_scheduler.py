@@ -1,10 +1,12 @@
 """Queue behavior with controllable workers: no GUI, network, or wall-clock sleeps."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from clipflow.application.errors import RULE_CODES, JobRuleError
 from clipflow.application.scheduler import Scheduler
 from clipflow.domain.events import (
     CancellationToken,
@@ -178,8 +180,9 @@ def test_shutdown_does_not_start_next(queue):
 def test_retry_requires_terminal_and_ignores_its_old_success(queue):
     repo, worker, scheduler = queue
     scheduler.start()
-    with pytest.raises(ValueError):
+    with pytest.raises(JobRuleError) as raised:
         scheduler.retry('one')
+    assert raised.value.code == 'job_not_retryable'
     worker.emit(WorkFailed('failure'))
     scheduler.retry('one')
     finish(worker)  # Complete second job; start retry.
@@ -210,10 +213,12 @@ def test_selection_pauses_until_worker_stops_and_creates_new_snapshot(queue):
     old_attempt = repo.get('one').attempt_id
     worker.emit(SelectionRequired(('a', 'b')))
     assert repo.get('one').pause_reason == 'selection_required'
-    with pytest.raises(ValueError):
+    with pytest.raises(JobRuleError) as raised:
         scheduler.resume('one')
-    with pytest.raises(ValueError):
+    assert raised.value.code == 'job_not_resumable'
+    with pytest.raises(JobRuleError) as raised:
         scheduler.select_items('one', ())
+    assert raised.value.code == 'selection_not_expected'
     scheduler.select_items('one', ('b',))
     assert original.selection is None
     assert repo.get('one').request.selection == ('b',)
@@ -231,8 +236,9 @@ def test_rate_limit_pauses_and_keeps_deadline_without_claiming_success(queue):
     assert repo.get('one').state == JobState.PAUSED
     assert repo.get('one').pause_reason == 'rate_limit'
     assert repo.get('one').next_allowed_at == deadline
-    with pytest.raises(ValueError):
+    with pytest.raises(JobRuleError) as raised:
         scheduler.resume('one')
+    assert raised.value.code == 'cooldown_active'
     worker.emit(WorkStopped())
     assert repo.get('two').state == JobState.PROBING
 
@@ -252,10 +258,12 @@ def test_empty_success_fails_and_duplicate_saved_files_are_not_lost(queue):
 def test_unknown_events_and_invalid_commands_do_not_corrupt_queue(queue):
     repo, worker, scheduler = queue
     scheduler.handle(JobEvent('missing', 'missing', WorkFailed('ignored')))
-    with pytest.raises(ValueError):
+    with pytest.raises(JobRuleError) as raised:
         scheduler.resume('one')
-    with pytest.raises(ValueError):
+    assert raised.value.code == 'job_not_resumable'
+    with pytest.raises(JobRuleError) as raised:
         scheduler.select_items('one', ('a',))
+    assert raised.value.code == 'selection_not_expected'
     scheduler.pause('two')
     scheduler.start()
     assert repo.get('two').state == JobState.PAUSED
@@ -367,8 +375,9 @@ def test_shutdown_is_final_even_with_no_active_worker(queue):
     repo, worker, scheduler = queue
     scheduler.shutdown()
     scheduler.shutdown()
-    with pytest.raises(ValueError):
+    with pytest.raises(JobRuleError) as raised:
         scheduler.start()
+    assert raised.value.code == 'scheduler_closed'
     assert worker.runs == []
 
 
@@ -479,3 +488,70 @@ def test_title_events_persist_and_named_queued_jobs_are_relabelled(queue):
     assert any(e.job_id == 'two' and e.payload == TitleChanged('Оскар - Между Мной') for e in seen)
     scheduler.set_title('one', 'Другое')  # active jobs are named by their own worker
     assert repo.get('one').title == 'Пропаганда - Мелом'
+
+
+def _set(repo, identity, **changes):
+    repo.update(replace(repo.get(identity), **changes))
+
+
+FUTURE = datetime(2099, 1, 1, tzinfo=UTC)
+RULE_CASES = [
+    ('scheduler_closed', lambda r, s: s.shutdown(), lambda s: s.start()),
+    (
+        'job_not_startable',
+        lambda r, s: _set(r, 'one', state=JobState.PAUSED),
+        lambda s: s.start('one'),
+    ),
+    (
+        'source_required',
+        lambda r, s: _set(r, 'one', state=JobState.PAUSED, source_required=True),
+        lambda s: s.resume('one'),
+    ),
+    (
+        'source_required',
+        lambda r, s: _set(r, 'one', state=JobState.FAILED, source_required=True),
+        lambda s: s.retry('one'),
+    ),
+    (
+        'source_required',
+        lambda r, s: _set(r, 'one', state=JobState.PAUSED, source_required=True),
+        lambda s: s.select_items('one', ('a',)),
+    ),
+    ('job_not_resumable', lambda r, s: None, lambda s: s.resume('one')),
+    (
+        'cooldown_active',
+        lambda r, s: _set(r, 'one', state=JobState.PAUSED, next_allowed_at=FUTURE),
+        lambda s: s.resume('one'),
+    ),
+    ('job_not_retryable', lambda r, s: None, lambda s: s.retry('one')),
+    (
+        'source_not_expected',
+        lambda r, s: None,
+        lambda s: s.provide_source('one', parse_url('https://youtu.be/first')),
+    ),
+    (
+        'source_changed',
+        lambda r, s: _set(r, 'one', state=JobState.FAILED, source_required=True),
+        lambda s: s.provide_source('one', parse_url('https://youtu.be/other')),
+    ),
+    ('selection_not_expected', lambda r, s: None, lambda s: s.select_items('one', ('a',))),
+    ('selection_not_expected', lambda r, s: None, lambda s: s.refresh_selection('one')),
+]
+
+
+@pytest.mark.parametrize(('code', 'arrange', 'act'), RULE_CASES)
+def test_rule_errors_carry_codes(queue, code, arrange, act):
+    repo, worker, scheduler = queue
+    arrange(repo, scheduler)
+    with pytest.raises(JobRuleError) as raised:
+        act(scheduler)
+    assert raised.value.code == code
+    assert isinstance(raised.value, ValueError)  # callers that catch ValueError keep working
+    assert code in RULE_CODES
+
+
+def test_rule_codes_without_own_text_keep_the_generic_message():
+    from clipflow.ui.i18n import CATALOG
+
+    shown = {code for code in RULE_CODES if 'error.' + code in CATALOG['ru']}
+    assert shown == {'source_changed', 'cooldown_active'}

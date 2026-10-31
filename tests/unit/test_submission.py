@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import pytest
 
+from clipflow.application.errors import JobRuleError
 from clipflow.application.submission import SubmissionService
 from clipflow.domain.models import DownloadOptions, JobState, Service
 from tests.helpers import MemoryJobRepository
@@ -81,8 +82,9 @@ def test_completed_job_requires_explicit_repeat(system):
     assert repeated != first
     assert store.get(repeated).state == JobState.QUEUED
     assert store.get(repeated).request == store.get(first).request
-    with pytest.raises(ValueError):
+    with pytest.raises(JobRuleError) as raised:
         service.repeat(repeated)
+    assert raised.value.code == 'job_not_repeatable'
 
 
 def test_repeated_submission_points_to_active_job(system):
@@ -119,3 +121,10 @@ def test_playlist_id_cannot_be_truncated_into_another_playlist(system):
     )
     assert not preview.requests
     assert len(preview.invalid) == 1
+
+
+def test_unsupported_mode_raises_invalid_mode(system):
+    service, store, presets = system
+    with pytest.raises(JobRuleError) as raised:
+        service.preview('https://youtu.be/abc', presets, 'nonsense')
+    assert raised.value.code == 'invalid_mode'

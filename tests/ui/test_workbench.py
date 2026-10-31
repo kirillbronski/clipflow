@@ -6,6 +6,7 @@ import pytest
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QPushButton
 
+from clipflow.application.errors import JobRuleError
 from clipflow.application.scheduler import Scheduler
 from clipflow.application.submission import SubmissionService
 from clipflow.domain.events import JobEvent, ProgressChanged, StageChanged, TitleChanged
@@ -532,3 +533,25 @@ def test_instagram_rate_limit_releases_real_qt_executor_for_youtube(make_window,
         captured == [policy] and job.state == JobState.PAUSED and job.pause_reason == 'rate_limit'
     )
     assert job.automatic_retry and job.next_allowed_at is not None
+
+
+@pytest.mark.parametrize(
+    ('error', 'code'),
+    [
+        (JobRuleError('cooldown_active', 'Cooldown has not expired'), 'cooldown_active'),
+        (JobRuleError('job_not_startable', 'Job cannot be started'), 'job_not_startable'),
+        # The code comes from the error type, never from its English message.
+        (ValueError('Cooldown has not expired'), 'action_failed'),
+        (ValueError('Source changed; add it as a new job'), 'action_failed'),
+    ],
+)
+def test_command_errors_use_codes_not_message_text(make_window, qtbot, monkeypatch, error, code):
+    window, _ = make_window()
+
+    def fail(identity=None):
+        raise error
+
+    monkeypatch.setattr(window.presenter.scheduler, 'start', fail)
+    with qtbot.waitSignal(window.presenter.error_raised) as raised:
+        window.presenter.start_queue()
+    assert raised.args == [code]

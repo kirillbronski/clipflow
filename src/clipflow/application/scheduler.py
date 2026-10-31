@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
 
+from clipflow.application.errors import JobRuleError
 from clipflow.application.ports import JobRepository
 from clipflow.domain.events import (
     FilesSaved,
@@ -77,11 +78,11 @@ class Scheduler:
 
     def start(self, job_id: str | None = None) -> None:
         if self._closed:
-            raise ValueError('Scheduler is shut down')
+            raise JobRuleError('scheduler_closed', 'Scheduler is shut down')
         if job_id is not None:
             selected = self.repository.get(job_id)
             if selected.state != JobState.QUEUED or selected.source_required:
-                raise ValueError('Job cannot be started')
+                raise JobRuleError('job_not_startable', 'Job cannot be started')
             self._preferred_job = job_id
         self._running = True
         self._drained = False
@@ -159,11 +160,11 @@ class Scheduler:
     def resume(self, job_id: str) -> None:
         job = self.repository.get(job_id)
         if job.source_required:
-            raise ValueError('Job source must be provided again')
+            raise JobRuleError('source_required', 'Job source must be provided again')
         if job.state != JobState.PAUSED or job.pause_reason == 'selection_required':
-            raise ValueError('Job cannot be resumed')
+            raise JobRuleError('job_not_resumable', 'Job cannot be resumed')
         if job.next_allowed_at and job.next_allowed_at > self.clock():
-            raise ValueError('Cooldown has not expired')
+            raise JobRuleError('cooldown_active', 'Cooldown has not expired')
         self._save(replace(job, state=JobState.QUEUED, pause_reason=None, next_allowed_at=None))
         self._drained = False
         self._pump()
@@ -227,9 +228,9 @@ class Scheduler:
     def retry(self, job_id: str) -> None:
         job = self.repository.get(job_id)
         if job.source_required:
-            raise ValueError('Job source must be provided again')
+            raise JobRuleError('source_required', 'Job source must be provided again')
         if job.state not in TERMINAL_STATES:
-            raise ValueError('Only terminal jobs can be retried')
+            raise JobRuleError('job_not_retryable', 'Only terminal jobs can be retried')
         self._save(
             replace(job, state=JobState.QUEUED, error=None, pause_reason=None, next_allowed_at=None)
         )
@@ -245,9 +246,9 @@ class Scheduler:
             or link.service != job.request.link.service
             or link.kind != job.request.link.kind
         ):
-            raise ValueError('Job is not waiting for this source')
+            raise JobRuleError('source_not_expected', 'Job is not waiting for this source')
         if job.request.link.canonical_id != source_reference(link):
-            raise ValueError('Source changed; add it as a new job')
+            raise JobRuleError('source_changed', 'Source changed; add it as a new job')
         request = replace(job.request, link=link)
         self._save(
             replace(
@@ -264,9 +265,11 @@ class Scheduler:
     def select_items(self, job_id: str, ids: tuple[str, ...]) -> None:
         job = self.repository.get(job_id)
         if job.source_required:
-            raise ValueError('Job source must be provided again')
+            raise JobRuleError('source_required', 'Job source must be provided again')
         if job.state != JobState.PAUSED or job.pause_reason != 'selection_required' or not ids:
-            raise ValueError('Job is not waiting for a nonempty selection')
+            raise JobRuleError(
+                'selection_not_expected', 'Job is not waiting for a nonempty selection'
+            )
         updated = replace(job.request, selection=ids)
         self._save(replace(job, request=updated, state=JobState.QUEUED, pause_reason=None))
         self._drained = False
@@ -280,7 +283,7 @@ class Scheduler:
             or job.state != JobState.PAUSED
             or job.pause_reason != 'selection_required'
         ):
-            raise ValueError('Job is not waiting for selection')
+            raise JobRuleError('selection_not_expected', 'Job is not waiting for selection')
         self._save(replace(job, state=JobState.QUEUED, pause_reason=None))
         self._drained = False
         self._pump()

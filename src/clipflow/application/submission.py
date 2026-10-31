@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from urllib.parse import parse_qs, urlencode, urlparse
 from uuid import uuid4
 
+from clipflow.application.errors import JobRuleError
 from clipflow.domain.models import (
     TERMINAL_STATES,
     ContentKind,
@@ -60,7 +61,7 @@ class SubmissionService:
         profile_limit: int | None = 10,
     ) -> BatchPreview:
         if mode not in {'single', 'batch', 'profile', 'playlist', 'lesson'}:
-            raise ValueError('Unsupported submission mode')
+            raise JobRuleError('invalid_mode', 'Unsupported submission mode')
         requests, invalid, duplicates = [], [], []
         seen = set()
         lines = [
@@ -127,7 +128,7 @@ class SubmissionService:
     def repeat(self, job_id: str) -> str:
         original = self.repository.get(job_id)
         if original.state not in TERMINAL_STATES:
-            raise ValueError('This job is already queued or active')
+            raise JobRuleError('job_not_repeatable', 'This job is already queued or active')
         job = Job(str(uuid4()), original.request, parent_id=original.parent_id)
         self.repository.add(job)
         return job.id
