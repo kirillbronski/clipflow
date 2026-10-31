@@ -421,3 +421,21 @@ def test_bulk_toolbar_very_wide_buttons_stack_without_horizontal_scroll(make_win
     assert window.width() == 880
     assert window.clear_all_button.y() > window.cancel_queue_button.y()
     assert window.main_page.horizontalScrollBar().maximum() == 0
+
+
+@pytest.mark.parametrize('size', [20, 300])
+def test_clear_all_reads_the_queue_a_fixed_number_of_times(make_window, tmp_path, size):
+    """Clearing a long playlist must not re-read the queue per job (it froze for minutes)."""
+    window, _ = make_window()
+    repository = window.presenter.repository
+    options = DownloadOptions(tmp_path / 'downloads')
+    for n in range(size):
+        link = parse_url(f'https://youtu.be/v{n:05d}')
+        repository.add(Job(f'j{n:05d}', DownloadRequest(link, options)))
+    window.presenter._reload_jobs()
+    reads = []
+    original = repository.list
+    repository.list = lambda: reads.append(1) or original()
+    window.presenter.clear_all(delete_files=True)
+    assert repository.list() == ()
+    assert len(reads) <= 7
