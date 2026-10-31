@@ -60,69 +60,75 @@ class InstagramProfileProvider:
             raise MediaFailure('instagram_rate_policy_required')
         return ProbeResult((), ())
 
-    def execute(self, request, context):  # noqa: C901  # подпроект 3
+    def execute(self, request, context):
         self.probe(request, context)
         context.emit(StageChanged(JobState.PROBING))
-        found = {}
-        count = 0
-        exhausted = False
-        store = getattr(context.instagram_rate, 'store', None)
-        key = request_key(request)
-
-        def emit(posts):
-            nonlocal count
-            batch = []
-            for post in posts:
-                context.cancel.raise_if_cancelled()
-                line = next(
-                    (part.strip() for part in (post.caption or '').splitlines() if part.strip()),
-                    '',
-                )
-                batch.append(
-                    DownloadRequest(
-                        parse_url(f'https://www.instagram.com/p/{post.code}/'),
-                        replace(request.options, post_folder=True),
-                        label=line[:100] or post.code,
-                    )
-                )
-                if len(batch) == 25:
-                    context.emit(RequestsDiscovered(tuple(batch)))
-                    count += len(batch)
-                    batch = []
-            if batch:
-                context.emit(RequestsDiscovered(tuple(batch)))
-                count += len(batch)
-
         try:
-            for page in self.page_source.pages(request, context):
-                context.cancel.raise_if_cancelled()
-                new = []
-                for post in page.posts:
-                    if post.code not in found:
-                        found[post.code] = post
-                        new.append(post)
-                exhausted = page.next_cursor is None
-                # Checkpoints are progress hints only, not a durable queue ACK.
-                # Expired/unportable cursors are safely re-enumerated and deduped.
-                if store:
-                    store.checkpoint(key, page.next_cursor, found, False)
-                if request.profile_limit is None:
-                    emit(new)
-            if not exhausted:
-                raise MediaFailure('instagram_profile_incomplete')
+            found, count = self._enumerate(request, context)
             if request.profile_limit is not None:
-                emit(
-                    sorted(found.values(), key=lambda p: (p.published_at, p.code), reverse=True)[
-                        : request.profile_limit
-                    ]
+                newest = sorted(
+                    found.values(), key=lambda p: (p.published_at, p.code), reverse=True
                 )
+                count += self._discover(newest[: request.profile_limit], request, context)
+            store = getattr(context.instagram_rate, 'store', None)
             if store:
-                store.checkpoint(key, None, found, True)
+                store.checkpoint(request_key(request), None, found, True)
             return DownloadResult((), count)
         except (WorkCancelled, MediaFailure):
             raise
         except Exception:  # noqa: BLE001  # подпроект 3
             raise MediaFailure('instagram_profile_failed') from None
+
+    def _enumerate(self, request, context):
+        """Every post of the profile, deduplicated; unlimited runs queue them page by page."""
+        store = getattr(context.instagram_rate, 'store', None)
+        key = request_key(request)
+        found = {}
+        count = 0
+        exhausted = False
+        for page in self.page_source.pages(request, context):
+            context.cancel.raise_if_cancelled()
+            new = []
+            for post in page.posts:
+                if post.code not in found:  # a page may repeat a post; keep its first copy
+                    found[post.code] = post
+                    new.append(post)
+            exhausted = page.next_cursor is None
+            # Checkpoints are progress hints only, not a durable queue ACK.
+            # Expired/unportable cursors are safely re-enumerated and deduped.
+            if store:
+                store.checkpoint(key, page.next_cursor, found, False)
+            if request.profile_limit is None:
+                count += self._discover(new, request, context)
+        if not exhausted:
+            raise MediaFailure('instagram_profile_incomplete')
+        return found, count
+
+    @staticmethod
+    def _discover(posts, request, context):
+        """Queue posts as their own jobs in batches of 25; returns how many were queued."""
+        batch = []
+        count = 0
+        for post in posts:
+            context.cancel.raise_if_cancelled()
+            batch.append(_post_request(post, request))
+            if len(batch) == 25:
+                context.emit(RequestsDiscovered(tuple(batch)))
+                count += len(batch)
+                batch = []
+        if batch:
+            context.emit(RequestsDiscovered(tuple(batch)))
+            count += len(batch)
+        return count
+
+
+def _post_request(post, request):
+    line = next((part.strip() for part in (post.caption or '').splitlines() if part.strip()), '')
+    return DownloadRequest(
+        parse_url(f'https://www.instagram.com/p/{post.code}/'),
+        replace(request.options, post_folder=True),
+        label=line[:100] or post.code,
+    )
 
 
 class PacedSession:
@@ -237,57 +243,66 @@ class InstaloaderPageSource:
         self._context = None
         self._fingerprint = None
 
-    def pages(self, request, context):  # noqa: C901  # подпроект 3
+    def pages(self, request, context):
         context.cancel.raise_if_cancelled()
         try:
-            options = dict(
-                context.auth.options_for(request.options.auth_profile, request.link.canonical_url)
-            )
-            options.update(quiet=True, no_warnings=True, logger=_QuietLogger())
-            with open_downloader(options, context=context) as ydl:
-                cookies = [copy(c) for c in ydl.cookiejar]
-            digest = hashlib.sha256(
-                repr([(c.domain, c.path, c.name, c.value) for c in cookies]).encode()
-            ).digest()
-            fingerprint = (digest, id(context.instagram_rate))
-            if fingerprint != self._fingerprint:
-                self.close()
-                self._context = PacedContext(context)
-                self._fingerprint = fingerprint
-                for cookie in cookies:
-                    self._context._session.cookies.set_cookie(cookie)
-            self._context.execution = context
-            self._context._session.execution = context
-            if cookies and self._context.username is None:
-                self._context.username = self._context.test_login()
-                if not self._context.username:
-                    raise MediaFailure('instagram_access_required')
+            self._sign_in(request, context)
             profile = instaloader.Profile.from_username(self._context, request.link.canonical_id)
             if profile.is_private and not (profile.followed_by_viewer or profile.is_self):
                 raise MediaFailure('instagram_access_required')
-            batch = []
-            page = 0
-            for method in (profile.get_posts, profile.get_reels):
-                for post in method():
-                    context.cancel.raise_if_cancelled()
-                    published = post.date_utc.replace(tzinfo=UTC)
-                    caption = getattr(
-                        post, 'caption', None
-                    )  # read from the already fetched node, no request
-                    batch.append(
-                        PostRef(
-                            post.shortcode,
-                            published,
-                            request.link.canonical_id,
-                            caption if isinstance(caption, str) else None,
-                        )
-                    )
-                    if len(batch) == 25:
-                        page += 1
-                        yield ProfilePage(tuple(batch), f'page-{page}', False, frozenset())
-                        batch = []
-            yield ProfilePage(tuple(batch), None, False, frozenset())
+            yield from _paged(_post_refs(profile, request, context))
         except (WorkCancelled, MediaFailure):
             raise
         except Exception:  # noqa: BLE001  # подпроект 3
             raise MediaFailure('instagram_profile_failed') from None
+
+    def _sign_in(self, request, context):
+        """Reuse the paced Instaloader session while the cookies and rate policy are the same."""
+        options = dict(
+            context.auth.options_for(request.options.auth_profile, request.link.canonical_url)
+        )
+        options.update(quiet=True, no_warnings=True, logger=_QuietLogger())
+        with open_downloader(options, context=context) as ydl:
+            cookies = [copy(c) for c in ydl.cookiejar]
+        digest = hashlib.sha256(
+            repr([(c.domain, c.path, c.name, c.value) for c in cookies]).encode()
+        ).digest()
+        fingerprint = (digest, id(context.instagram_rate))
+        if fingerprint != self._fingerprint:
+            self.close()
+            self._context = PacedContext(context)
+            self._fingerprint = fingerprint
+            for cookie in cookies:
+                self._context._session.cookies.set_cookie(cookie)
+        self._context.execution = context
+        self._context._session.execution = context
+        if cookies and self._context.username is None:
+            self._context.username = self._context.test_login()
+            if not self._context.username:
+                raise MediaFailure('instagram_access_required')
+
+
+def _post_refs(profile, request, context):
+    for method in (profile.get_posts, profile.get_reels):
+        for post in method():
+            context.cancel.raise_if_cancelled()
+            caption = getattr(post, 'caption', None)  # read from the fetched node, no request
+            yield PostRef(
+                post.shortcode,
+                post.date_utc.replace(tzinfo=UTC),
+                request.link.canonical_id,
+                caption if isinstance(caption, str) else None,
+            )
+
+
+def _paged(refs):
+    """Pages of 25 posts with a progress cursor; the last page has none."""
+    batch = []
+    page = 0
+    for ref in refs:
+        batch.append(ref)
+        if len(batch) == 25:
+            page += 1
+            yield ProfilePage(tuple(batch), f'page-{page}', False, frozenset())
+            batch = []
+    yield ProfilePage(tuple(batch), None, False, frozenset())
