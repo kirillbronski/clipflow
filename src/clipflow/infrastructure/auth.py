@@ -145,7 +145,7 @@ class NativeAuthGateway:
                 )
         return AuthStatus(service)
 
-    def options_for(self, profile, url):
+    def options_for(self, profile, url):  # noqa: C901  # подпроект 3
         if profile is None:
             return {}
         try:
@@ -205,7 +205,7 @@ class NativeAuthGateway:
             return {'_cookiejar': scoped}
         except MediaFailure:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             raise MediaFailure('auth_required') from None
 
     @staticmethod
@@ -249,7 +249,7 @@ class NativeAuthGateway:
         }
         try:
             atomic_protected(self._gc_path(profile), payload, self.platform.protect)
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             raise MediaFailure('auth_storage_failed') from None
         self._selected_gc = profile
         return profile

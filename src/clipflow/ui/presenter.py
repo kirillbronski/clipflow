@@ -74,7 +74,7 @@ class WorkbenchPresenter(QObject):
             return None
         try:
             return action()
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001  # подпроект 3
             code = getattr(error, 'code', 'action_failed')
             if isinstance(error, ValueError) and str(error).startswith('Source changed'):
                 code = 'source_changed'
@@ -182,8 +182,8 @@ class WorkbenchPresenter(QObject):
     def start_queue(self):
         return self._command(self._start)
 
-    def toggle_job(self, identity):
-        def action():
+    def toggle_job(self, identity):  # noqa: C901  # подпроект 3
+        def action():  # noqa: C901  # подпроект 3
             job = self.repository.get(identity)
             if job.source_required:
                 self.source_requested.emit(identity)
@@ -519,7 +519,7 @@ class WorkbenchPresenter(QObject):
             self.auth_gateway.close()
         try:
             self.scheduler.shutdown()
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             self.error_raised.emit('queue_update_failed')
         self.executor.shutdown()
 

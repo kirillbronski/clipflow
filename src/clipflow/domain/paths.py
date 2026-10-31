@@ -92,7 +92,7 @@ def _track_title(item: 'MediaItem') -> str:
     return item.title
 
 
-def output_path(
+def output_path(  # noqa: C901  # подпроект 3
     request: DownloadRequest, item: 'MediaItem', author: str | None, post: PostIdentity | None
 ) -> Path:
     if type(item.index) is not int or item.index < 1:

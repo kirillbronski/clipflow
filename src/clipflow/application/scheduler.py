@@ -130,7 +130,7 @@ class Scheduler:
                 self._launched = True
                 try:
                     self.executor.start(job, self.handle)
-                except Exception:
+                except Exception:  # noqa: BLE001  # подпроект 3
                     # Do not leak arbitrary adapter exceptions (may contain secrets).
                     self.handle(JobEvent(job.id, job.attempt_id, WorkFailed('worker_start_failed')))
         finally:
@@ -310,7 +310,7 @@ class Scheduler:
             self.cancel(identity)
         return identities
 
-    def handle(self, event: JobEvent) -> None:
+    def handle(self, event: JobEvent) -> None:  # noqa: C901  # подпроект 3
         if (event.job_id, event.attempt_id) != self._active:
             return
         job = self.repository.get(event.job_id)

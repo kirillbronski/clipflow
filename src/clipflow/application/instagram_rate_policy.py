@@ -122,7 +122,7 @@ class InstagramRatePolicy:
                     if not self.store.claim(owner, self.clock()):
                         lost.set()
                         return
-                except Exception:
+                except Exception:  # noqa: BLE001  # подпроект 3
                     lost.set()
                     return
 

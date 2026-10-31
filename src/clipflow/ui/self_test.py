@@ -14,7 +14,7 @@ from threading import Thread
 from clipflow.version import APP_VERSION
 
 
-def main(argv=None):
+def main(argv=None):  # noqa: C901  # подпроект 3
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ui-self-test', action='store_true')
     parser.add_argument('--data-dir', required=True)
@@ -164,7 +164,7 @@ def main(argv=None):
                 outcomes.append(True)
                 timer.stop()
                 window.close()
-            except Exception:
+            except Exception:  # noqa: BLE001  # подпроект 3
                 timer.stop()
                 app.exit(1)
 
@@ -177,7 +177,7 @@ def main(argv=None):
         QTimer.singleShot(30000, lambda: app.exit(2))
         result = app.exec()
         proof['passed'] = result == 0 and bool(outcomes)
-    except Exception:
+    except Exception:  # noqa: BLE001  # подпроект 3
         proof['error'] = 'package_ui_self_test_failed'
     finally:
         presenter.shutdown()

@@ -48,7 +48,7 @@ class MediaPipeline:
         self.ffprobe = ffprobe or shutil.which('ffprobe')
         self.node = node or shutil.which('node')
 
-    def save(
+    def save(  # noqa: C901  # подпроект 3
         self, item: MediaItem, request: DownloadRequest, context: ExecutionContext
     ) -> tuple[Path, ...]:
         context.cancel.raise_if_cancelled()
@@ -130,7 +130,7 @@ class MediaPipeline:
         except OSError:
             context.cancel.raise_if_cancelled()
             raise MediaFailure('write_failed') from None
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             context.cancel.raise_if_cancelled()
             raise MediaFailure('download_failed') from None
 

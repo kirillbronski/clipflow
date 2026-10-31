@@ -22,7 +22,7 @@ class YouTubeProvider:
     def __init__(self, pipeline: MediaPipeline):
         self.pipeline = pipeline
 
-    def probe(self, request: DownloadRequest, context: ExecutionContext) -> ProbeResult:
+    def probe(self, request: DownloadRequest, context: ExecutionContext) -> ProbeResult:  # noqa: C901  # подпроект 3
         context.cancel.raise_if_cancelled()
         if (
             request.link.service != Service.YOUTUBE
@@ -172,6 +172,6 @@ class YouTubeProvider:
             return info if isinstance(info, dict) else None
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             context.cancel.raise_if_cancelled()
             raise MediaFailure('probe_failed') from None

@@ -17,7 +17,7 @@ from clipflow.infrastructure.platform import PlatformServices, data_directory
 FLAGS = {'--youtube-login', '--instagram-login', '--auth-self-test', '--instagram-auth-self-test'}
 
 
-def main(argv=None):
+def main(argv=None):  # noqa: C901  # подпроект 3
     parser = argparse.ArgumentParser()
     parser.add_argument('--youtube-login', action='store_true')
     parser.add_argument('--instagram-login', action='store_true')
@@ -174,7 +174,7 @@ def main(argv=None):
                         'domain scope, no Tk; theme=' + theme.mode
                     )
                     app.exit(0)
-                except Exception as error:
+                except Exception as error:  # noqa: BLE001  # подпроект 3
                     if args.report:
                         frame = traceback.extract_tb(error.__traceback__)[-1]
                         Path(args.report).write_text(

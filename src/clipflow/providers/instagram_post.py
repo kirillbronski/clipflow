@@ -169,7 +169,7 @@ class InstagramPostProvider:
                 return self._normalize(info, request, context), SessionAuth(access, ydl.cookiejar)
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001  # подпроект 3
             context.cancel.raise_if_cancelled()
             raise MediaFailure(_network_reason(error, 'instagram_probe_failed')) from None
 

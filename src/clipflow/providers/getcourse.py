@@ -203,7 +203,7 @@ class GetCourseProvider:
         self.pipeline = pipeline
 
     @contextmanager
-    def _session(self, request, context):
+    def _session(self, request, context):  # noqa: C901  # подпроект 3
         context.cancel.raise_if_cancelled()
         if request.link.service != Service.GETCOURSE or request.link.kind not in {
             ContentKind.LESSON,
@@ -233,7 +233,7 @@ class GetCourseProvider:
                 yield ydl, access
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001  # подпроект 3
             context.cancel.raise_if_cancelled()
             seen = set()
             pending = [error]

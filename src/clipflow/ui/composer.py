@@ -36,7 +36,7 @@ class Composer(QFrame):
     service_changed = Signal(object)
     layout_changed = Signal()
 
-    def __init__(self, settings, parent=None, *, translator=None):
+    def __init__(self, settings, parent=None, *, translator=None):  # noqa: C901  # подпроект 3
         super().__init__(parent)
         self.setObjectName('composer')
         self.tr = translator or Translator(settings.language, self)

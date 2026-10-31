@@ -56,7 +56,7 @@ class _ProbeWorker(QThread):
             self.error = 'rate_limit' if hasattr(error, 'decision') else 'probe_cancelled'
         except MediaFailure as error:
             self.error = error.code
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             self.error = 'probe_failed'
 
 
@@ -75,7 +75,7 @@ class _TitleWorker(QThread):
             title = self.provider.planned_title(self.job.request, context)
             self.cancel.raise_if_cancelled()
             self.title = title if isinstance(title, str) and title.strip() else None
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             self.title = None  # names are cosmetic: never surface lookup errors
 
 
@@ -113,7 +113,7 @@ class _Worker(QThread):
             self.terminal = WorkStopped()
         except MediaFailure as error:
             self.terminal = WorkFailed(str(error))
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             self.terminal = WorkFailed('worker_failed')
         # QThread.finished is emitted only after run() returns and provider
         # context managers have closed their HTTP/process resources.
@@ -166,7 +166,7 @@ class ThreadExecutor(QObject):
         if record:
             try:
                 record[1](event)
-            except Exception:
+            except Exception:  # noqa: BLE001  # подпроект 3
                 record[0].cancel.cancel('pause')
                 self.error.emit('queue_update_failed')
 
@@ -182,7 +182,7 @@ class ThreadExecutor(QObject):
         worker.wait()
         try:
             record[1](JobEvent(*key, worker.terminal))
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             self.error.emit('queue_update_failed')
         worker.deleteLater()
         self._start_probe()
@@ -228,7 +228,7 @@ class ThreadExecutor(QObject):
         if not self._closing:
             try:
                 callback(worker.job.id, worker.title)
-            except Exception:
+            except Exception:  # noqa: BLE001  # подпроект 3
                 self.error.emit('queue_update_failed')
         worker.deleteLater()
         self._try_close()
@@ -269,7 +269,7 @@ class ThreadExecutor(QObject):
         if not self._closing:
             try:
                 callback(worker.request_id, worker.heights, worker.error)
-            except Exception:
+            except Exception:  # noqa: BLE001  # подпроект 3
                 self.error.emit('probe_failed')
         worker.deleteLater()
         self._start_probe()
@@ -290,7 +290,7 @@ class ThreadExecutor(QObject):
         if self._closing and self.is_idle and self._naming is None and not self._closed:
             try:
                 self._cleanup()
-            except Exception:
+            except Exception:  # noqa: BLE001  # подпроект 3
                 self.error.emit('worker_cleanup_failed')
             self._closed = True
             self.closed.emit()

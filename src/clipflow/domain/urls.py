@@ -14,7 +14,7 @@ class InvalidLink(ValueError):
     """A user-supplied link is not a supported content URL."""
 
 
-def parse_url(text: str) -> ParsedLink:
+def parse_url(text: str) -> ParsedLink:  # noqa: C901  # подпроект 3
     try:
         parsed = urlparse(text.strip())
         host = (parsed.hostname or '').lower()

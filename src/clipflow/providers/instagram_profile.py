@@ -60,7 +60,7 @@ class InstagramProfileProvider:
             raise MediaFailure('instagram_rate_policy_required')
         return ProbeResult((), ())
 
-    def execute(self, request, context):
+    def execute(self, request, context):  # noqa: C901  # подпроект 3
         self.probe(request, context)
         context.emit(StageChanged(JobState.PROBING))
         found = {}
@@ -121,7 +121,7 @@ class InstagramProfileProvider:
             return DownloadResult((), count)
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             raise MediaFailure('instagram_profile_failed') from None
 
 
@@ -237,7 +237,7 @@ class InstaloaderPageSource:
         self._context = None
         self._fingerprint = None
 
-    def pages(self, request, context):
+    def pages(self, request, context):  # noqa: C901  # подпроект 3
         context.cancel.raise_if_cancelled()
         try:
             options = dict(
@@ -289,5 +289,5 @@ class InstaloaderPageSource:
             yield ProfilePage(tuple(batch), None, False, frozenset())
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001  # подпроект 3
             raise MediaFailure('instagram_profile_failed') from None

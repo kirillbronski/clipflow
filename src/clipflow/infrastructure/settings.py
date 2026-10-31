@@ -161,7 +161,7 @@ class SettingsStore:
         self.last_warning = 'settings_reset'
         return settings
 
-    def _migrate(self):
+    def _migrate(self):  # noqa: C901  # подпроект 3
         legacy = self.directory / 'settings.json'
         try:
             raw = json.loads(legacy.read_text(encoding='utf-8-sig'))

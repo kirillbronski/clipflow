@@ -35,7 +35,7 @@ class QueueDelegate(QStyledItemDelegate):
             rect.right() - 40, rect.top() + 26, 30, 30
         )
 
-    def paint(self, painter, option, index):
+    def paint(self, painter, option, index):  # noqa: C901  # подпроект 3
         job = index.data(JobListModel.JobRole)
         if job is None:
             return

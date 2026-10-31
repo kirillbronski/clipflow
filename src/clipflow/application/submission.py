@@ -52,7 +52,7 @@ class SubmissionService:
     def __init__(self, repository: JobRepository):
         self.repository = repository
 
-    def preview(
+    def preview(  # noqa: C901  # подпроект 3
         self,
         text: str,
         presets: Mapping[Service, DownloadOptions],

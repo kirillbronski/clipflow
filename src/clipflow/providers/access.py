@@ -116,7 +116,7 @@ class _CancellableDownloader(YoutubeDL):
         finally:
             super().close()
 
-    def run_pp(self, pp, info):
+    def run_pp(self, pp, info):  # noqa: C901  # подпроект 3
         # yt-dlp's internal merger/fixup bypasses MediaPipeline._convert.
         # Adapt only this processor instance; never patch global Popen/yt-dlp.
         from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor

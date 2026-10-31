@@ -63,6 +63,7 @@
   - `tests/unit/test_scheduler.py::test_rule_codes_without_own_text_keep_the_generic_message`:
     ```python
     from clipflow.ui.i18n import CATALOG
+
     shown = {code for code in RULE_CODES if 'error.' + code in CATALOG['ru']}
     assert shown == {'source_changed', 'cooldown_active'}
     ```
@@ -88,7 +89,17 @@
   assert failure_group('auth_required') == 'signin'
   assert failure_group(None) == 'internal'
   assert failure_group('never_seen') == 'internal'
-  assert set(FAILURE_GROUPS.values()) == {'signin', 'access', 'network', 'save', 'processing', 'tool', 'changed', 'empty', 'internal'}
+  assert set(FAILURE_GROUPS.values()) == {
+      'signin',
+      'access',
+      'network',
+      'save',
+      'processing',
+      'tool',
+      'changed',
+      'empty',
+      'internal',
+  }
   ```
   и `test_job_status_holds_only_texts`: `not hasattr(clipflow.ui.job_status, 'ERROR_GROUPS')`. В `test_job_status.py` импорт `ERROR_GROUPS`/`AUTH_SETTINGS_CODES` заменить на `FAILURE_GROUPS`/`AUTH_SETTINGS_CODES` из `clipflow.domain.failures`.
 - [ ] **Step 2: RED.** Run: `.venv/bin/python -m pytest tests/unit/test_failures.py -q` — Expected: ModuleNotFoundError.
@@ -114,9 +125,13 @@
       'infrastructure': {'domain', 'application', 'providers', 'infrastructure', 'version'},
       'ui': {'domain', 'application', 'ui', 'version'},
   }
-  ENTRY_POINTS = {'clipflow.__main__', 'clipflow.ui.bootstrap', 'clipflow.ui.self_test',
-                  'clipflow.infrastructure.auth_process.__main__',
-                  'clipflow.infrastructure.auth_process.window'}
+  ENTRY_POINTS = {
+      'clipflow.__main__',
+      'clipflow.ui.bootstrap',
+      'clipflow.ui.self_test',
+      'clipflow.infrastructure.auth_process.__main__',
+      'clipflow.infrastructure.auth_process.window',
+  }
   ```
   Модули верхнего уровня (`clipflow.version`, `clipflow.__init__`) не проверяются. Тест собирает нарушения строками `'<модуль> -> <импорт>'` и делает `assert violations == []`.
 - [ ] **Step 2: RED.** Run: `.venv/bin/python -m pytest tests/unit/test_layers.py -q` — Expected: FAIL ровно с `clipflow.domain.paths -> clipflow.providers.base` и `clipflow.ui.accounts -> clipflow.infrastructure.auth`. Другие нарушения — значит таблица или разбор неверны; исправить тест, а не код.
