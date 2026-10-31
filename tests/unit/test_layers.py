@@ -27,16 +27,39 @@ def module_name(path):
     return '.'.join(parts)
 
 
-def imported_modules(tree):
-    """Every clipflow import, including ones inside functions and TYPE_CHECKING blocks."""
+def imported_modules(tree, module, package=False):
+    """Every clipflow import, absolute or relative, including ones inside functions and
+    TYPE_CHECKING blocks; ``from clipflow import ui`` counts as importing ``clipflow.ui``."""
+    base = module.split('.') if package else module.split('.')[:-1]
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            names = [alias.name for alias in node.names]
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-            names = [node.module]
-        else:
+            yield from (
+                alias.name for alias in node.names if alias.name.split('.')[0] == 'clipflow'
+            )
             continue
-        yield from (name for name in names if name.split('.')[0] == 'clipflow')
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if node.level:
+            anchor = base[: len(base) - (node.level - 1)]
+            target = '.'.join(anchor + ([node.module] if node.module else []))
+        else:
+            target = node.module or ''
+        if target.split('.')[0] != 'clipflow':
+            continue
+        if target.count('.') < 1:
+            yield from (target + '.' + alias.name for alias in node.names)
+        else:
+            yield target
+
+
+def module_violations(module, text, package=False):
+    allowed = ALLOWED[module.split('.')[1]]
+    found = []
+    for target in imported_modules(ast.parse(text), module, package):
+        parts = target.split('.')
+        if len(parts) < 2 or parts[1] not in allowed:
+            found.append(f'{module} -> {target}')
+    return found
 
 
 def violations():
@@ -44,13 +67,10 @@ def violations():
     for path in sorted((SOURCE / 'clipflow').rglob('*.py')):
         module = module_name(path)
         parts = module.split('.')
-        if module in ENTRY_POINTS or len(parts) < 3:
+        if module in ENTRY_POINTS or len(parts) < 2 or parts[1] not in ALLOWED:
             continue
-        allowed = ALLOWED[parts[1]]
-        tree = ast.parse(path.read_text(encoding='utf-8'))
-        for target in imported_modules(tree):
-            if target.split('.')[1] not in allowed:
-                found.append(f'{module} -> {target}')
+        text = path.read_text(encoding='utf-8')
+        found += module_violations(module, text, package=path.name == '__init__.py')
     return found
 
 
@@ -66,3 +86,15 @@ def test_no_pending_markers():
         if '# подпроект 3' in line
     ]
     assert marked == []
+
+
+def test_checker_sees_relative_and_package_imports():
+    sneaky = 'from ..providers.base import MediaItem\nfrom . import urls\n'
+    assert module_violations('clipflow.domain.paths', sneaky) == [
+        'clipflow.domain.paths -> clipflow.providers.base'
+    ]
+    package = 'from .. import ui\nimport clipflow\n'
+    assert module_violations('clipflow.domain', package, package=True) == [
+        'clipflow.domain -> clipflow.ui',
+        'clipflow.domain -> clipflow',
+    ]

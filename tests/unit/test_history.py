@@ -3,13 +3,13 @@
 from pathlib import Path
 
 import pytest
+
 from clipflow.application.history import (
     HistoryError,
     deletion_paths,
     removable_targets,
     result_status,
 )
-
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
 from clipflow.domain.urls import parse_url
 
