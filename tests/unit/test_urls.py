@@ -131,13 +131,13 @@ def test_options_are_immutable_and_validate_values(tmp_path):
     options = DownloadOptions(folder=tmp_path)
     with pytest.raises(FrozenInstanceError):
         options.format = 'mkv'
-    for change in (
-        {'format': 'exe'},
-        {'media_filter': 'unknown'},
-        {'description': 'html'},
-        {'max_height': -1},
+    for change, message in (
+        ({'format': 'exe'}, 'Unsupported media format'),
+        ({'media_filter': 'unknown'}, 'Unsupported media filter'),
+        ({'description': 'html'}, 'Unsupported description format'),
+        ({'max_height': -1}, 'Height must be a positive integer'),
     ):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=message):
             replace(options, **change)
 
 

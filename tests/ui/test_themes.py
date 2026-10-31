@@ -28,11 +28,14 @@ def test_dark_first_launch_and_persistence(make_window, tmp_path, qtbot):
     window.presenter.settings_store = store
     assert window.theme.resolved_mode() == 'dark'
     window.theme_actions['light'].trigger()
-    assert store.load().theme == 'light' and window.theme.resolved_mode() == 'light'
+    assert store.load().theme == 'light'
+    assert window.theme.resolved_mode() == 'light'
     window.language_actions['en'].trigger()
-    assert store.load().language == 'en' and window.heading.text() == 'All downloads'
+    assert store.load().language == 'en'
+    assert window.heading.text() == 'All downloads'
     restored, _ = make_window(settings=store.load())
-    assert restored.theme.resolved_mode() == 'light' and restored.heading.text() == 'All downloads'
+    assert restored.theme.resolved_mode() == 'light'
+    assert restored.heading.text() == 'All downloads'
 
 
 def test_system_palette_change(make_window, qapp):
@@ -108,7 +111,8 @@ def test_ru_en_880px_no_clipping(make_window, qtbot, language):
         if service == Service.INSTAGRAM:
             window.composer.mode_buttons['profile'].click()
         qtbot.waitUntil(lambda: window.composer_host.horizontalScrollBar().maximum() == 0)
-        assert window.url_input.width() >= 180 and window.add_button.width() >= 150
+        assert window.url_input.width() >= 180
+        assert window.add_button.width() >= 150
         for button in (window.batch_button, window.add_button, window.start_button):
             icon = 0 if button.icon().isNull() else button.iconSize().width() + 4
             text = button.fontMetrics().horizontalAdvance(button.text())
@@ -142,10 +146,8 @@ def test_translation_catalog_and_language_change_preserve_drafts(make_window, qt
     dialog = batch(window, qtbot)
     dialog.text_input.setPlainText('https://youtu.be/ABC\nbad')
     window.language_actions['en'].trigger()
-    assert (
-        window.url_input.text() == 'unfinished draft'
-        and dialog.text_input.toPlainText().endswith('bad')
-    )
+    assert window.url_input.text() == 'unfinished draft'
+    assert dialog.text_input.toPlainText().endswith('bad')
     assert 'Invalid: 1' in dialog.summary.text()
     assert dialog.model.headerData(1, Qt.Orientation.Horizontal) == 'Material'
     assert 'Неверных' not in dialog.summary.text()
@@ -161,8 +163,10 @@ def test_preferences_save_failure_keeps_applied_language_and_theme(make_window):
     window.presenter.settings_store = Broken()
     window.language_actions['en'].trigger()
     window.theme_actions['light'].trigger()
-    assert window.presenter.settings.language == 'ru' and window.tr.language == 'ru'
-    assert window.theme.resolved_mode() == 'dark' and window.theme_actions['dark'].isChecked()
+    assert window.presenter.settings.language == 'ru'
+    assert window.tr.language == 'ru'
+    assert window.theme.resolved_mode() == 'dark'
+    assert window.theme_actions['dark'].isChecked()
     assert 'private path' not in window.error_label.text()
 
 

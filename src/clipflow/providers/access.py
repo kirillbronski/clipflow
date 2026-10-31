@@ -46,7 +46,7 @@ def _cookie_text(source):
             fields = line.split('\t')
             if len(fields) != 7:
                 raise ValueError
-            domain, include, path, secure, expires, name, value = fields
+            domain, include, path, secure, expires, _name, _value = fields
             if (
                 not domain
                 or any(c.isspace() for c in domain)

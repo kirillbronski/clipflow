@@ -13,7 +13,8 @@ def test_accounts_use_saved_sessions_without_showing_sign_in(make_window, qtbot,
     window.presenter.set_auth_gateway(gateway)
     window.accounts_button.click()
     page = window.accounts_page
-    assert page.isVisible() and not page.sign_in_buttons[Service.YOUTUBE].isVisible()
+    assert page.isVisible()
+    assert not page.sign_in_buttons[Service.YOUTUBE].isVisible()
     assert page.logout_buttons[Service.YOUTUBE].isVisible()
     assert page.sign_in_buttons[Service.INSTAGRAM].isVisible()
     page.logout_buttons[Service.YOUTUBE].click()
@@ -27,7 +28,8 @@ def test_settings_page_reuses_persistent_theme_and_language(make_window):
     page = window.settings_page
     page.language_box.setCurrentIndex(page.language_box.findData('en'))
     page.theme_box.setCurrentIndex(page.theme_box.findData('light'))
-    assert window.presenter.settings.language == 'en' and window.theme.resolved_mode() == 'light'
+    assert window.presenter.settings.language == 'en'
+    assert window.theme.resolved_mode() == 'light'
     assert page.about_label.text().startswith('ClipFlow')
 
 
@@ -38,7 +40,8 @@ def test_windows_icon_retained_after_delayed_startup(make_window, qtbot):
     ticks = []
     QTimer.singleShot(350, lambda: ticks.append(True))
     qtbot.waitUntil(lambda: bool(ticks))
-    assert before == window.windowIcon().cacheKey() and not window.windowIcon().isNull()
+    assert before == window.windowIcon().cacheKey()
+    assert not window.windowIcon().isNull()
 
 
 def test_accounts_getcourse_configuration_is_scoped_and_password_cleared(
@@ -117,10 +120,8 @@ def test_getcourse_credentials_support_native_paste(make_window, qtbot, tmp_path
     paste_shortcut(qtbot, dialog.email)
     clipboard.setText('synthetic-private-password')
     context_paste(qtbot, dialog.password)
-    assert (
-        dialog.email.text() == 'user@example.test'
-        and dialog.password.text() == 'synthetic-private-password'
-    )
+    assert dialog.email.text() == 'user@example.test'
+    assert dialog.password.text() == 'synthetic-private-password'
     dialog.reject()
     assert dialog.password.text() == ''
 
@@ -133,7 +134,8 @@ def test_auth_change_refreshes_probe_without_clearing_link(make_window, tmp_path
     gateway = NativeAuthGateway(tmp_path)
     seed(tmp_path, Service.YOUTUBE, gateway.platform.protect)
     window.presenter.set_auth_gateway(gateway)
-    assert window.url_input.text() == url and window.composer._probe_id != previous
+    assert window.url_input.text() == url
+    assert window.composer._probe_id != previous
 
 
 class FakeGateway:

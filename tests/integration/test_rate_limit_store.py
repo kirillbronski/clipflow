@@ -50,7 +50,7 @@ def test_unsupported_schema_and_unsafe_checkpoint_rejected(tmp_path):
     store = RateLimitStore(path)
     store.checkpoint('alice', 'https://signed.example/?token=secret', ['ABC'], False)
     assert store.get_checkpoint('alice') == (None, ('ABC',), False)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='Invalid post code'):
         store.checkpoint('alice', None, ['bad/code'], False)
     with sqlite3.connect(path) as db:
         db.execute('PRAGMA user_version=99')

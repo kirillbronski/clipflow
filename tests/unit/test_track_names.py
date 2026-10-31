@@ -57,7 +57,8 @@ def test_plain_video_keeps_its_title(tmp_path):
 
 
 @pytest.mark.parametrize(
-    'numbering,name', [(False, 'Пропаганда - Мелом.mp3'), (True, '003 - Пропаганда - Мелом.mp3')]
+    ('numbering', 'name'),
+    [(False, 'Пропаганда - Мелом.mp3'), (True, '003 - Пропаганда - Мелом.mp3')],
 )
 def test_playlist_numbering_is_opt_in(tmp_path, numbering, name):
     req = replace(
@@ -80,10 +81,11 @@ def test_identity_separates_media_and_quality(tmp_path):
 
 def test_old_settings_and_queue_options_without_numbering_still_decode(tmp_path):
     raw = encode_options(DownloadOptions(tmp_path))
-    assert raw['numbering'] is False and decode_options(raw).numbering is False
+    assert raw['numbering'] is False
+    assert decode_options(raw).numbering is False
     raw.pop('numbering')
     assert decode_options(raw) == DownloadOptions(tmp_path)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='invalid_boolean'):
         decode_options(dict(raw, numbering='yes'))
 
 

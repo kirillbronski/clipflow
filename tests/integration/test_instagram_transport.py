@@ -2,6 +2,7 @@ import contextlib
 from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
+from typing import ClassVar
 
 import pytest
 from yt_dlp.networking import Request
@@ -16,7 +17,7 @@ from tests.support.rate import policy
 @pytest.fixture
 def server():
     class Handler(BaseHTTPRequestHandler):
-        calls = []
+        calls: ClassVar[list] = []  # shared by every request of the server
 
         def log_message(self, *args):
             pass
@@ -47,8 +48,8 @@ def server():
 
 
 def test_ytdlp_every_http_request_and_stream_lease(tmp_path, server):
-    gate, clock, token = policy(tmp_path)
-    ctx, events, _ = context()
+    gate, clock, _token = policy(tmp_path)
+    ctx, _events, _ = context()
     ctx = replace(ctx, instagram_rate=gate)
     base, calls = server
     with open_downloader({'quiet': True}, instagram_context=ctx) as ydl:
@@ -59,7 +60,8 @@ def test_ytdlp_every_http_request_and_stream_lease(tmp_path, server):
         gate.store.release('other')
         with ydl.urlopen(Request(base + '/metadata2')) as response:
             response.read()
-    assert clock.waits == [3] and len(calls) == 2
+    assert clock.waits == [3]
+    assert len(calls) == 2
 
 
 def test_ytdlp_redirect_is_also_paced(tmp_path, server):
@@ -72,7 +74,8 @@ def test_ytdlp_redirect_is_also_paced(tmp_path, server):
         ydl.urlopen(Request(base + '/redirect')) as response,
     ):
         response.read()
-    assert calls == ['/redirect', '/target'] and clock.waits == [3]
+    assert calls == ['/redirect', '/target']
+    assert clock.waits == [3]
 
 
 def test_cancel_during_redirect_preserves_cancellation_and_releases_lease(tmp_path, server):
@@ -97,11 +100,12 @@ def test_cancel_during_redirect_preserves_cancellation_and_releases_lease(tmp_pa
         pytest.raises(WorkCancelled),
     ):
         ydl.urlopen(Request(base + '/redirect'))
-    assert calls == ['/redirect'] and gate.store.claim('other', clock.now)
+    assert calls == ['/redirect']
+    assert gate.store.claim('other', clock.now)
 
 
 def test_cdn_reads_do_not_sleep_and_429_defers_once(tmp_path, server):
-    gate, clock, token = policy(tmp_path)
+    gate, clock, _token = policy(tmp_path)
     ctx, events, _ = context()
     ctx = replace(ctx, instagram_rate=gate)
     base, calls = server
@@ -124,15 +128,16 @@ def test_instaloader_copied_session_uses_shared_gate(tmp_path, server):
 
     from clipflow.providers.instagram_profile import PacedSession
 
-    gate, clock, token = policy(tmp_path)
-    ctx, events, _ = context()
+    gate, clock, _token = policy(tmp_path)
+    ctx, _events, _ = context()
     ctx = replace(ctx, instagram_rate=gate)
-    base, calls = server
+    base, _calls = server
     with requests.Session() as original, requests.Session() as cloned:
         PacedSession(original, ctx).get(base + '/one').close()
         with pytest.raises(InstagramDeferred):
             PacedSession(cloned, ctx).get(base + '/429')
-    assert clock.waits == [10] and gate.store.load().strikes == 1
+    assert clock.waits == [10]
+    assert gate.store.load().strikes == 1
 
 
 def test_instaloader_source_merges_and_marks_exhaustion(tmp_path, monkeypatch):
@@ -143,7 +148,7 @@ def test_instaloader_source_merges_and_marks_exhaustion(tmp_path, monkeypatch):
     from clipflow.providers.instagram_profile import InstagramProfileProvider, InstaloaderPageSource
     from tests.support.profiles import codes, post, req
 
-    gate, clock, token = policy(tmp_path)
+    gate, _clock, _token = policy(tmp_path)
     ctx, events, _ = context()
     ctx = replace(ctx, instagram_rate=gate)
 
@@ -195,7 +200,8 @@ def test_instaloader_real_get_json_wraps_library_copy_and_homepage(tmp_path, ser
         client._session.get('https://www.instagram.com/').close()
         with copy_session(client._session, 30) as clone:
             assert client.get_json('api/v1/feed', {}, session=clone)['status'] == 'ok'
-        assert calls == ['/json', '/json'] and clock.waits == [10]
+        assert calls == ['/json', '/json']
+        assert clock.waits == [10]
     finally:
         client.close()
 
@@ -236,7 +242,7 @@ def test_profile_cookie_domains_remain_in_memory(tmp_path, monkeypatch):
         def options_for(self, *args):
             return {'_cookiejar': jar}
 
-    gate, clock, _ = policy(tmp_path)
+    gate, _clock, _ = policy(tmp_path)
     ctx, _, _ = context()
     ctx = replace(ctx, instagram_rate=gate, auth=Auth())
     monkeypatch.setattr(

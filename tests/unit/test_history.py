@@ -35,7 +35,7 @@ def test_whole_family_is_removable():
 
 
 def test_unrelated_targets_are_removable():
-    assert removable_targets(FAMILY + (job('x'),), {'x'}) == {'x'}
+    assert removable_targets((*FAMILY, job('x')), {'x'}) == {'x'}
 
 
 def test_child_alone_is_removable():

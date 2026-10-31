@@ -143,7 +143,8 @@ def test_direct_player(tmp_path, school, host):
     req = request(tmp_path, PLAYER.replace('player02.getcourse.ru', host))
     assert req.link.kind == ContentKind.PLAYER
     result = GetCourseProvider(MediaPipeline()).probe(req, ctx)
-    assert len(result.items) == 1 and result.items[0].id == '12345'
+    assert len(result.items) == 1
+    assert result.items[0].id == '12345'
     assert result.items[0].title == 'Видео GetCourse'
     assert result.available_heights == (720,)
     assert not result.selection_required
@@ -158,7 +159,8 @@ def test_lesson_all_items(tmp_path, school):
         'Урок 1' in item.title and 'Основы звука и развитие музыки' in item.title
         for item in result.items
     )
-    assert 'Разбор' in result.items[0].title and 'Практика' in result.items[1].title
+    assert 'Разбор' in result.items[0].title
+    assert 'Практика' in result.items[1].title
     assert result.selection_required
 
 
@@ -166,19 +168,22 @@ def test_selection_required_and_selected_ids(tmp_path, school):
     ctx, events = context()
     provider = GetCourseProvider(MediaPipeline())
     result = provider.execute(request(tmp_path), ctx)
-    assert result.files == () and result.discovered_count == 0
+    assert result.files == ()
+    assert result.discovered_count == 0
     assert [e.ids for e in events if isinstance(e, SelectionRequired)] == [('first', 'second')]
     assert not any(isinstance(e, FilesSaved) for e in events)
     events.clear()
     result = provider.execute(request(tmp_path, selection=('first', 'second')), ctx)
     children = [r for e in events if isinstance(e, RequestsDiscovered) for r in e.requests]
-    assert result.discovered_count == 2 and result.files == ()
+    assert result.discovered_count == 2
+    assert result.files == ()
     assert [r.selection for r in children] == [('first',), ('second',)]
-    assert all(r.label for r in children) and children[0].label != children[1].label
+    assert all(r.label for r in children)
+    assert children[0].label != children[1].label
     assert all(r.link == parse_url(LESSON) for r in children)
 
 
-@pytest.mark.parametrize('redirect,bad_login', [(True, False), (False, True)])
+@pytest.mark.parametrize(('redirect', 'bad_login'), [(True, False), (False, True)])
 def test_school_login_error_not_instagram_hint(tmp_path, school, redirect, bad_login, capsys):
     school['redirect'] = redirect
     school['login_ok'] = not bad_login
@@ -186,7 +191,8 @@ def test_school_login_error_not_instagram_hint(tmp_path, school, redirect, bad_l
     with pytest.raises(MediaFailure) as error:
         GetCourseProvider(MediaPipeline()).probe(request(tmp_path, auth_profile='school'), ctx)
     assert error.value.code == 'getcourse_school_login_required'
-    assert 'instagram' not in str(error.value).lower() and 'brave' not in str(error.value).lower()
+    assert 'instagram' not in str(error.value).lower()
+    assert 'brave' not in str(error.value).lower()
     output = capsys.readouterr()
     assert 'synthetic-secret' not in str(error.value) + repr(error.value) + output.out + output.err
 
@@ -212,7 +218,8 @@ def test_source_cookie_export_is_not_overwritten(tmp_path, school):
     modified = source.stat().st_mtime_ns
     ctx, _ = context(cookiefile=str(source))
     GetCourseProvider(MediaPipeline()).probe(request(tmp_path, auth_profile='export'), ctx)
-    assert source.read_bytes() == original and source.stat().st_mtime_ns == modified
+    assert source.read_bytes() == original
+    assert source.stat().st_mtime_ns == modified
     assert school['cookies_seen'][-1]['session'] == 'synthetic-cookie'
 
 
@@ -313,7 +320,8 @@ def test_one_material_error_keeps_other_child_downloadable(tmp_path, school, med
     with pytest.raises(MediaFailure):
         provider.execute(children[0], ctx)
     result = provider.execute(children[1], ctx)
-    assert len(result.files) == 1 and result.files[0].is_file()
+    assert len(result.files) == 1
+    assert result.files[0].is_file()
     assert result.files[0].name.startswith('02 - Урок 1')
     assert 'second' not in result.files[0].name
 

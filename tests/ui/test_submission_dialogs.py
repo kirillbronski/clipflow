@@ -16,19 +16,23 @@ def test_music_locks_mp3_and_restores_video_preset(make_window, qtbot, tmp_path,
     composer = window.composer
     composer.format_box.setCurrentIndex(composer.format_box.findData('mkv'))
     window.url_input.setText('https://music.youtube.com/watch?v=track')
-    assert composer.format_box.currentData() == 'mp3' and not composer.format_box.isEnabled()
-    assert not composer.quality_box.isEnabled() and composer.options().format == 'mp3'
+    assert composer.format_box.currentData() == 'mp3'
+    assert not composer.format_box.isEnabled()
+    assert not composer.quality_box.isEnabled()
+    assert composer.options().format == 'mp3'
     composer.folder_input.setText(str(tmp_path / 'other'))
     composer.folder_input.editingFinished.emit()
     assert window.presenter.settings.presets[Service.YOUTUBE].format == 'mkv'
     composer.apply_probe('obsolete', (1080,), '')
     assert composer.format_box.currentData() == 'mp3'
     window.url_input.setText('https://youtube.com/watch?v=video')
-    assert composer.format_box.currentData() == 'mkv' and composer.format_box.isEnabled()
+    assert composer.format_box.currentData() == 'mkv'
+    assert composer.format_box.isEnabled()
     assert composer.options().folder == tmp_path / 'other'
     window.url_input.setText('https://music.youtube.com/watch?v=track')
     window.url_input.clear()
-    assert composer.format_box.currentData() == 'mkv' and composer.format_box.isEnabled()
+    assert composer.format_box.currentData() == 'mkv'
+    assert composer.format_box.isEnabled()
     from types import SimpleNamespace
 
     from PySide6.QtWidgets import QApplication
@@ -44,7 +48,8 @@ def test_music_locks_mp3_and_restores_video_preset(make_window, qtbot, tmp_path,
             ),
         )
         qtbot.mouseClick(composer.paste_button, Qt.MouseButton.LeftButton)
-    assert composer.format_box.currentData() == 'mp3' and not composer.format_box.isEnabled()
+    assert composer.format_box.currentData() == 'mp3'
+    assert not composer.format_box.isEnabled()
     composer.set_service(Service.INSTAGRAM)
     composer.set_service(Service.YOUTUBE)
     assert composer.format_box.currentData() == 'mp3'
@@ -82,7 +87,8 @@ def test_matching_music_probe_never_displays_video_height(make_window, qtbot):
     assert window.presenter.settings.presets[Service.YOUTUBE].max_height == 720
     window.url_input.setText('https://music.youtube.com/watch?v=track')
     composer.apply_probe(composer._probe_id, (), '')
-    assert composer.quality_box.currentData() is None and composer.quality_box.count() == 1
+    assert composer.quality_box.currentData() is None
+    assert composer.quality_box.count() == 1
     window.url_input.clear()
     assert composer.quality_box.currentData() == 720
 
@@ -91,7 +97,8 @@ def test_batch_button_always_visible(make_window, qtbot):
     window, _ = make_window()
     for button in window.nav_buttons:
         qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
-        assert window.batch_button.isVisible() and window.batch_button.isEnabled()
+        assert window.batch_button.isVisible()
+        assert window.batch_button.isEnabled()
     dialog = batch(window, qtbot)
     assert dialog.isVisible()
 
@@ -122,13 +129,16 @@ def test_mixed_batch_adds_three_services_and_profile(make_window, qtbot, tmp_pat
             ]
         )
     )
-    assert len(dialog.preview().requests) == 4 and window.presenter.repository.list() == ()
+    assert len(dialog.preview().requests) == 4
+    assert window.presenter.repository.list() == ()
     qtbot.mouseClick(dialog.accept_button, Qt.MouseButton.LeftButton)
     jobs = window.presenter.repository.list()
-    assert len(jobs) == 4 and {job.request.link.service for job in jobs} == set(Service)
+    assert len(jobs) == 4
+    assert {job.request.link.service for job in jobs} == set(Service)
     for job in jobs:
         assert job.request.options == presets[job.request.link.service]
-    assert jobs[-1].request.profile_limit == 50 and jobs[-1].request.options.post_folder
+    assert jobs[-1].request.profile_limit == 50
+    assert jobs[-1].request.options.post_folder
     assert window.url_input.text() == 'my unfinished draft'
 
 
@@ -139,11 +149,9 @@ def test_bad_line_does_not_block_valid_lines(make_window, qtbot):
         'https://youtu.be/ABC\nnot a link\nhttps://instagram.com/p/POST/\nhttps://youtu.be/ABC?x=1'
     )
     preview = dialog.preview()
-    assert (
-        len(preview.requests) == 2
-        and preview.invalid[0].line == 2
-        and preview.duplicate_lines == (4,)
-    )
+    assert len(preview.requests) == 2
+    assert preview.invalid[0].line == 2
+    assert preview.duplicate_lines == (4,)
     assert dialog.accept_button.isEnabled()
     qtbot.mouseClick(dialog.accept_button, Qt.MouseButton.LeftButton)
     assert len(window.presenter.repository.list()) == 2
@@ -155,7 +163,8 @@ def test_single_profile_requires_explicit_mode(make_window, qtbot):
     window.url_input.setText('https://instagram.com/alice/')
     assert '«Профиль»' in window.composer.hint.text()
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
-    assert window.presenter.repository.list() == () and window.url_input.text()
+    assert window.presenter.repository.list() == ()
+    assert window.url_input.text()
     qtbot.mouseClick(window.composer.mode_buttons['profile'], Qt.MouseButton.LeftButton)
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
     assert window.presenter.repository.list()[0].request.link.kind == ContentKind.PROFILE
@@ -171,7 +180,8 @@ def test_profile_10_50_all(make_window, qtbot, limit):
     window.url_input.setText('https://instagram.com/alice/')
     qtbot.keyClick(window.url_input, Qt.Key.Key_Return)
     job = window.presenter.repository.list()[0]
-    assert job.request.profile_limit == limit and job.request.options.post_folder
+    assert job.request.profile_limit == limit
+    assert job.request.options.post_folder
     assert not composer.post_folder.isEnabled()
 
 
@@ -198,7 +208,8 @@ def test_input_changed_during_probe_not_cleared(make_window, qtbot):
     window.url_input.setText('new unfinished text')
     prober.release.set()
     qtbot.waitUntil(lambda: window.presenter.executor.is_idle)
-    assert window.url_input.text() == 'new unfinished text' and not window.composer.quality_pending
+    assert window.url_input.text() == 'new unfinished text'
+    assert not window.composer.quality_pending
     assert window.composer.quality_box.count() == 1
 
 
@@ -277,11 +288,11 @@ def test_service_drafts_and_options_are_independent(make_window, qtbot):
     window.url_input.setText('Instagram draft')
     composer.format_box.setCurrentIndex(composer.format_box.findData('webm'))
     composer.set_service(Service.YOUTUBE)
-    assert window.url_input.text() == 'YouTube draft' and composer.format_box.currentData() == 'mkv'
+    assert window.url_input.text() == 'YouTube draft'
+    assert composer.format_box.currentData() == 'mkv'
     composer.set_service(Service.INSTAGRAM)
-    assert (
-        window.url_input.text() == 'Instagram draft' and composer.format_box.currentData() == 'webm'
-    )
+    assert window.url_input.text() == 'Instagram draft'
+    assert composer.format_box.currentData() == 'webm'
 
 
 def test_quality_probe_is_async_cached_and_does_not_change_best_default(make_window, qtbot):
@@ -307,7 +318,8 @@ def test_quality_probe_is_async_cached_and_does_not_change_best_default(make_win
         1080,
         720,
     ]
-    assert composer.quality_box.currentData() is None and prober.calls == 1
+    assert composer.quality_box.currentData() is None
+    assert prober.calls == 1
     window.url_input.clear()
     window.url_input.setText('https://youtu.be/ABC')
     qtbot.waitUntil(lambda: not composer.quality_pending)
@@ -365,7 +377,8 @@ def test_autostart_waits_for_probe_teardown_instead_of_failing_job(make_window, 
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(prober.started.is_set)
     job = window.presenter.repository.list()[0]
-    assert job.state in {JobState.PROBING, JobState.DOWNLOADING} and job.error is None
+    assert job.state in {JobState.PROBING, JobState.DOWNLOADING}
+    assert job.error is None
 
 
 def test_batch_snapshot_does_not_follow_later_preset_changes(make_window, qtbot, tmp_path):
@@ -386,12 +399,14 @@ def test_profile_forces_folder_without_overwriting_single_post_preference(make_w
     composer.set_service(Service.INSTAGRAM)
     composer.post_folder.setChecked(False)
     qtbot.mouseClick(composer.mode_buttons['profile'], Qt.MouseButton.LeftButton)
-    assert composer.post_folder.isChecked() and not composer.post_folder.isEnabled()
+    assert composer.post_folder.isChecked()
+    assert not composer.post_folder.isEnabled()
     window.url_input.setText('https://instagram.com/alice/')
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
     assert window.presenter.repository.list()[0].request.options.post_folder
     qtbot.mouseClick(composer.mode_buttons['single'], Qt.MouseButton.LeftButton)
-    assert composer.post_folder.isEnabled() and not composer.post_folder.isChecked()
+    assert composer.post_folder.isEnabled()
+    assert not composer.post_folder.isChecked()
 
 
 def test_batch_storage_failure_keeps_dialog_and_input(make_window, qtbot, monkeypatch):
@@ -407,11 +422,9 @@ def test_batch_storage_failure_keeps_dialog_and_input(make_window, qtbot, monkey
 
     monkeypatch.setattr(window.presenter.repository, 'add', fail)
     qtbot.mouseClick(dialog.accept_button, Qt.MouseButton.LeftButton)
-    assert (
-        dialog.isVisible()
-        and dialog.text_input.toPlainText() == text
-        and window.presenter.repository.list() == ()
-    )
+    assert dialog.isVisible()
+    assert dialog.text_input.toPlainText() == text
+    assert window.presenter.repository.list() == ()
 
 
 def test_batch_shows_already_queued_without_creating_copy(make_window, qtbot):
@@ -453,7 +466,8 @@ def test_autostart_batch_cancels_optional_probe_without_clearing_draft(make_wind
     dialog.text_input.setPlainText('https://youtu.be/NEW')
     qtbot.mouseClick(dialog.accept_button, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(prober.started.is_set, timeout=2000)
-    assert prober.probe_closed.is_set() and window.url_input.text() == 'https://youtu.be/DRAFT'
+    assert prober.probe_closed.is_set()
+    assert window.url_input.text() == 'https://youtu.be/DRAFT'
     assert window.presenter.repository.list()[0].request.link.canonical_id == 'NEW'
 
 
@@ -461,10 +475,12 @@ def test_audio_and_photo_summary_do_not_advertise_video_quality(make_window, qtb
     window, _ = make_window()
     composer = window.composer
     composer.format_box.setCurrentIndex(composer.format_box.findData('mp3'))
-    assert 'звук' in composer.summary.text() and not composer.quality_box.isEnabled()
+    assert 'звук' in composer.summary.text()
+    assert not composer.quality_box.isEnabled()
     composer.set_service(Service.INSTAGRAM)
     composer.filter_box.setCurrentIndex(composer.filter_box.findData('photo'))
-    assert 'Исходный формат' in composer.summary.text() and not composer.format_box.isEnabled()
+    assert 'Исходный формат' in composer.summary.text()
+    assert not composer.format_box.isEnabled()
 
 
 def test_auto_start_off_remains_off_after_previous_queue_finishes(make_window, qtbot):
@@ -491,7 +507,8 @@ def test_auto_start_off_remains_off_after_previous_queue_finishes(make_window, q
     window.url_input.setText('https://youtu.be/SECOND')
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
     qtbot.wait(1100)
-    assert provider.calls == 1 and window.presenter.repository.list()[-1].state == JobState.QUEUED
+    assert provider.calls == 1
+    assert window.presenter.repository.list()[-1].state == JobState.QUEUED
 
 
 def test_youtube_numbering_is_off_by_default_persisted_and_mp3_label_is_plain(make_window, qtbot):
@@ -499,14 +516,13 @@ def test_youtube_numbering_is_off_by_default_persisted_and_mp3_label_is_plain(ma
     composer = window.composer
     composer.set_service(Service.YOUTUBE)
     composer.parameters_button.setChecked(True)
-    assert composer.numbering.isVisible() and not composer.numbering.isChecked()
+    assert composer.numbering.isVisible()
+    assert not composer.numbering.isChecked()
     assert not composer.options().numbering
     assert composer.format_box.itemText(composer.format_box.findData('mp3')) == 'MP3'
     composer.numbering.setChecked(True)
-    assert (
-        composer.options().numbering
-        and window.presenter.settings.presets[Service.YOUTUBE].numbering
-    )
+    assert composer.options().numbering
+    assert window.presenter.settings.presets[Service.YOUTUBE].numbering
     composer.set_service(Service.INSTAGRAM)
     assert not composer.numbering.isVisible()
     composer.set_service(Service.YOUTUBE)

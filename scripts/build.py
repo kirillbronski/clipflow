@@ -60,7 +60,7 @@ def prepare():
     (ROOT / 'work/package-build-info.json').write_text(
         json.dumps(info, indent=2) + '\n', encoding='utf-8'
     )
-    numbers = tuple(map(int, APP_VERSION.split('.'))) + (0,)
+    numbers = (*tuple(map(int, APP_VERSION.split('.'))), 0)
     version = f"""VSVersionInfo(ffi=FixedFileInfo(filevers={numbers!r},prodvers={numbers!r},
 mask=0x3f,flags=0x0,OS=0x40004,fileType=0x1,subtype=0x0,date=(0,0)),kids=[
 StringFileInfo([StringTable('040904B0',[

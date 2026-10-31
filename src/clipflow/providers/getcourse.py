@@ -296,7 +296,7 @@ class GetCourseProvider:
         return item
 
     def probe(self, request, context):
-        with self._session(request, context) as (ydl, access):
+        with self._session(request, context) as (ydl, _access):
             items = self._inspect(ydl, request, context)
             required = len(items) > 1 and request.selection is None
             if len(items) == 1:

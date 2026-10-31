@@ -78,7 +78,8 @@ def test_getcourse_complete_title(tmp_path):
     req = request(tmp_path, url='https://school.getcourse.ru/pl/teach/control/lesson/view?id=123')
     path = output_path(req, MediaItem('v', 1, 'video', 'Урок 1 — Основы звука', {}), None, None)
     assert path.is_relative_to(tmp_path / 'GetCourse')
-    assert path.name.startswith('Урок 1 - Основы звука [') and path.suffix == '.mp4'
+    assert path.name.startswith('Урок 1 - Основы звука [')
+    assert path.suffix == '.mp4'
 
 
 @pytest.mark.parametrize('code', ['../bad', '', 'ABC/xyz', 'CON'])
@@ -194,5 +195,6 @@ def test_tight_generic_path_budget_rejects_instead_of_clipping_identity(tmp_path
         None,
     )
     # Drive-qualified roots (Windows) shorten the budget: assert the invariant, not one OS's number.
-    assert set(clipped.stem) == {'A'} and 8 <= len(clipped.stem) < 100
+    assert set(clipped.stem) == {'A'}
+    assert 8 <= len(clipped.stem) < 100
     assert len(str(clipped).encode('utf-16-le')) // 2 <= 200

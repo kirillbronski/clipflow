@@ -91,7 +91,8 @@ def test_user_pause_disables_automatic_retry_and_other_instagram_jobs_wait(tmp_p
     scheduler.pause('ig1')
     clock.now += timedelta(seconds=900)
     scheduler.tick()
-    assert repo.get('ig1').state == JobState.PAUSED and not repo.get('ig1').automatic_retry
+    assert repo.get('ig1').state == JobState.PAUSED
+    assert not repo.get('ig1').automatic_retry
     assert repo.get('ig2').state == JobState.QUEUED
 
 
@@ -117,7 +118,7 @@ def test_cooldown_survives_restart_and_clock_rollback(tmp_path):
 
 
 def test_cancel_interrupts_wait(tmp_path):
-    gate, clock, token = policy(tmp_path)
+    gate, _clock, token = policy(tmp_path)
     gate.acquire('metadata', token)
 
     def cancel_wait(token, seconds):
@@ -173,7 +174,8 @@ def test_instagram_cooldown_releases_youtube_worker():
     worker.emit(RateLimitDeferred(clock.now + timedelta(seconds=900), True))
     assert len(worker.runs) == 1
     worker.emit(WorkStopped())
-    assert worker.runs[-1][0].id == 'yt' and repo.get('ig').state == JobState.PAUSED
+    assert worker.runs[-1][0].id == 'yt'
+    assert repo.get('ig').state == JobState.PAUSED
     clock.now += timedelta(seconds=900)
     scheduler.tick()
     assert repo.get('ig').state == JobState.QUEUED

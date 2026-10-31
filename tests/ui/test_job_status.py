@@ -306,4 +306,6 @@ def test_long_reason_is_elided_in_narrow_window(make_window, tmp_path, qtbot):
     qtbot.wait(50)
     full = window.queue_view.itemDelegate().second_line(failed(code))
     shown = [text for text, _ in painted(window) if text.endswith('…')]
-    assert len(shown) == 1 and full.startswith(shown[0][:-1]) and shown[0] != full
+    assert len(shown) == 1
+    assert full.startswith(shown[0][:-1])
+    assert shown[0] != full

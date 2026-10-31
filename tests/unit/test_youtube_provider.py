@@ -85,7 +85,8 @@ def test_music_playlist(tmp_path, monkeypatch):
     req = request(tmp_path, 'https://music.youtube.com/playlist?list=PL_music', format='mp3')
     result = YouTubeProvider(MediaPipeline()).execute(req, ctx)
     children = [r for e in events if isinstance(e, RequestsDiscovered) for r in e.requests]
-    assert result.files == () and result.discovered_count == 3
+    assert result.files == ()
+    assert result.discovered_count == 3
     assert [r.options.format for r in children] == ['mp3'] * 3
     assert [r.link.kind for r in children] == [ContentKind.VIDEO] * 3
     assert not any(isinstance(e, FilesSaved) for e in events)
@@ -169,8 +170,15 @@ def test_playlist_position_is_identity_and_is_validated(tmp_path):
     other = replace(req, playlist=PlaylistPosition('PL_other', 1))
     second = replace(req, playlist=PlaylistPosition('PL_music', 2))
     assert len({request_key(req), request_key(first), request_key(other), request_key(second)}) == 4
-    for identity, index in [('', 1), ('../bad', 1), ('PL_ok', 0), ('PL_ok', True), ('PL_ok', -2)]:
-        with pytest.raises(ValueError):
+    bad_identity, bad_index = 'Invalid playlist identity', 'must be a positive integer'
+    for identity, index, message in [
+        ('', 1, bad_identity),
+        ('../bad', 1, bad_identity),
+        ('PL_ok', 0, bad_index),
+        ('PL_ok', True, bad_index),
+        ('PL_ok', -2, bad_index),
+    ]:
+        with pytest.raises(ValueError, match=message):
             PlaylistPosition(identity, index)
 
 
@@ -253,15 +261,16 @@ def test_selection_keeps_original_numbers(tmp_path, monkeypatch):
     )
     YouTubeProvider(MediaPipeline()).execute(req, ctx)
     children = [r for e in events if isinstance(e, RequestsDiscovered) for r in e.requests]
-    assert len(children) == 1 and children[0].playlist.index == 4
+    assert len(children) == 1
+    assert children[0].playlist.index == 4
 
 
 def test_playlist_context_is_only_allowed_on_child_video(tmp_path):
     req = request(tmp_path, 'https://youtube.com/playlist?list=PL_music')
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='Playlist position belongs to a YouTube child video'):
         replace(req, playlist=PlaylistPosition('PL_music', 1))
     req = request(tmp_path, 'https://instagram.com/p/ABC/')
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='Playlist position belongs to a YouTube child video'):
         replace(req, playlist=PlaylistPosition('PL_music', 1))
 
 

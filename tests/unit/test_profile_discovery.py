@@ -19,7 +19,8 @@ def test_latest_10_with_old_pinned_posts(tmp_path):
     provider.probe(req(tmp_path, 10), ctx)
     assert source.calls == 0
     result = provider.execute(req(tmp_path, 10), ctx)
-    assert codes(events) == [f'C{i}' for i in range(20, 10, -1)] and result.discovered_count == 10
+    assert codes(events) == [f'C{i}' for i in range(20, 10, -1)]
+    assert result.discovered_count == 10
     assert source.calls == 1
 
 
@@ -59,7 +60,7 @@ def test_unknown_order_does_not_claim_latest_n(tmp_path):
 
 
 def test_private_profile_requires_access(tmp_path):
-    ctx, events, _ = context()
+    ctx, _events, _ = context()
     with pytest.raises(MediaFailure, match='instagram_access_required'):
         InstagramProfileProvider(Source([MediaFailure('instagram_access_required')])).execute(
             req(tmp_path), ctx

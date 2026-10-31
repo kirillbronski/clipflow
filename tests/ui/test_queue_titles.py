@@ -61,13 +61,17 @@ def test_labels_show_at_once_then_paced_lookup_names_waiting_videos(make_window,
     )
     window, _ = make_window(provider, repo)
     window.presenter.title_interval_ms = 150
-    assert title(window, 'a') == 'Мелом' and title(window, 'b') == 'Между Мной'
+    assert title(window, 'a') == 'Мелом'
+    assert title(window, 'b') == 'Между Мной'
     qtbot.waitUntil(lambda: len(provider.calls) >= 3, timeout=5000)
     qtbot.waitUntil(lambda: title(window, 'd') == 'Дыши - Взгляни на небо', timeout=5000)
-    assert title(window, 'a') == 'Пропаганда - Мелом' and title(window, 'b') == 'Между Мной'
-    assert repo.get('a').title == 'Пропаганда - Мелом' and repo.get('b').title is None
+    assert title(window, 'a') == 'Пропаганда - Мелом'
+    assert title(window, 'b') == 'Между Мной'
+    assert repo.get('a').title == 'Пропаганда - Мелом'
+    assert repo.get('b').title is None
     called = [identity for identity, _ in provider.calls]
-    assert sorted(called) == ['track_A', 'track_B', 'track_D'] and not provider.overlap
+    assert sorted(called) == ['track_A', 'track_B', 'track_D']
+    assert not provider.overlap
     gaps = [b - a for (_, a), (_, b) in itertools.pairwise(provider.calls)]
     assert all(gap >= 0.14 for gap in gaps)
     qtbot.wait(400)
@@ -84,7 +88,8 @@ def test_providers_without_lookup_are_skipped(make_window, qtbot, tmp_path):
             ),
         )
     )
-    window, provider = make_window(None, repo)
+    window, _provider = make_window(None, repo)
     window.presenter.title_interval_ms = 50
     qtbot.wait(300)
-    assert title(window, 'a') == 'Ролик' and repo.get('a').title is None
+    assert title(window, 'a') == 'Ролик'
+    assert repo.get('a').title is None

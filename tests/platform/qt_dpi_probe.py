@@ -43,7 +43,8 @@ try:
                 if service == Service.INSTAGRAM:
                     window.composer.mode_buttons['profile'].click()
                 app.processEvents()
-                assert window.width() == 880 and window.height() == 680
+                assert window.width() == 880
+                assert window.height() == 680
                 assert window.composer_host.horizontalScrollBar().maximum() == 0, (
                     language,
                     mode,

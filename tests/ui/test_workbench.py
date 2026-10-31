@@ -27,7 +27,8 @@ def test_real_url_command_creates_model_row(make_window, qtbot):
     identity = add(window, qtbot)
     assert window.url_input.text() == ''
     assert window.presenter.repository.get(identity).state == JobState.QUEUED
-    assert window.queue_view.model().rowCount() == 1 and not provider.started.is_set()
+    assert window.queue_view.model().rowCount() == 1
+    assert not provider.started.is_set()
     assert (
         window.presenter.model.data(
             window.presenter.model.index(0), window.presenter.model.SourceRole
@@ -44,7 +45,9 @@ def test_worker_events_update_correct_attempt(make_window, qtbot):
     window.presenter.model.dataChanged.connect(lambda *args: changes.append(get_ident()))
     window.presenter.toggle_job(identity)
     qtbot.waitUntil(lambda: window.presenter.repository.get(identity).state == JobState.DOWNLOADING)
-    assert provider.thread != owner and changes and set(changes) == {owner}
+    assert provider.thread != owner
+    assert changes
+    assert set(changes) == {owner}
     model = window.presenter.model
     index = model.index(0)
     assert model.data(index, model.TitleRole) == 'Настоящее название'
@@ -80,7 +83,9 @@ def test_local_media_download_reaches_real_completed_file(
         lambda: window.presenter.repository.get(identity).state == JobState.COMPLETED, timeout=15000
     )
     saved = window.presenter.repository.get(identity).result_files
-    assert len(saved) == 1 and saved[0].is_file() and saved[0].stat().st_size > 0
+    assert len(saved) == 1
+    assert saved[0].is_file()
+    assert saved[0].stat().st_size > 0
     assert titles == ['Local video']
     from tests.support.media import probe
 
@@ -96,10 +101,12 @@ def test_local_media_download_reaches_real_completed_file(
 def test_window_minimum_880x680(make_window, qtbot):
     window, _ = make_window()
     window.resize(880, 680)
-    assert window.minimumWidth() == 880 and window.minimumHeight() == 680
+    assert window.minimumWidth() == 880
+    assert window.minimumHeight() == 680
     # QScrollArea applies the viewport's resize in the next event-loop turn.
     qtbot.waitUntil(lambda: window.url_input.width() >= 180)
-    assert window.url_input.width() > 150 and window.add_button.width() >= 150
+    assert window.url_input.width() > 150
+    assert window.add_button.width() >= 150
     qtbot.waitUntil(lambda: window.composer_host.horizontalScrollBar().maximum() == 0)
 
 
@@ -160,7 +167,8 @@ def test_invalid_link_kept_and_duplicate_does_not_create_row(make_window, qtbot)
     window, _ = make_window()
     window.url_input.setText('invalid')
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
-    assert window.url_input.text() == 'invalid' and window.presenter.model.rowCount() == 0
+    assert window.url_input.text() == 'invalid'
+    assert window.presenter.model.rowCount() == 0
     add(window, qtbot)
     window.url_input.setText('https://youtu.be/ABC')
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
@@ -291,9 +299,8 @@ def test_failed_folder_save_cannot_queue_with_old_destination(make_window, qtbot
     window.url_input.setText('https://youtu.be/ABC')
     window.folder_input.setText(str(tmp_path / 'new-folder'))
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
-    assert (
-        window.presenter.model.rowCount() == 0 and window.url_input.text() == 'https://youtu.be/ABC'
-    )
+    assert window.presenter.model.rowCount() == 0
+    assert window.url_input.text() == 'https://youtu.be/ABC'
     assert window.error_label.isVisible()
 
 
@@ -311,14 +318,15 @@ def test_startup_storage_failure_is_actionable_without_traceback(qtbot, monkeypa
     monkeypatch.setattr(SettingsStore, 'load', fail)
     monkeypatch.setattr(QMessageBox, 'critical', lambda *args: messages.append(args[2]))
     assert main(['clipflow-test']) == 1
-    assert messages and 'записи' in messages[0]
+    assert messages
+    assert 'записи' in messages[0]
 
 
 @pytest.mark.parametrize('activation_key', [Qt.Key.Key_Return, Qt.Key.Key_Enter])
 def test_real_row_pause_resume_cancel_controls(make_window, qtbot, activation_key):
     from PySide6.QtCore import QPoint
 
-    window, provider = make_window()
+    window, _provider = make_window()
     identity = add(window, qtbot)
     index = window.queue_view.model().index(0, 0)
     rect = window.queue_view.visualRect(index)
@@ -350,7 +358,7 @@ def test_held_return_does_not_pause_the_just_started_job(make_window, qtbot):
     from PySide6.QtGui import QKeyEvent
     from PySide6.QtWidgets import QApplication
 
-    window, provider = make_window()
+    window, _provider = make_window()
     identity = add(window, qtbot)
     window.queue_view.setCurrentIndex(window.queue_view.model().index(0, 0))
     activations = []
@@ -363,10 +371,8 @@ def test_held_return_does_not_pause_the_just_started_job(make_window, qtbot):
             QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier, '', True, 2
         ),
     )
-    assert (
-        activations == [0]
-        and window.presenter.repository.get(identity).state == JobState.DOWNLOADING
-    )
+    assert activations == [0]
+    assert window.presenter.repository.get(identity).state == JobState.DOWNLOADING
 
 
 def test_navigation_and_auto_start_keep_input_and_snapshot(make_window, qtbot):
@@ -374,9 +380,11 @@ def test_navigation_and_auto_start_keep_input_and_snapshot(make_window, qtbot):
     identity = add(window, qtbot)
     window.url_input.setText('draft')
     qtbot.mouseClick(window.nav_buttons[1], Qt.MouseButton.LeftButton)
-    assert window.proxy.rowCount() == 0 and not window.composer.isVisible()
+    assert window.proxy.rowCount() == 0
+    assert not window.composer.isVisible()
     qtbot.mouseClick(window.nav_buttons[0], Qt.MouseButton.LeftButton)
-    assert window.url_input.text() == 'draft' and window.proxy.rowCount() == 1
+    assert window.url_input.text() == 'draft'
+    assert window.proxy.rowCount() == 1
     window.composer.parameters_button.setChecked(True)
     qtbot.mouseClick(window.auto_start, Qt.MouseButton.LeftButton)
     assert window.presenter.settings.auto_start
@@ -405,7 +413,8 @@ def test_repository_write_failure_stops_workers_and_closes_safely(make_window, q
     monkeypatch.setattr(window.presenter.repository, 'update', fail)
     window.presenter.toggle_job(identity)
     qtbot.waitUntil(lambda: window.presenter.is_closed)
-    assert provider.torn_down.is_set() and window.error_label.isVisible()
+    assert provider.torn_down.is_set()
+    assert window.error_label.isVisible()
 
 
 def test_completed_row_opens_result_directory_without_deleting(
@@ -424,7 +433,8 @@ def test_completed_row_opens_result_directory_without_deleting(
         QDesktopServices, 'openUrl', lambda url: opened.append(url.toLocalFile()) or True
     )
     window.presenter.toggle_job('done')
-    assert [Path(value) for value in opened] == [tmp_path] and media.exists()
+    assert [Path(value) for value in opened] == [tmp_path]
+    assert media.exists()
 
 
 def test_drain_reaps_active_worker_after_event_loop_exit(make_window, qtbot):
@@ -434,7 +444,8 @@ def test_drain_reaps_active_worker_after_event_loop_exit(make_window, qtbot):
     qtbot.waitUntil(provider.started.is_set)
     window.presenter.shutdown()
     window.presenter.executor.drain()
-    assert provider.torn_down.is_set() and window.presenter.is_closed
+    assert provider.torn_down.is_set()
+    assert window.presenter.is_closed
 
 
 def test_instagram_rate_limit_releases_real_qt_executor_for_youtube(make_window, qtbot, tmp_path):
@@ -463,10 +474,11 @@ def test_instagram_rate_limit_releases_real_qt_executor_for_youtube(make_window,
     window.presenter.start_queue()
     qtbot.waitUntil(youtube.started.is_set)
     job = window.presenter.repository.get(first)
-    assert (
-        captured == [policy] and job.state == JobState.PAUSED and job.pause_reason == 'rate_limit'
-    )
-    assert job.automatic_retry and job.next_allowed_at is not None
+    assert captured == [policy]
+    assert job.state == JobState.PAUSED
+    assert job.pause_reason == 'rate_limit'
+    assert job.automatic_retry
+    assert job.next_allowed_at is not None
 
 
 @pytest.mark.parametrize(

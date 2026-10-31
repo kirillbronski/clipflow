@@ -42,7 +42,7 @@ def test_mixed_batch_ignores_bad_lines_and_preserves_per_service_snapshot(system
 
 
 def test_single_mode_rejects_profile(system):
-    service, store, presets = system
+    service, _store, presets = system
     preview = service.preview('https://instagram.com/author/', presets, mode='single')
     assert not preview.requests
     assert len(preview.invalid) == 1
@@ -51,7 +51,7 @@ def test_single_mode_rejects_profile(system):
 
 @pytest.mark.parametrize('limit', [10, 50, None])
 def test_profile_limit_is_explicit(system, limit):
-    service, store, presets = system
+    service, _store, presets = system
     presets[Service.INSTAGRAM] = replace(presets[Service.INSTAGRAM], post_folder=False)
     preview = service.preview(
         'https://instagram.com/author/', presets, mode='profile', profile_limit=limit
@@ -98,7 +98,7 @@ def test_repeated_submission_points_to_active_job(system):
 
 
 def test_playlist_mode_resolves_watch_url_list_without_changing_single(system):
-    service, store, presets = system
+    service, _store, presets = system
     url = 'https://youtube.com/watch?v=abc&list=PL_test'
     single = service.preview(url, presets, mode='single').requests[0]
     playlist = service.preview(url, presets, mode='playlist').requests[0]
@@ -108,14 +108,14 @@ def test_playlist_mode_resolves_watch_url_list_without_changing_single(system):
 
 
 def test_invalid_url_error_redacts_credentials(system):
-    service, store, presets = system
+    service, _store, presets = system
     preview = service.preview('https://user:secret-password@instagram.com/p/abc/', presets)
     assert len(preview.invalid) == 1
     assert 'secret-password' not in repr(preview)
 
 
 def test_playlist_id_cannot_be_truncated_into_another_playlist(system):
-    service, store, presets = system
+    service, _store, presets = system
     preview = service.preview(
         'https://youtube.com/watch?v=abc&list=PL%26other=evil', presets, mode='playlist'
     )
@@ -124,7 +124,7 @@ def test_playlist_id_cannot_be_truncated_into_another_playlist(system):
 
 
 def test_unsupported_mode_raises_invalid_mode(system):
-    service, store, presets = system
+    service, _store, presets = system
     with pytest.raises(JobRuleError) as raised:
         service.preview('https://youtu.be/abc', presets, 'nonsense')
     assert raised.value.code == 'invalid_mode'

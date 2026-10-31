@@ -61,7 +61,8 @@ def test_drained_queue_requires_explicit_start_for_new_jobs(queue):
     finish(worker)
     repo.add(Job('three', request('third')))
     scheduler.tick()
-    assert repo.get('three').state == JobState.QUEUED and len(worker.runs) == 2
+    assert repo.get('three').state == JobState.QUEUED
+    assert len(worker.runs) == 2
     scheduler.start()
     assert worker.runs[-1][0].id == 'three'
 
@@ -233,7 +234,7 @@ def test_empty_success_fails_and_duplicate_saved_files_are_not_lost(queue):
 
 
 def test_unknown_events_and_invalid_commands_do_not_corrupt_queue(queue):
-    repo, worker, scheduler = queue
+    repo, _worker, scheduler = queue
     scheduler.handle(JobEvent('missing', 'missing', WorkFailed('ignored')))
     with pytest.raises(JobRuleError) as raised:
         scheduler.resume('one')
@@ -250,7 +251,7 @@ def test_unknown_events_and_invalid_commands_do_not_corrupt_queue(queue):
 
 
 def test_subscription_reports_progress_and_can_unsubscribe(queue):
-    repo, worker, scheduler = queue
+    _repo, worker, scheduler = queue
     seen = []
     unsubscribe = scheduler.subscribe(seen.append)
     scheduler.start()
@@ -278,7 +279,7 @@ def test_synchronous_worker_completion_does_not_recurse_through_queue():
 
 
 def test_executor_start_failure_is_recorded_and_queue_continues(queue):
-    repo, worker, _ = queue
+    repo, _worker, _ = queue
 
     class BrokenExecutor:
         def start(self, job, on_event):
@@ -304,7 +305,7 @@ def test_cancel_token_interrupts_wait_and_preserves_first_reason(reason):
 
 def test_cancel_token_rejects_unknown_reason():
     token = CancellationToken()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='Invalid cancellation reason'):
         token.cancel('unknown')
 
 
@@ -330,7 +331,7 @@ def test_stop_failure_never_frees_slot_or_starts_another_job(queue):
 
     worker.stop = cannot_stop
     scheduler.start()
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match='stop unavailable'):
         scheduler.pause('one')
     scheduler.resume('one')
     assert repo.get('two').state == JobState.QUEUED
@@ -340,7 +341,7 @@ def test_stop_failure_never_frees_slot_or_starts_another_job(queue):
 
 
 def test_cancel_without_children_leaves_child_queued(queue):
-    repo, worker, scheduler = queue
+    repo, _worker, scheduler = queue
     repo.add(Job('child', request('child'), parent_id='one'))
     scheduler.cancel('one', include_children=False)
     scheduler.start()
@@ -349,7 +350,7 @@ def test_cancel_without_children_leaves_child_queued(queue):
 
 
 def test_shutdown_is_final_even_with_no_active_worker(queue):
-    repo, worker, scheduler = queue
+    _repo, worker, scheduler = queue
     scheduler.shutdown()
     scheduler.shutdown()
     with pytest.raises(JobRuleError) as raised:
@@ -367,7 +368,7 @@ def test_unexpected_worker_stop_pauses_instead_of_completing(queue):
 
 
 def test_unsubscribe_is_idempotent_and_unknown_payload_is_ignored(queue):
-    repo, worker, scheduler = queue
+    _repo, worker, scheduler = queue
     seen = []
     unsubscribe = scheduler.subscribe(seen.append)
     scheduler.start()
@@ -517,7 +518,7 @@ RULE_CASES = [
 
 @pytest.mark.parametrize(('code', 'arrange', 'act'), RULE_CASES)
 def test_rule_errors_carry_codes(queue, code, arrange, act):
-    repo, worker, scheduler = queue
+    repo, _worker, scheduler = queue
     arrange(repo, scheduler)
     with pytest.raises(JobRuleError) as raised:
         act(scheduler)

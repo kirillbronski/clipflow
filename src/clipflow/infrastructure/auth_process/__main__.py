@@ -137,7 +137,8 @@ def _self_test_checks(window, service, platform, agent, original_icon):
     window.mode.setCurrentIndex(0)
     assert window.profile.httpUserAgent() == window.native_agent
     assert window.address.text().find('synthetic-auth-self-test') < 0
-    assert not window.windowIcon().isNull() and window.windowIcon().cacheKey() == original_icon
+    assert not window.windowIcon().isNull()
+    assert window.windowIcon().cacheKey() == original_icon
     assert 'tkinter' not in sys.modules
     window.session.snapshot.unlink(missing_ok=True)
     window.cookies.clear()

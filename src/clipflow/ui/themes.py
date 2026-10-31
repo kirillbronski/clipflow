@@ -53,11 +53,12 @@ PALETTES = {
         getcourse='#15715c',
     ),
 }
-TEXT_PAIRS = tuple(
-    (fg, bg)
-    for fg in ('text', 'muted', 'disabled', 'success', 'error')
-    for bg in ('background', 'surface', 'sidebar', 'hover', 'menu', 'dialog')
-) + (
+TEXT_PAIRS = (
+    *tuple(
+        (fg, bg)
+        for fg in ('text', 'muted', 'disabled', 'success', 'error')
+        for bg in ('background', 'surface', 'sidebar', 'hover', 'menu', 'dialog')
+    ),
     ('selection_text', 'selection'),
     ('accent_text', 'accent'),
     ('accent_text', 'youtube'),

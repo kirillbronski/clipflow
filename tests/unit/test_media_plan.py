@@ -55,4 +55,6 @@ def test_getcourse_has_neither_tag_nor_post():
     req = request('https://school.getcourse.ru/teach/control/lesson/view/id/123')
     item = MediaItem('v', 1, 'video', 'Lesson', {})
     plan = plan_media(req, item)
-    assert plan.tag is None and plan.post is None and plan.work == plan.target
+    assert plan.tag is None
+    assert plan.post is None
+    assert plan.work == plan.target

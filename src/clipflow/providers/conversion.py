@@ -80,7 +80,7 @@ class MediaTools:
             args += ['-metadata', 'comment=' + tag]
         work = work or target
         temporary = work.with_name(work.stem + '.processing' + target.suffix)
-        run_process(args + [str(temporary)], context)
+        run_process([*args, str(temporary)], context)
         self.verify(temporary, MediaItem('', 1, 'video', '', {}), request, context)
         context.cancel.raise_if_cancelled()
         if tag:

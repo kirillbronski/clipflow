@@ -32,8 +32,10 @@ def test_music_playlist_title_persists_and_old_position_still_loads(tmp_path):
     repo = SqliteJobRepository(path)
     try:
         saved = repo.get('music')
-        assert saved.request.link.is_music and saved.request.options.format == 'mp3'
-        assert saved.request.playlist.title == 'Sound City' and saved.request.playlist.index == 2
+        assert saved.request.link.is_music
+        assert saved.request.options.format == 'mp3'
+        assert saved.request.playlist.title == 'Sound City'
+        assert saved.request.playlist.index == 2
     finally:
         repo.close()
     import json
@@ -45,9 +47,9 @@ def test_music_playlist_title_persists_and_old_position_still_loads(tmp_path):
     repo = SqliteJobRepository(path)
     try:
         old = repo.get('music').request
-        assert (
-            old.playlist.title is None and old.playlist.index == 2 and old.options.format == 'mp3'
-        )
+        assert old.playlist.title is None
+        assert old.playlist.index == 2
+        assert old.options.format == 'mp3'
     finally:
         repo.close()
 
@@ -69,8 +71,10 @@ def test_restart_recovers_active_as_paused(tmp_path, state):
     repo = SqliteJobRepository(path)
     try:
         recovered = repo.recover()[0]
-        assert recovered.state == JobState.PAUSED and recovered.pause_reason == 'restart'
-        assert recovered.attempt_id is None and not recovered.automatic_retry
+        assert recovered.state == JobState.PAUSED
+        assert recovered.pause_reason == 'restart'
+        assert recovered.attempt_id is None
+        assert not recovered.automatic_retry
         assert recovered.next_allowed_at == original.next_allowed_at
         assert repo.recover() == (recovered,)
     finally:
@@ -90,7 +94,8 @@ def test_completed_history_preserved(tmp_path):
         repo.recover()
         assert repo.history() == (original,)
         repo.clear_history()
-        assert repo.history() == () and media.read_bytes() == b'owned-file'
+        assert repo.history() == ()
+        assert media.read_bytes() == b'owned-file'
     finally:
         repo.close()
 
@@ -109,11 +114,12 @@ def test_snapshots_playlist_selection_parent_and_order_roundtrip(tmp_path):
     child = replace(job(tmp_path, 'child'), request=request, parent_id='parent')
     repo.add(parent)
     repo.add(child)
-    assert repo.get('child') == child and repo.list() == (parent, child)
+    assert repo.get('child') == child
+    assert repo.list() == (parent, child)
     repo.update(replace(child, state=JobState.PAUSED, pause_reason='user'))
     repo.clear_history()  # Keep an ancestor needed by a live child.
     assert [j.id for j in repo.list()] == ['parent', 'child']
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='Duplicate job ID'):
         repo.add(child)
     with pytest.raises(KeyError):
         repo.update(replace(child, id='missing'))
@@ -185,7 +191,8 @@ def test_no_credentials_or_signed_cdn_urls_persisted(tmp_path):
     repo = SqliteJobRepository(path)
     try:
         recovered = repo.recover()[0]
-        assert recovered.state == JobState.PAUSED and recovered.pause_reason == 'source_required'
+        assert recovered.state == JobState.PAUSED
+        assert recovered.pause_reason == 'source_required'
         assert recovered.source_required
         assert recovered.request.options.auth_profile == 'school-main'
         assert 'SIGNED_SECRET' not in repr(recovered)
@@ -219,7 +226,8 @@ def test_cooldown_and_manual_pause_survive_recovery_without_auto_retry(tmp_path)
     repo = SqliteJobRepository(path)
     try:
         restored = repo.recover()[0]
-        assert restored.pause_reason == 'rate_limit' and not restored.automatic_retry
+        assert restored.pause_reason == 'rate_limit'
+        assert not restored.automatic_retry
         assert restored.next_allowed_at == original.next_allowed_at
     finally:
         repo.close()
@@ -285,9 +293,9 @@ def test_corrupt_payload_identity_is_not_accepted(tmp_path):
 
 def test_invalid_flags_or_nonlocal_result_never_commit(tmp_path):
     repo = SqliteJobRepository(tmp_path / 'queue.sqlite3')
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='invalid_job_flags'):
         repo.add(replace(job(tmp_path), automatic_retry='yes'))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='local_result_path_required'):
         repo.add(
             replace(job(tmp_path), result_files=(Path('https://cdn.invalid/?token=RESULT_SECRET'),))
         )
@@ -311,13 +319,15 @@ def test_secret_source_dedup_survives_restart(tmp_path):
         submission = SubmissionService(repo)
         preview = submission.preview(url, {service: options for service in Service})
         result = submission.submit(preview)
-        assert result.added == () and result.existing == ('one',) and len(repo.list()) == 1
+        assert result.added == ()
+        assert result.existing == ('one',)
+        assert len(repo.list()) == 1
     finally:
         repo.close()
 
 
 @pytest.mark.parametrize(
-    'state,reason,command',
+    ('state', 'reason', 'command'),
     [(JobState.COMPLETED, None, 'retry'), (JobState.PAUSED, 'selection_required', 'select_items')],
 )
 def test_source_required_blocks_other_start_commands(tmp_path, state, reason, command):
@@ -344,7 +354,7 @@ def test_source_required_blocks_other_start_commands(tmp_path, state, reason, co
             getattr(scheduler, command)(
                 'one', ('id',)
             ) if command == 'select_items' else scheduler.retry('one')
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='Job is not waiting for this source'):
             scheduler.provide_source('one', parse_url('https://youtu.be/ABC'))
         assert worker.runs == []
     finally:
@@ -411,7 +421,8 @@ def test_file_saved_before_commit_is_reconciled_on_explicit_resume(tmp_path):
     assert repo.get('one').state == JobState.PAUSED
     scheduler.resume('one')
     assert repo.get('one').state == JobState.COMPLETED
-    assert repo.get('one').result_files == (target,) and target.stat().st_mtime_ns == before
+    assert repo.get('one').result_files == (target,)
+    assert target.stat().st_mtime_ns == before
     repo.close()
 
 
@@ -430,7 +441,8 @@ def test_display_title_and_label_persist_and_old_records_load(tmp_path):
     repo = SqliteJobRepository(path)
     try:
         saved = repo.get('titled')
-        assert saved.title == 'Пропаганда - Мелом' and saved.request.label == 'Мелом'
+        assert saved.title == 'Пропаганда - Мелом'
+        assert saved.request.label == 'Мелом'
     finally:
         repo.close()
     with sqlite3.connect(path) as db:
@@ -441,6 +453,7 @@ def test_display_title_and_label_persist_and_old_records_load(tmp_path):
     repo = SqliteJobRepository(path)
     try:
         old = repo.get('titled')
-        assert old.title is None and old.request.label is None
+        assert old.title is None
+        assert old.request.label is None
     finally:
         repo.close()

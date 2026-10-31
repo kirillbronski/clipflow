@@ -28,11 +28,15 @@ def test_ui_self_test_isolated_and_reports_real_local_transfer(tmp_path):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     proof = json.loads(report.read_text(encoding='utf-8'))
-    assert proof['passed'] and proof['ui'] == 'qt' and proof['local_transfer']
-    assert proof['worker_idle'] and not proof['legacy_modules']
+    assert proof['passed']
+    assert proof['ui'] == 'qt'
+    assert proof['local_transfer']
+    assert proof['worker_idle']
+    assert not proof['legacy_modules']
     from clipflow.version import APP_VERSION
 
-    assert proof['version'] == APP_VERSION and (data / 'ui.png').is_file()
+    assert proof['version'] == APP_VERSION
+    assert (data / 'ui.png').is_file()
 
 
 def test_ui_self_test_refuses_unisolated_storage(tmp_path):
@@ -59,4 +63,5 @@ def test_ui_self_test_refuses_unisolated_storage(tmp_path):
         )
     except subprocess.TimeoutExpired:
         pytest.fail('Self-test CLI opened a main window instead of refusing unisolated storage')
-    assert result.returncode == 2 and not (tmp_path / 'queue.sqlite3').exists()
+    assert result.returncode == 2
+    assert not (tmp_path / 'queue.sqlite3').exists()

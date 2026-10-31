@@ -58,7 +58,7 @@ class Provider:
 
 
 @pytest.mark.parametrize(
-    'outcome,error',
+    ('outcome', 'error'),
     [
         (MediaFailure('auth_required'), 'auth_required'),
         (WorkCancelled('cancel'), 'probe_cancelled'),
@@ -98,7 +98,7 @@ def test_probe_stops_before_the_site_when_already_cancelled():
 
 
 @pytest.mark.parametrize(
-    'outcome,title',
+    ('outcome', 'title'),
     [('Пропаганда - Мелом', 'Пропаганда - Мелом'), ('   ', None), (MediaFailure('x'), None)],
 )
 def test_title_keeps_only_usable_names(outcome, title):
@@ -106,7 +106,7 @@ def test_title_keeps_only_usable_names(outcome, title):
 
 
 @pytest.mark.parametrize(
-    'outcome,terminal',
+    ('outcome', 'terminal'),
     [
         (None, WorkFinished()),
         (WorkCancelled('pause'), WorkStopped()),

@@ -34,7 +34,8 @@ class Auth:
 def server(tmp_path_factory):
     root = tmp_path_factory.mktemp('youtube-http')
     ffmpeg, ffprobe = shutil.which('ffmpeg'), shutil.which('ffprobe')
-    assert ffmpeg and ffprobe
+    assert ffmpeg
+    assert ffprobe
     subprocess.run(
         [
             ffmpeg,
@@ -171,9 +172,8 @@ def test_mp3_ignores_stale_format_selection_left_by_probe(tmp_path, monkeypatch,
             [ffprobe, '-v', 'error', '-show_streams', '-of', 'json', str(result.files[0])]
         )
     )
-    assert result.files[0].suffix == '.mp3' and {s['codec_type'] for s in data['streams']} == {
-        'audio'
-    }
+    assert result.files[0].suffix == '.mp3'
+    assert {s['codec_type'] for s in data['streams']} == {'audio'}
 
 
 @pytest.mark.parametrize('fmt', ['mp3', 'mp4'])
@@ -202,19 +202,21 @@ def test_same_artist_title_gets_numbered_copy_and_retry_reuses_own_file(
 
     first = run('track_A')
     second = run('track_B')
-    assert (
-        first.name == f'Пропаганда - Мелом.{fmt}' and second.name == f'Пропаганда - Мелом (2).{fmt}'
-    )
+    assert first.name == f'Пропаганда - Мелом.{fmt}'
+    assert second.name == f'Пропаганда - Мелом (2).{fmt}'
     names = [e.title for e in events if isinstance(e, TitleChanged)]
-    assert names[0] == 'Пропаганда - Мелом' and names[-1] == 'Пропаганда - Мелом (2)'
+    assert names[0] == 'Пропаганда - Мелом'
+    assert names[-1] == 'Пропаганда - Мелом (2)'
     foreign = tmp_path / 'YouTube' / f'Пропаганда - Мелом (3).{fmt}'
     foreign.write_bytes(b'not media')
     third = run('track_C')
-    assert third.name == f'Пропаганда - Мелом (4).{fmt}' and foreign.read_bytes() == b'not media'
+    assert third.name == f'Пропаганда - Мелом (4).{fmt}'
+    assert foreign.read_bytes() == b'not media'
     third.unlink()
     foreign.unlink()
     modified = first.stat().st_mtime_ns
-    assert run('track_A') == first and first.stat().st_mtime_ns == modified
+    assert run('track_A') == first
+    assert first.stat().st_mtime_ns == modified
     assert run('track_B') == second
     tags = json.loads(
         subprocess.check_output([ffprobe, '-v', 'error', '-show_format', '-of', 'json', str(first)])
@@ -248,7 +250,8 @@ def test_playlist_children_save_with_original_001_numbers(tmp_path, monkeypatch,
     )
     provider = YouTubeProvider(MediaPipeline())
     parent = provider.execute(req, ctx)
-    assert parent.files == () and parent.discovered_count == 2
+    assert parent.files == ()
+    assert parent.discovered_count == 2
     children = [r for e in events if isinstance(e, RequestsDiscovered) for r in e.requests]
     results = [provider.execute(r, ctx) for r in children]
     assert [result.files[0].name for result in results] == [

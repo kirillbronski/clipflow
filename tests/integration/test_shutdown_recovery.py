@@ -23,9 +23,8 @@ def test_restart_does_not_autostart(make_window, qtbot, tmp_path):
     assert jobs[0].state == JobState.PAUSED
     restarted, provider = make_window(repository=repo)
     qtbot.wait(100)
-    assert (
-        not provider.started.is_set() and restarted.presenter.model.jobs[0].state == JobState.PAUSED
-    )
+    assert not provider.started.is_set()
+    assert restarted.presenter.model.jobs[0].state == JobState.PAUSED
 
 
 def test_close_during_network_processing_or_auth(make_window, qtbot):
@@ -36,7 +35,8 @@ def test_close_during_network_processing_or_auth(make_window, qtbot):
     path = window.presenter.repository.path
     window.close()
     qtbot.waitUntil(lambda: window.presenter.is_closed, timeout=5000)
-    assert provider.torn_down.is_set() and window.presenter.executor.is_idle
+    assert provider.torn_down.is_set()
+    assert window.presenter.executor.is_idle
     repo = SqliteJobRepository(path)
     try:
         assert repo.recover()[0].state == JobState.PAUSED
@@ -93,7 +93,8 @@ def test_close_reaps_actual_ffmpeg(make_window, qtbot, tools, tmp_path, monkeypa
     window.close()
     qtbot.waitUntil(lambda: window.presenter.is_closed, timeout=5000)
     assert window.presenter.executor.is_idle
-    assert processes and all(p.poll() is not None for p in processes)
+    assert processes
+    assert all(p.poll() is not None for p in processes)
 
 
 def test_close_interrupts_ytdlp_internal_postprocessor(
@@ -139,7 +140,8 @@ def test_close_interrupts_ytdlp_internal_postprocessor(
         qtbot.wait(200)
         window.close()
         qtbot.waitUntil(lambda: window.presenter.is_closed, timeout=4000)
-        assert processes and all(p.poll() is not None for p in processes)
+        assert processes
+        assert all(p.poll() is not None for p in processes)
     finally:
         for process in processes:
             if process.poll() is None:
@@ -218,7 +220,9 @@ def test_ytdlp_real_merger_still_combines_separate_tracks(media_server, tools, t
                 '__files_to_merge': [str(video), str(audio)],
             },
         )
-    assert result['filepath'] == str(target) and not video.exists() and not audio.exists()
+    assert result['filepath'] == str(target)
+    assert not video.exists()
+    assert not audio.exists()
     assert {s['codec_type'] for s in probe(target, tools)['streams']} == {'video', 'audio'}
 
 
@@ -288,7 +292,8 @@ def test_close_waits_for_and_reaps_auth_process(make_window, qtbot, tmp_path):
         window.close()
         assert not window.presenter.is_closed
         qtbot.waitUntil(lambda: window.presenter.is_closed, timeout=7000)
-        assert process.poll() is not None and not handle.close_path.exists()
+        assert process.poll() is not None
+        assert not handle.close_path.exists()
     finally:
         if process.poll() is None:
             process.kill()
@@ -323,7 +328,8 @@ def test_recovery_after_file_written_before_db_commit(
     window.presenter.start_queue()
     qtbot.waitUntil(lambda: window.presenter.executor.is_idle, timeout=15000)
     files = tuple((tmp_path / 'downloads').glob('YouTube/Crash recovery*.mp4'))
-    assert len(files) == 1 and files[0].stat().st_size > 0
+    assert len(files) == 1
+    assert files[0].stat().st_size > 0
     before = files[0].stat().st_mtime_ns
     path = repo.path
     repo.update = original
@@ -334,4 +340,5 @@ def test_recovery_after_file_written_before_db_commit(
     restarted, _ = make_window(Local(MediaPipeline()), repository=restored)
     restarted.presenter.toggle_job(identity)
     qtbot.waitUntil(lambda: restored.get(identity).state == JobState.COMPLETED, timeout=15000)
-    assert restored.get(identity).result_files == files and files[0].stat().st_mtime_ns == before
+    assert restored.get(identity).result_files == files
+    assert files[0].stat().st_mtime_ns == before

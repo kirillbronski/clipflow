@@ -31,7 +31,9 @@ def test_default_entrypoint_is_qt(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     assert report.is_file(), 'Default entry still invokes legacy UI rather than Qt self-test'
     proof = json.loads(report.read_text(encoding='utf-8'))
-    assert proof['passed'] and proof['ui'] == 'qt' and proof['local_transfer']
+    assert proof['passed']
+    assert proof['ui'] == 'qt'
+    assert proof['local_transfer']
 
 
 def test_no_ast_test_extraction():
@@ -75,8 +77,10 @@ def test_legacy_parity_matrix_has_real_test_targets():
     mapping = json.loads((ROOT / 'tests/legacy-parity.json').read_text(encoding='utf-8'))
     assert len(mapping) == 11
     for legacy, targets in mapping.items():
-        assert legacy.startswith('test_') and targets
+        assert legacy.startswith('test_')
+        assert targets
         for target in targets:
             path, function = target.split('::')
             source = ROOT / path
-            assert source.is_file() and f'def {function}(' in source.read_text(encoding='utf-8')
+            assert source.is_file()
+            assert f'def {function}(' in source.read_text(encoding='utf-8')

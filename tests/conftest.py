@@ -5,6 +5,7 @@ import subprocess
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
+from typing import ClassVar
 
 import pytest
 from PySide6.QtCore import QMimeData
@@ -62,7 +63,8 @@ def make_window(qtbot, tmp_path):
 @pytest.fixture(scope='module')
 def tools():
     ffmpeg, ffprobe = shutil.which('ffmpeg'), shutil.which('ffprobe')
-    assert ffmpeg and ffprobe, 'Native FFmpeg and FFprobe are required for T4 acceptance'
+    assert ffmpeg, 'Native FFmpeg is required for T4 acceptance'
+    assert ffprobe, 'Native FFprobe is required for T4 acceptance'
     return ffmpeg, ffprobe
 
 
@@ -163,8 +165,8 @@ def media_server(tmp_path_factory, tools):
 
     class Handler(SimpleHTTPRequestHandler):
         hits = 0
-        ranges = []
-        paths = []
+        ranges: ClassVar[list] = []  # shared by every request of the server
+        paths: ClassVar[list] = []
 
         def log_message(self, *args):
             pass

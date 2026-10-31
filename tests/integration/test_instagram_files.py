@@ -142,7 +142,7 @@ def test_mixed_photo_video_numbering_and_paired_txt_md(tmp_path, monkeypatch, ht
 
 
 @pytest.mark.parametrize(
-    'author_folder,post_folder', [(True, True), (True, False), (False, True), (False, False)]
+    ('author_folder', 'post_folder'), [(True, True), (True, False), (False, True), (False, False)]
 )
 def test_author_and_post_folder_options_independent(
     tmp_path, monkeypatch, http_media, author_folder, post_folder
@@ -163,7 +163,7 @@ def test_author_and_post_folder_options_independent(
 
 
 @pytest.mark.parametrize(
-    'caption,fmt', [(None, 'txt'), ('', 'md'), ('   ', 'txt'), ('Not saved', None)]
+    ('caption', 'fmt'), [(None, 'txt'), ('', 'md'), ('   ', 'txt'), ('Not saved', None)]
 )
 def test_caption_missing_or_disabled(tmp_path, monkeypatch, http_media, caption, fmt):
     base, _ = http_media
@@ -175,7 +175,8 @@ def test_caption_missing_or_disabled(tmp_path, monkeypatch, http_media, caption,
         request(tmp_path, description=fmt, media_filter='photo'), ctx
     )
     assert len(result.files) == 2
-    assert not list(tmp_path.rglob('*.txt')) and not list(tmp_path.rglob('*.md'))
+    assert not list(tmp_path.rglob('*.txt'))
+    assert not list(tmp_path.rglob('*.md'))
 
 
 @pytest.mark.parametrize('post_folder', [True, False])
@@ -209,7 +210,8 @@ def test_failed_item_has_diagnostic_and_keeps_finished_files(tmp_path, monkeypat
     req = request(tmp_path, description='txt')
     with pytest.raises(InstagramMediaFailure) as error:
         provider.execute(req, ctx)
-    assert error.value.index == 2 and error.value.reason == 'download_failed'
+    assert error.value.index == 2
+    assert error.value.reason == 'download_failed'
     saved = [p for e in events if isinstance(e, FilesSaved) for p in e.files]
     assert [p.name for p in saved] == ['01.png', '01.txt']
     assert all(p.is_file() for p in saved)
@@ -217,7 +219,8 @@ def test_failed_item_has_diagnostic_and_keeps_finished_files(tmp_path, monkeypat
     assert 'completed' not in gate.calls
     extracted(monkeypatch, product(base))
     result = provider.execute(req, ctx)
-    assert len(result.files) == 6 and saved[0].stat().st_mtime_ns == modified
+    assert len(result.files) == 6
+    assert saved[0].stat().st_mtime_ns == modified
 
 
 def test_file_429_stops_without_success_or_implicit_retries(tmp_path, monkeypatch, http_media):
@@ -252,7 +255,8 @@ def test_description_write_failure_is_tied_to_media_item(tmp_path, monkeypatch, 
     ctx, events, _ = context()
     with pytest.raises(InstagramMediaFailure) as error:
         InstagramPostProvider(MediaPipeline()).execute(request(tmp_path, description='txt'), ctx)
-    assert error.value.index == 1 and error.value.reason == 'write_failed'
+    assert error.value.index == 1
+    assert error.value.reason == 'write_failed'
     assert not any(isinstance(e, FilesSaved) for e in events)
     assert len(list(tmp_path.rglob('01.png'))) == 1
 

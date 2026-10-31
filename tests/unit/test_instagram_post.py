@@ -31,7 +31,8 @@ def test_single_post_does_not_discover_profile(tmp_path, monkeypatch):
     fixture(monkeypatch, data)
     ctx, events, gate = context()
     result = InstagramPostProvider(MediaPipeline()).probe(request(tmp_path), ctx)
-    assert len(result.items) == 1 and result.items[0].kind == 'photo'
+    assert len(result.items) == 1
+    assert result.items[0].kind == 'photo'
     assert not any(isinstance(e, RequestsDiscovered) for e in events)
     assert gate.calls == []  # Synthetic extractor performs no HTTP request.
 
@@ -72,7 +73,7 @@ def test_missing_shared_policy_fails_closed_before_network(tmp_path, monkeypatch
 
 
 @pytest.mark.parametrize(
-    'media_filter,indices', [('all', [1, 2, 3]), ('photo', [1, 3]), ('video', [2])]
+    ('media_filter', 'indices'), [('all', [1, 2, 3]), ('photo', [1, 3]), ('video', [2])]
 )
 def test_filter_keeps_original_indices(tmp_path, monkeypatch, media_filter, indices):
     fixture(monkeypatch, product())
@@ -118,7 +119,7 @@ def test_filter_with_no_matches_is_not_empty_success(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    'status,code',
+    ('status', 'code'),
     [
         (429, 'instagram_rate_limited'),
         (403, 'instagram_access_denied'),

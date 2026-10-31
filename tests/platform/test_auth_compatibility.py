@@ -40,7 +40,9 @@ def test_youtube_instagram_isolation(tmp_path):
         seed(tmp_path, service, gateway.platform.protect)
     yt = gateway.status(Service.YOUTUBE)
     ig = gateway.status(Service.INSTAGRAM)
-    assert yt.connected and ig.connected and yt.profile != ig.profile
+    assert yt.connected
+    assert ig.connected
+    assert yt.profile != ig.profile
     with pytest.raises(MediaFailure, match='auth_scope_mismatch'):
         gateway.options_for(yt.profile, 'https://instagram.com/p/ABC/')
     with pytest.raises(MediaFailure, match='auth_scope_mismatch'):
@@ -53,10 +55,8 @@ def test_logout_only_selected_service(tmp_path):
         seed(tmp_path, service, gateway.platform.protect)
     other = (tmp_path / 'InstagramAuth/session.dat').read_bytes()
     gateway.logout(gateway.status(Service.YOUTUBE).profile)
-    assert (
-        not gateway.status(Service.YOUTUBE).connected
-        and gateway.status(Service.INSTAGRAM).connected
-    )
+    assert not gateway.status(Service.YOUTUBE).connected
+    assert gateway.status(Service.INSTAGRAM).connected
     assert (tmp_path / 'InstagramAuth/session.dat').read_bytes() == other
     assert (tmp_path / 'YouTubeAuth/logout-request').is_file()
 
@@ -74,8 +74,10 @@ def test_auth_process_single_instance(tmp_path, monkeypatch):
     gateway = NativeAuthGateway(tmp_path)
     a = gateway.sign_in(Service.YOUTUBE, 'en')
     b = gateway.sign_in(Service.YOUTUBE, 'ru')
-    assert a is b and len(calls) == 1
-    assert '--youtube-login' in calls[0][0][0] and '--language' in calls[0][0][0]
+    assert a is b
+    assert len(calls) == 1
+    assert '--youtube-login' in calls[0][0][0]
+    assert '--language' in calls[0][0][0]
     assert 'synthetic-private-token' not in repr(calls)
     gateway.close()
     a.process.returncode = 0
@@ -92,7 +94,8 @@ def test_close_parent_handles_child(tmp_path, monkeypatch):
     assert handle.close_path.is_file()
     handle._deadline = 0
     handle.poll()
-    assert handle.process.terminated and gateway.is_closed
+    assert handle.process.terminated
+    assert gateway.is_closed
 
 
 def test_no_secret_in_errors_db_or_support_export(tmp_path):
@@ -101,7 +104,8 @@ def test_no_secret_in_errors_db_or_support_export(tmp_path):
     folder.mkdir()
     (folder / 'session.dat').write_bytes(b'bad synthetic-private-token ciphertext')
     status = gateway.status(Service.YOUTUBE)
-    assert not status.connected and 'synthetic-private-token' not in repr(status)
+    assert not status.connected
+    assert 'synthetic-private-token' not in repr(status)
     with pytest.raises(MediaFailure) as failure:
         gateway.options_for('youtube-default', 'https://youtu.be/ABC')
     assert str(failure.value) == 'auth_required'
@@ -117,7 +121,8 @@ def test_macos_data_and_keychain_namespace_unchanged(tmp_path, monkeypatch):
     assert PlatformServices(tmp_path).key_namespace() == ('ClipFlow', 'profile-encryption-key-v1')
     monkeypatch.setenv('CLIPFLOW_DATA_DIR', str(tmp_path))
     namespace = PlatformServices(tmp_path).key_namespace()
-    assert namespace[0] == 'ClipFlow Tests' and namespace[1].startswith('profile-key-')
+    assert namespace[0] == 'ClipFlow Tests'
+    assert namespace[1].startswith('profile-key-')
 
 
 def test_getcourse_legacy_requires_explicit_school_binding(tmp_path):
@@ -138,7 +143,8 @@ def test_getcourse_legacy_requires_explicit_school_binding(tmp_path):
     options = gateway.options_for(
         ref, 'https://school.getcourse.ru/pl/teach/control/lesson/view?id=124'
     )
-    assert options['username'] == payload['email'] and options['password'] == payload['password']
+    assert options['username'] == payload['email']
+    assert options['password'] == payload['password']
     with pytest.raises(MediaFailure, match='auth_scope_mismatch'):
         gateway.options_for(ref, 'https://other.getcourse.ru/pl/teach/control/lesson/view?id=123')
     assert source.read_bytes() == original
@@ -171,7 +177,8 @@ def test_scoped_logout_preserves_legacy_profile_updated_during_import(tmp_path, 
         'https://school.getcourse.ru/pl/teach/control/lesson/view?id=123'
     )
     gateway.logout(profile)
-    assert file.is_file() and file.read_bytes() == changed
+    assert file.is_file()
+    assert file.read_bytes() == changed
     assert not gateway.status(Service.GETCOURSE).connected
 
 
@@ -237,10 +244,8 @@ def test_credentials_only_referenced_in_queue_and_settings(tmp_path):
     submission.submit(submission.preview(url, presets))
     repo.close()
     for path in (store.path, tmp_path / 'queue.sqlite3'):
-        assert (
-            b'synthetic-private-password' not in path.read_bytes()
-            and b'private@example.test' not in path.read_bytes()
-        )
+        assert b'synthetic-private-password' not in path.read_bytes()
+        assert b'private@example.test' not in path.read_bytes()
 
 
 def test_gateway_import_does_not_load_webengine_or_tk(tmp_path):
@@ -282,7 +287,8 @@ def test_auth_self_test_cannot_write_outside_isolated_root(tmp_path):
         text=True,
         timeout=40,
     )
-    assert result.returncode == 2 and not outside.exists()
+    assert result.returncode == 2
+    assert not outside.exists()
 
 
 def test_auth_self_test_refuses_existing_profile_contents(tmp_path):
@@ -296,7 +302,8 @@ def test_auth_self_test_refuses_existing_profile_contents(tmp_path):
         text=True,
         timeout=40,
     )
-    assert result.returncode == 2 and original.read_bytes() == b'original-bytes'
+    assert result.returncode == 2
+    assert original.read_bytes() == b'original-bytes'
 
 
 @pytest.mark.parametrize('flag', ['--auth-self-test', '--instagram-auth-self-test'])
@@ -332,13 +339,11 @@ def test_auth_self_tests_native(tmp_path, flag):
     import json
 
     proof = json.loads(report.read_text(encoding='utf-8'))
-    assert (
-        proof['passed']
-        and proof['rendered']
-        and proof['protected_snapshot']
-        and proof['os']
-        and proof['cpu']
-    )
+    assert proof['passed']
+    assert proof['rendered']
+    assert proof['protected_snapshot']
+    assert proof['os']
+    assert proof['cpu']
 
 
 @pytest.mark.native_gui
@@ -368,11 +373,13 @@ def test_real_auth_child_single_instance_and_parent_close(tmp_path, monkeypatch)
             text=True,
             timeout=15,
         )
-        assert second.returncode == 0 and 'AUTH already_open' in second.stdout
+        assert second.returncode == 0
+        assert 'AUTH already_open' in second.stdout
         assert handle.process.poll() is None
         gateway.close()
         wait_until(lambda: gateway.is_closed, timeout=10)
-        assert gateway.is_closed and handle.process.returncode == 0
+        assert gateway.is_closed
+        assert handle.process.returncode == 0
     finally:
         gateway.drain()
 
@@ -403,7 +410,9 @@ def test_parent_close_during_auth_startup_is_not_lost(tmp_path, monkeypatch):
         gateway.close()
         handle._deadline = time.monotonic() + 8
         wait_until(lambda: gateway.is_closed, timeout=12)
-        assert gateway.is_closed and handle.process.returncode == 0 and not handle._terminated
+        assert gateway.is_closed
+        assert handle.process.returncode == 0
+        assert not handle._terminated
     finally:
         gateway.drain()
 

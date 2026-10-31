@@ -60,7 +60,8 @@ def test_mp3_uses_320k_audio_only(tmp_path, context, media_server, tools):
     path = pipeline.save(item(base + '/sample.mp4'), req, ctx)[0]
     streams = probe(path, tools)['streams']
     assert {stream['codec_type'] for stream in streams} == {'audio'}
-    assert streams[0]['codec_name'] == 'mp3' and int(streams[0]['bit_rate']) == 320000
+    assert streams[0]['codec_name'] == 'mp3'
+    assert int(streams[0]['bit_rate']) == 320000
 
 
 def test_music_downloads_best_audio_without_fetching_video(tmp_path, context, media_server, tools):
@@ -108,17 +109,14 @@ def test_music_downloads_best_audio_without_fetching_video(tmp_path, context, me
     )
     path = MediaPipeline(ffmpeg=tools[0], ffprobe=tools[1]).save(media, req, ctx)[0]
     assert '/audio.m4a' in handler.paths[before:]
-    assert (
-        '/video-only.mp4' not in handler.paths[before:]
-        and '/never-low.m4a' not in handler.paths[before:]
-    )
-    assert path.suffix == '.mp3' and {s['codec_type'] for s in probe(path, tools)['streams']} == {
-        'audio'
-    }
+    assert '/video-only.mp4' not in handler.paths[before:]
+    assert '/never-low.m4a' not in handler.paths[before:]
+    assert path.suffix == '.mp3'
+    assert {s['codec_type'] for s in probe(path, tools)['streams']} == {'audio'}
 
 
 @pytest.mark.parametrize(
-    'fmt,container,codecs',
+    ('fmt', 'container', 'codecs'),
     [
         ('mp4', 'mp4', {'h264', 'aac'}),
         ('mkv', 'matroska', {'h264', 'aac'}),
@@ -134,7 +132,8 @@ def test_native_containers_and_repeat_preserves_finished_file(
     req = request(tmp_path, fmt)
     pipeline = MediaPipeline(ffmpeg=tools[0], ffprobe=tools[1])
     paths = pipeline.save(item(base + '/sample.mp4'), req, ctx)
-    assert len(paths) == 1 and paths[0].name == '03.' + fmt
+    assert len(paths) == 1
+    assert paths[0].name == '03.' + fmt
     data = probe(paths[0], tools)
     assert container in data['format']['format_name']
     assert {s['codec_name'] for s in data['streams']} == codecs
@@ -183,7 +182,7 @@ def test_compatible_webm_is_remuxed_without_changing_packets(
 
 
 def test_photo_original_bytes_extension_and_atomic_caption(tmp_path, context, media_server):
-    ctx, events = context
+    ctx, _events = context
     base, root, _ = media_server
     paths = MediaPipeline().save(
         item(base + '/photo.png', 'photo', 'png', description='Полный текст\nВторая строка'),
@@ -258,9 +257,8 @@ def test_cancel_retains_partial_and_next_run_finishes(tmp_path, context, media_s
     with pytest.raises(WorkCancelled):
         pipeline.save(item(base + '/large.jpg', 'photo', 'jpg'), request(tmp_path), cancelling)
     partials = list(tmp_path.rglob('*.part'))
-    assert (
-        len(partials) == 1 and 0 < partials[0].stat().st_size < (root / 'large.jpg').stat().st_size
-    )
+    assert len(partials) == 1
+    assert 0 < partials[0].stat().st_size < (root / 'large.jpg').stat().st_size
     assert not any(isinstance(e, FilesSaved) for e in events)
     completed = pipeline.save(
         item(base + '/large.jpg', 'photo', 'jpg'),
@@ -487,7 +485,8 @@ def test_cancellation_reaps_processing_child(context, monkeypatch):
         timer.cancel()
         timer.join()
     assert time.monotonic() - start < 3
-    assert children and all(child.poll() is not None for child in children)
+    assert children
+    assert all(child.poll() is not None for child in children)
 
 
 def test_photo_uses_extractor_required_headers(tmp_path, context, media_server):
@@ -507,7 +506,7 @@ def test_same_title_videos_publish_separate_media_and_captions(
     media_server, tmp_path, context, tools
 ):
     base, source, _ = media_server
-    ctx, events = context
+    ctx, _events = context
     pipeline = MediaPipeline(ffmpeg=tools[0], ffprobe=tools[1])
     first = MediaItem(
         'AAAAAAAAAAA',
@@ -526,9 +525,12 @@ def test_same_title_videos_publish_separate_media_and_captions(
     original = old.read_bytes()
     a = pipeline.save(first, req, ctx)
     b = pipeline.save(second, replace(req, link=parse_url('https://youtu.be/BBBBBBBBBBB')), ctx)
-    assert a[0] != b[0] and a[0] != old and b[0] != old
+    assert a[0] != b[0]
+    assert a[0] != old
+    assert b[0] != old
     assert a[1].read_text(encoding='utf-8-sig').strip() == 'First video'
     assert b[1].read_text(encoding='utf-8-sig').strip() == 'Second video'
     assert old.read_bytes() == original
     assert pipeline.save(first, req, ctx) == a
-    assert a[0].is_file() and b[0].is_file()
+    assert a[0].is_file()
+    assert b[0].is_file()

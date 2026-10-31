@@ -105,10 +105,12 @@ def _local_provider(pipeline, port):
 
 def _accept(app, window, pipeline, context, job, root, proof):
     """The finished job really holds playable media and the window renders at minimum size."""
-    assert len(job.result_files) == 1 and job.result_files[0].is_file()
+    assert len(job.result_files) == 1
+    assert job.result_files[0].is_file()
     probe = pipeline._probe(job.result_files[0], context)
     assert {'audio', 'video'} <= {s['codec_type'] for s in probe['streams']}
-    assert APP_VERSION in window.windowTitle() and window.presenter.executor.is_idle
+    assert APP_VERSION in window.windowTitle()
+    assert window.presenter.executor.is_idle
     assert not window.windowIcon().isNull()
     window.resize(880, 680)
     app.processEvents()

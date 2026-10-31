@@ -114,7 +114,8 @@ def test_windows_build_path_excludes_foreign_dlls(tmp_path):
         {'PATH': str(foreign), 'SYSTEMROOT': str(system)}, python, python.parent
     )
     assert str(foreign) not in env['PATH']
-    assert str(system / 'System32') in env['PATH'] and str(python.parent) in env['PATH']
+    assert str(system / 'System32') in env['PATH']
+    assert str(python.parent) in env['PATH']
 
 
 def test_auth_flags_work_when_frozen(monkeypatch, tmp_path):
@@ -141,11 +142,9 @@ def test_auth_flags_work_when_frozen(monkeypatch, tmp_path):
     gateway = NativeAuthGateway(tmp_path)
     gateway.sign_in(Service.YOUTUBE, 'ru')
     gateway.sign_in(Service.INSTAGRAM, 'ru')
-    assert (
-        commands[0][0] == sys.executable
-        and '--youtube-login' in commands[0]
-        and '-m' not in commands[0]
-    )
+    assert commands[0][0] == sys.executable
+    assert '--youtube-login' in commands[0]
+    assert '-m' not in commands[0]
     assert '--instagram-login' in commands[1]
 
 

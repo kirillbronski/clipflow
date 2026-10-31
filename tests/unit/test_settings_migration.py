@@ -11,8 +11,11 @@ from clipflow.infrastructure.settings import AppSettings, SettingsError, Setting
 def test_first_run_defaults_and_roundtrip(tmp_path):
     store = SettingsStore(tmp_path)
     settings = store.load()
-    assert settings.schema_version == 2 and settings.theme == 'dark' and settings.language == 'ru'
-    assert settings.auto_start is False and settings.profile_limit == 10
+    assert settings.schema_version == 2
+    assert settings.theme == 'dark'
+    assert settings.language == 'ru'
+    assert settings.auto_start is False
+    assert settings.profile_limit == 10
     assert set(settings.presets) == set(Service)
     presets = dict(settings.presets)
     presets[Service.YOUTUBE] = DownloadOptions(tmp_path, format='mp3', max_height=None)
@@ -70,12 +73,18 @@ def test_legacy_settings_migrate_without_touching_sessions(tmp_path):
     protected.write_bytes(b'synthetic-protected-session')
     store = SettingsStore(tmp_path)
     migrated = store.load()
-    assert migrated.language == 'en' and not migrated.auto_start and migrated.profile_limit == 50
+    assert migrated.language == 'en'
+    assert not migrated.auto_start
+    assert migrated.profile_limit == 50
     assert len(migrated.recent_folders) == 10
     ig = migrated.presets[Service.INSTAGRAM]
-    assert ig.max_height == 720 and ig.folder == tmp_path / 'downloads'
-    assert not ig.author_folder and not ig.post_folder and ig.description == 'md'
-    assert old.read_bytes() == before and protected.read_bytes() == b'synthetic-protected-session'
+    assert ig.max_height == 720
+    assert ig.folder == tmp_path / 'downloads'
+    assert not ig.author_folder
+    assert not ig.post_folder
+    assert ig.description == 'md'
+    assert old.read_bytes() == before
+    assert protected.read_bytes() == b'synthetic-protected-session'
     assert 'SYNTHETIC_SECRET' not in (tmp_path / 'settings-v2.json').read_text(encoding='utf-8')
     assert list(tmp_path.glob('settings-v1.*.bak'))
     assert all(
@@ -155,9 +164,11 @@ def test_invalid_legacy_fields_are_ignored_without_touching_original(tmp_path):
     )
     before = path.read_bytes()
     settings = SettingsStore(tmp_path).load()
-    assert settings.profile_limit == 10 and settings.language == 'ru'
+    assert settings.profile_limit == 10
+    assert settings.language == 'ru'
     assert settings.presets[Service.INSTAGRAM].author_folder is True
-    assert len(settings.recent_folders) == 1 and path.read_bytes() == before
+    assert len(settings.recent_folders) == 1
+    assert path.read_bytes() == before
 
 
 def test_legacy_backup_does_not_copy_unknown_nested_values(tmp_path):

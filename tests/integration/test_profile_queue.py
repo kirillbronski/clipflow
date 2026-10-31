@@ -43,7 +43,8 @@ def test_5000_posts_on_worker_bounded_batches_and_no_duplicates(tmp_path):
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         result = pool.submit(run).result()
-    assert result.discovered_count == 5000 and len(set(codes(events))) == 5000
+    assert result.discovered_count == 5000
+    assert len(set(codes(events))) == 5000
     assert max(len(e.requests) for e in events if isinstance(e, RequestsDiscovered)) <= 25
 
 
@@ -95,7 +96,9 @@ def test_partial_profile_jobs_survive_scheduler_failure_and_retry_dedup(tmp_path
     scheduler = Scheduler(repo, Executor())
     scheduler.start()
     assert repo.get('profile').state == JobState.FAILED
-    assert len(repo.list()) == 2 and repo.list()[1].state == JobState.COMPLETED
+    assert len(repo.list()) == 2
+    assert repo.list()[1].state == JobState.COMPLETED
     source.values = [ProfilePage((post(1), post(2)), None, False, frozenset())]
     scheduler.retry('profile')
-    assert len(repo.list()) == 3 and all(j.state == JobState.COMPLETED for j in repo.list())
+    assert len(repo.list()) == 3
+    assert all(j.state == JobState.COMPLETED for j in repo.list())

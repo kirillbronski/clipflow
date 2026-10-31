@@ -18,16 +18,15 @@ def test_import_preserves_encrypted_bytes_and_existing_files(tmp_path):
         == (source / 'getcourse-profile.dat').read_bytes()
         == raw
     )
-    assert (target / 'settings.json').read_bytes() == settings and not (
-        target / 'unrelated.txt'
-    ).exists()
+    assert (target / 'settings.json').read_bytes() == settings
+    assert not (target / 'unrelated.txt').exists()
     (target / 'settings.json').write_bytes(b'{"language":"ru"}')
     migrate(source, target)
     assert (target / 'settings.json').read_bytes() == b'{"language":"ru"}'
     for bad in (target, tmp_path / 'missing'):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match='Select a separate existing directory'):
             migrate(bad, target)
     (source / 'settings.json').write_text('invalid')
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='Expecting value'):
         migrate(source, tmp_path / 'invalid')
     assert not (tmp_path / 'invalid').exists()
