@@ -1,20 +1,20 @@
 """Provider workers with queued owner-thread delivery and teardown acknowledgements."""
 
-import time
-
 from PySide6.QtCore import QCoreApplication, QObject, Qt, QThread, Signal, Slot
 
 from clipflow.domain.events import (
     CancellationToken,
     JobEvent,
-    ProgressChanged,
-    WorkCancelled,
     WorkFailed,
-    WorkFinished,
-    WorkStopped,
 )
-from clipflow.domain.models import ContentKind
-from clipflow.providers.base import ExecutionContext, MediaFailure
+from clipflow.infrastructure.work import (
+    ProgressThrottle,
+    check_provider_event,
+    run_download,
+    run_probe,
+    run_title,
+)
+from clipflow.providers.base import ExecutionContext
 
 
 class _ProbeWorker(QThread):
@@ -30,34 +30,8 @@ class _ProbeWorker(QThread):
         self.error = ''
 
     def run(self):
-        try:
-            self.cancel.raise_if_cancelled()
-            if (
-                self.request.link.kind in {ContentKind.PROFILE, ContentKind.PLAYLIST}
-                or self.request.options.format == 'mp3'
-                or self.request.options.media_filter == 'photo'
-            ):
-                # Collections choose formats per material, never enumerate twice for quality.
-                return
-            context = ExecutionContext(self.cancel, lambda event: None, self.auth, self.policy)
-            result = self.provider.probe(self.request, context)
-            self.cancel.raise_if_cancelled()
-            self.heights = tuple(
-                sorted(
-                    {
-                        height
-                        for height in result.available_heights
-                        if type(height) is int and height > 0
-                    },
-                    reverse=True,
-                )
-            )
-        except WorkCancelled as error:
-            self.error = 'rate_limit' if hasattr(error, 'decision') else 'probe_cancelled'
-        except MediaFailure as error:
-            self.error = error.code
-        except Exception:  # noqa: BLE001  # подпроект 3
-            self.error = 'probe_failed'
+        context = ExecutionContext(self.cancel, lambda event: None, self.auth, self.policy)
+        self.heights, self.error = run_probe(self.request, self.provider, context)
 
 
 class _TitleWorker(QThread):
@@ -70,13 +44,8 @@ class _TitleWorker(QThread):
         self.title = None
 
     def run(self):
-        try:
-            context = ExecutionContext(self.cancel, lambda event: None, self.auth)
-            title = self.provider.planned_title(self.job.request, context)
-            self.cancel.raise_if_cancelled()
-            self.title = title if isinstance(title, str) and title.strip() else None
-        except Exception:  # noqa: BLE001  # подпроект 3
-            self.title = None  # names are cosmetic: never surface lookup errors
+        context = ExecutionContext(self.cancel, lambda event: None, self.auth)
+        self.title = run_title(self.job.request, self.provider, context)
 
 
 class _Worker(QThread):
@@ -90,31 +59,16 @@ class _Worker(QThread):
         self.policy = policy
         self.cancel = CancellationToken()
         self.terminal = WorkFailed('worker_failed')
-        self._last_progress = -float('inf')
+        self._throttle = ProgressThrottle()
 
     def _emit(self, payload):
-        if isinstance(payload, (WorkFinished, WorkFailed, WorkStopped)):
-            raise MediaFailure('invalid_provider_event')
-        if isinstance(payload, ProgressChanged):
-            now = time.monotonic()
-            if now - self._last_progress < 0.5:
-                return
-            self._last_progress = now
-        self.event.emit(JobEvent(self.job.id, self.job.attempt_id, payload))
+        check_provider_event(payload)
+        if self._throttle.allow(payload):
+            self.event.emit(JobEvent(self.job.id, self.job.attempt_id, payload))
 
     def run(self):
-        try:
-            self.cancel.raise_if_cancelled()
-            context = ExecutionContext(self.cancel, self._emit, self.auth, self.policy)
-            self.provider.execute(self.job.request, context)
-            self.cancel.raise_if_cancelled()
-            self.terminal = WorkFinished()
-        except WorkCancelled:
-            self.terminal = WorkStopped()
-        except MediaFailure as error:
-            self.terminal = WorkFailed(str(error))
-        except Exception:  # noqa: BLE001  # подпроект 3
-            self.terminal = WorkFailed('worker_failed')
+        context = ExecutionContext(self.cancel, self._emit, self.auth, self.policy)
+        self.terminal = run_download(self.job.request, self.provider, context)
         # QThread.finished is emitted only after run() returns and provider
         # context managers have closed their HTTP/process resources.
 
