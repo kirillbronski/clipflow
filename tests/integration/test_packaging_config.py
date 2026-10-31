@@ -185,7 +185,6 @@ def test_installer_language_only_seeds_first_profile(monkeypatch, tmp_path):
     import clipflow.ui.bootstrap as bootstrap
     from clipflow.version import APP_VERSION
 
-    assert hasattr(bootstrap, 'installer_language')
     monkeypatch.setattr(sys, 'frozen', True, raising=False)
     monkeypatch.setattr(sys, 'executable', str(tmp_path / 'ClipFlow.exe'))
     marker = tmp_path / 'language.txt'

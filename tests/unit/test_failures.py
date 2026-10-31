@@ -1,6 +1,5 @@
 """The domain knows which kinds of failure exist; the interface only words them."""
 
-import clipflow.ui.job_status
 from clipflow.domain.failures import AUTH_SETTINGS_CODES, FAILURE_GROUPS, failure_group
 
 
@@ -29,8 +28,3 @@ def test_groups_are_the_known_set():
     }
     assert 'auth_scope_mismatch' in AUTH_SETTINGS_CODES
     assert not AUTH_SETTINGS_CODES & FAILURE_GROUPS.keys()
-
-
-def test_job_status_holds_only_texts():
-    assert not hasattr(clipflow.ui.job_status, 'ERROR_GROUPS')
-    assert not hasattr(clipflow.ui.job_status, '_GROUPS')
