@@ -1,25 +1,16 @@
 """Contracts shared by providers, executor and media pipeline."""
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from clipflow.application.ports import AuthGateway
 from clipflow.domain.events import CancellationToken, ProviderEvent
-from clipflow.domain.models import DownloadRequest
+from clipflow.domain.models import DownloadRequest, MediaItem
 
 if TYPE_CHECKING:
     from clipflow.application.instagram_rate_policy import InstagramRatePolicy
-
-
-@dataclass(frozen=True)
-class MediaItem:
-    id: str
-    index: int
-    kind: Literal['photo', 'video']
-    title: str
-    info: Mapping[str, object] = field(repr=False)
 
 
 @dataclass(frozen=True)

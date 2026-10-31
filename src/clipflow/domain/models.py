@@ -1,10 +1,12 @@
 """Immutable content identities and download parameter snapshots."""
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 
@@ -149,3 +151,30 @@ class Job:
 
     def __post_init__(self):
         _display_name(self.title)
+
+
+# Browsers whose cookies can sign a profile in, in the order the accounts page lists them.
+BROWSERS = (
+    'chrome',
+    'edge',
+    'brave',
+    'firefox',
+    'opera',
+    'opera_gx',
+    'safari',
+    'vivaldi',
+    'chromium',
+    'yandex',
+    'whale',
+)
+
+
+@dataclass(frozen=True)
+class MediaItem:
+    """One downloadable material of a probed link; ``info`` is the extractor's metadata."""
+
+    id: str
+    index: int
+    kind: Literal['photo', 'video']
+    title: str
+    info: Mapping[str, object] = field(repr=False)

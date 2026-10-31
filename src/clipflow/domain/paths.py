@@ -6,13 +6,9 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from clipflow.domain.models import ContentKind, DownloadRequest, Service
-
-if TYPE_CHECKING:
-    from clipflow.providers.base import MediaItem
+from clipflow.domain.models import ContentKind, DownloadRequest, MediaItem, Service
 
 
 class UnsafePath(ValueError):
@@ -69,7 +65,7 @@ def _portable_identity(code: str) -> str:
 YOUTUBE_STEM = 75
 
 
-def media_identity(request: DownloadRequest, item: 'MediaItem') -> str:
+def media_identity(request: DownloadRequest, item: MediaItem) -> str:
     """Stable source + requested-quality marker; never shared by another video or quality."""
     identity = f'{item.id}\0{request.options.max_height}'
     if request.options.format == 'mp3':
@@ -77,7 +73,7 @@ def media_identity(request: DownloadRequest, item: 'MediaItem') -> str:
     return hashlib.sha256(identity.encode('utf-8')).hexdigest()[:16]
 
 
-def _track_title(item: 'MediaItem') -> str:
+def _track_title(item: MediaItem) -> str:
     artists = item.info.get('artists')
     if not (
         isinstance(artists, list)
@@ -93,7 +89,7 @@ def _track_title(item: 'MediaItem') -> str:
 
 
 def output_path(  # noqa: C901  # подпроект 3
-    request: DownloadRequest, item: 'MediaItem', author: str | None, post: PostIdentity | None
+    request: DownloadRequest, item: MediaItem, author: str | None, post: PostIdentity | None
 ) -> Path:
     if type(item.index) is not int or item.index < 1:
         raise UnsafePath('Invalid media index')

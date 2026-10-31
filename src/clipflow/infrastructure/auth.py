@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from clipflow.domain.models import ContentKind, Service
+from clipflow.domain.models import BROWSERS, ContentKind, Service
 from clipflow.domain.urls import parse_url
 from clipflow.infrastructure.auth_process.sessions import (
     FOLDERS,
@@ -26,20 +26,6 @@ from clipflow.infrastructure.auth_process.sessions import (
 )
 from clipflow.infrastructure.platform import PlatformServices
 from clipflow.providers.base import MediaFailure
-
-BROWSERS = (
-    'chrome',
-    'edge',
-    'brave',
-    'firefox',
-    'opera',
-    'opera_gx',
-    'safari',
-    'vivaldi',
-    'chromium',
-    'yandex',
-    'whale',
-)
 
 
 @dataclass(frozen=True)

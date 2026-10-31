@@ -14,8 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clipflow.domain.models import Service
-from clipflow.infrastructure.auth import BROWSERS
+from clipflow.domain.models import BROWSERS, Service
 from clipflow.ui.composer import NAMES
 
 
