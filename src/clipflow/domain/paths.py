@@ -88,87 +88,104 @@ def _track_title(item: MediaItem) -> str:
     return item.title
 
 
-def output_path(  # noqa: C901  # подпроект 3
-    request: DownloadRequest, item: MediaItem, author: str | None, post: PostIdentity | None
-) -> Path:
+_SERVICE_FOLDERS = {
+    Service.YOUTUBE: 'YouTube',
+    Service.INSTAGRAM: 'Instagram',
+    Service.GETCOURSE: 'GetCourse',
+}
+_PHOTO_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp', 'avif'}
+
+
+def _extension(request: DownloadRequest, item: MediaItem) -> str:
     if type(item.index) is not int or item.index < 1:
         raise UnsafePath('Invalid media index')
-    if item.kind == 'photo':
-        ext = str(item.info.get('ext', '')).lower()
-        if ext not in {'jpg', 'jpeg', 'png', 'webp', 'avif'}:
-            raise UnsafePath('Unsupported photograph extension')
-    elif item.kind == 'video':
-        ext = request.options.format
-    else:
+    if item.kind == 'video':
+        return request.options.format
+    if item.kind != 'photo':
         raise UnsafePath('Unsupported media kind')
-    identity_suffix = ''
-    root = request.options.folder
-    service = {
-        Service.YOUTUBE: 'YouTube',
-        Service.INSTAGRAM: 'Instagram',
-        Service.GETCOURSE: 'GetCourse',
-    }[request.link.service]
-    directory = root / service
-    if request.link.service == Service.GETCOURSE:
-        if request.link.kind == ContentKind.PLAYER:
-            identity = str(item.info.get('getcourse_video_hash') or item.id)
-            label = 'Плеер'
-        else:
-            identity = (
-                (urlparse(request.link.canonical_url).hostname or '')
-                + '/'
-                + str(item.info.get('getcourse_lesson_id') or request.link.canonical_id)
-            )
-            label = 'Урок'
-        directory /= label + ' - ' + hashlib.sha256(identity.encode('utf-8')).hexdigest()[:12]
-    if request.link.service == Service.INSTAGRAM:
-        if post is None:
-            raise UnsafePath('Post identity is required')
-        # Instagram codes are case-sensitive, common Windows/macOS volumes are
-        # not. Encode uppercase positions for codes containing lowercase so
-        # case variants remain distinct without relying on a truncated hash.
-        code = _portable_identity(post.code)
-        if request.options.author_folder:
-            directory /= safe_name(author or 'Unknown author', 30)
-        if request.options.post_folder or request.link.kind == ContentKind.PROFILE:
-            date = post.published_at.strftime('%Y-%m-%d - ') if post.published_at else ''
-            directory /= f'{date}{safe_name(post.title or "Пост", 48)} - {code}'
-            stem = f'{item.index:02d}'
-        else:
-            stem = f'{code} - {item.index:02d}'
+    ext = str(item.info.get('ext', '')).lower()
+    if ext not in _PHOTO_EXTENSIONS:
+        raise UnsafePath('Unsupported photograph extension')
+    return ext
+
+
+def _getcourse_folder(request: DownloadRequest, item: MediaItem) -> str:
+    if request.link.kind == ContentKind.PLAYER:
+        identity = str(item.info.get('getcourse_video_hash') or item.id)
+        label = 'Плеер'
     else:
-        if request.playlist:
-            # Owner-visible "Title [ID]"; the title already separates case-only ID
-            # variants in practice.
-            identity = request.playlist.playlist_id
-            directory /= (
-                safe_name(request.playlist.title, 48) + ' [' + safe_name(identity, 72) + ']'
-                if request.playlist.title and request.playlist.title.strip()
-                else safe_name(_portable_identity(identity), 128)
-            )
-        position = request.playlist.index if request.playlist else item.index
-        listed = request.link.kind == ContentKind.PLAYLIST or request.playlist is not None
-        if request.link.service == Service.YOUTUBE:
-            # Clean owner-facing names; the pipeline resolves equal names via the
-            # embedded identity tag.
-            prefix = f'{position:03d} - ' if listed and request.options.numbering else ''
-            stem = prefix + safe_name(_track_title(item), YOUTUBE_STEM - len(prefix))
-        else:
-            prefix = f'{position:03d} - ' if listed else ''
-            stem = prefix + safe_name(item.title, 56 - len(prefix))
-            # Titles can collide after sanitizing/truncation or case folding. Keep a
-            # stable identity and requested-quality marker outside the clipped title
-            # so retries reuse their own partials, never another video's bytes.
-            identity_suffix = ' [' + media_identity(request, item) + ']'
+        identity = (
+            (urlparse(request.link.canonical_url).hostname or '')
+            + '/'
+            + str(item.info.get('getcourse_lesson_id') or request.link.canonical_id)
+        )
+        label = 'Урок'
+    return label + ' - ' + hashlib.sha256(identity.encode('utf-8')).hexdigest()[:12]
+
+
+def _instagram_place(request, item, author, post, directory) -> tuple[Path, str]:
+    if post is None:
+        raise UnsafePath('Post identity is required')
+    # Instagram codes are case-sensitive, common Windows/macOS volumes are
+    # not. Encode uppercase positions for codes containing lowercase so
+    # case variants remain distinct without relying on a truncated hash.
+    code = _portable_identity(post.code)
+    if request.options.author_folder:
+        directory /= safe_name(author or 'Unknown author', 30)
+    if request.options.post_folder or request.link.kind == ContentKind.PROFILE:
+        date = post.published_at.strftime('%Y-%m-%d - ') if post.published_at else ''
+        directory /= f'{date}{safe_name(post.title or "Пост", 48)} - {code}'
+        return directory, f'{item.index:02d}'
+    return directory, f'{code} - {item.index:02d}'
+
+
+def _playlist_folder(request: DownloadRequest) -> str:
+    # Owner-visible "Title [ID]"; the title already separates case-only ID variants in practice.
+    identity = request.playlist.playlist_id
+    if request.playlist.title and request.playlist.title.strip():
+        return safe_name(request.playlist.title, 48) + ' [' + safe_name(identity, 72) + ']'
+    return safe_name(_portable_identity(identity), 128)
+
+
+def _listed_place(request, item, directory) -> tuple[Path, str, str]:
+    """YouTube and GetCourse: optional playlist folder, position prefix, identity suffix."""
+    if request.playlist:
+        directory /= _playlist_folder(request)
+    position = request.playlist.index if request.playlist else item.index
+    listed = request.link.kind == ContentKind.PLAYLIST or request.playlist is not None
+    if request.link.service == Service.YOUTUBE:
+        # Clean owner-facing names; the pipeline resolves equal names via the
+        # embedded identity tag.
+        prefix = f'{position:03d} - ' if listed and request.options.numbering else ''
+        return directory, prefix + safe_name(_track_title(item), YOUTUBE_STEM - len(prefix)), ''
+    prefix = f'{position:03d} - ' if listed else ''
+    # Titles can collide after sanitizing/truncation or case folding. Keep a
+    # stable identity and requested-quality marker outside the clipped title
+    # so retries reuse their own partials, never another video's bytes.
+    suffix = ' [' + media_identity(request, item) + ']'
+    return directory, prefix + safe_name(item.title, 56 - len(prefix)), suffix
+
+
+def output_path(
+    request: DownloadRequest, item: MediaItem, author: str | None, post: PostIdentity | None
+) -> Path:
+    ext = _extension(request, item)
+    root = request.options.folder
+    directory = root / _SERVICE_FOLDERS[request.link.service]
+    identity_suffix = ''
+    if request.link.service == Service.GETCOURSE:
+        directory /= _getcourse_folder(request, item)
+    if request.link.service == Service.INSTAGRAM:
+        directory, stem = _instagram_place(request, item, author, post, directory)
+    else:
+        directory, stem, identity_suffix = _listed_place(request, item, directory)
     # Reserve 40 UTF-16 units for downloader/FFmpeg temporary suffixes. Root
     # folders are never shortened or redirected to make an overlong path fit.
     limit = YOUTUBE_STEM if request.link.service == Service.YOUTUBE else 56
     budget = min(limit, 200 - _units(str(directory)) - 1 - len(ext) - 1)
     if budget < _units(stem) and request.link.service == Service.INSTAGRAM:
         raise UnsafePath('Output directory is too long')
-    if budget < 8:
-        raise UnsafePath('Output directory is too long')
-    if identity_suffix and budget <= len(identity_suffix):
+    if budget < 8 or (identity_suffix and budget <= len(identity_suffix)):
         raise UnsafePath('Output directory is too long')
     target = directory / (_clip(stem, budget - len(identity_suffix)) + identity_suffix + '.' + ext)
     if not target.resolve().is_relative_to(root.resolve()):
