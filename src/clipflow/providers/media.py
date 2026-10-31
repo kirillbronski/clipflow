@@ -1,15 +1,10 @@
 """Common resumable transfer, verified conversion and atomic sidecar publishing."""
 
-import contextlib
 import copy
-import json
 import os
 import shutil
-import signal
-import subprocess
 import time
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from urllib.parse import urlsplit
 
 from yt_dlp.networking import Request
@@ -26,7 +21,10 @@ from clipflow.domain.models import DownloadRequest, JobState, Service
 from clipflow.domain.paths import UnsafePath
 from clipflow.providers.access import open_downloader
 from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
+from clipflow.providers.conversion import MediaTools
 from clipflow.providers.media_plan import plan_media
+from clipflow.providers.processes import run_process
+from clipflow.providers.publishing import find_tagged, write_caption
 
 
 class _QuietLogger:
@@ -48,66 +46,22 @@ class MediaPipeline:
         self.ffprobe = ffprobe or shutil.which('ffprobe')
         self.node = node or shutil.which('node')
 
-    def save(  # noqa: C901  # подпроект 3
+    @property
+    def _tools(self) -> MediaTools:
+        return MediaTools(self.ffmpeg, self.ffprobe)
+
+    # Self-test and tests drive the process runner and FFprobe through the pipeline.
+    _run = staticmethod(run_process)
+
+    def _probe(self, path, context):
+        return self._tools.probe(path, context)
+
+    def save(
         self, item: MediaItem, request: DownloadRequest, context: ExecutionContext
     ) -> tuple[Path, ...]:
         context.cancel.raise_if_cancelled()
         try:
-            plan = plan_media(request, item)
-            target, work, tag = plan.target, plan.work, plan.tag
-            target.parent.mkdir(parents=True, exist_ok=True)
-            existing = (
-                self._tagged(target, tag, context) if tag else (target if target.exists() else None)
-            )
-            # YouTube rows show the file name they will get; other services keep their media title.
-            planned = (existing or target).stem if tag else item.title
-            context.emit(TitleChanged(planned))
-            if existing is not None:
-                target = existing
-                self._verify(target, item, request, context)
-            else:
-                url = str(item.info.get('url') or '')
-                if item.kind == 'photo' and urlsplit(url).scheme not in {'http', 'https'}:
-                    raise MediaFailure('invalid_media')
-                context.emit(StageChanged(JobState.DOWNLOADING))
-                with open_downloader(
-                    self._options(item, request, context, work),
-                    context=context,
-                    instagram_context=context
-                    if request.link.service == Service.INSTAGRAM
-                    else None,
-                    instagram_kind='cdn',
-                ) as ydl:
-                    if item.kind == 'photo':
-                        self._photo(ydl, url, target, context, item.info.get('http_headers'))
-                    else:
-                        info = copy.deepcopy(dict(item.info))
-                        info.update(id=item.id, title=item.title)
-                        # Probe metadata keeps yt-dlp's default selection; reusing it for
-                        # another format gives HTTP403.
-                        info.pop('requested_formats', None)
-                        info.pop('requested_downloads', None)
-                        if not info.get('url') and not info.get('formats'):
-                            raise MediaFailure('invalid_media')
-                        result = ydl.process_ie_result(info, download=True)
-                        source = self._source_file(result, ydl, target.parent)
-                        context.cancel.raise_if_cancelled()
-                        context.emit(StageChanged(JobState.PROCESSING))
-                        target = self._convert(source, target, request, context, work, tag)
-                        self._verify(target, item, request, context)
-                        if tag and target.stem != planned:
-                            context.emit(TitleChanged(target.stem))  # a name collision added " (n)"
-                        source.unlink(missing_ok=True)
-                        Path(str(source) + '.ytdl').unlink(missing_ok=True)
-            context.cancel.raise_if_cancelled()
-            files = (target,)
-            description = item.info.get('description')
-            if request.options.description and isinstance(description, str) and description.strip():
-                files += (self._caption(target, description, request.options.description),)
-            context.cancel.raise_if_cancelled()
-            Path(str(work) + '.ytdl').unlink(missing_ok=True)
-            context.emit(FilesSaved(files))
-            return files
+            return self._save(item, request, context)
         except (WorkCancelled, MediaFailure):
             raise
         except UnsafePath:
@@ -118,6 +72,75 @@ class MediaPipeline:
         except Exception:  # noqa: BLE001  # подпроект 3
             context.cancel.raise_if_cancelled()
             raise MediaFailure('download_failed') from None
+
+    def _save(self, item, request, context):
+        plan = plan_media(request, item)
+        plan.target.parent.mkdir(parents=True, exist_ok=True)
+        tools = self._tools
+        if plan.tag:
+            existing = find_tagged(plan.target, plan.tag, context, tools.probe)
+        else:
+            existing = plan.target if plan.target.exists() else None
+        # YouTube rows show the file name they will get; other services keep their media title.
+        planned = (existing or plan.target).stem if plan.tag else item.title
+        context.emit(TitleChanged(planned))
+        if existing is not None:
+            tools.verify(existing, item, request, context)
+            target = existing
+        else:
+            target = self._download(item, request, context, plan, planned)
+        context.cancel.raise_if_cancelled()
+        files = (target, *self._captions(item, request, target))
+        context.cancel.raise_if_cancelled()
+        Path(str(plan.work) + '.ytdl').unlink(missing_ok=True)
+        context.emit(FilesSaved(files))
+        return files
+
+    def _download(self, item, request, context, plan, planned):
+        url = str(item.info.get('url') or '')
+        if item.kind == 'photo' and urlsplit(url).scheme not in {'http', 'https'}:
+            raise MediaFailure('invalid_media')
+        context.emit(StageChanged(JobState.DOWNLOADING))
+        instagram = request.link.service == Service.INSTAGRAM
+        with open_downloader(
+            self._options(item, request, context, plan.work),
+            context=context,
+            instagram_context=context if instagram else None,
+            instagram_kind='cdn',
+        ) as ydl:
+            if item.kind == 'photo':
+                self._photo(ydl, url, plan.target, context, item.info.get('http_headers'))
+                return plan.target
+            return self._download_video(ydl, item, request, context, plan, planned)
+
+    def _download_video(self, ydl, item, request, context, plan, planned):
+        info = copy.deepcopy(dict(item.info))
+        info.update(id=item.id, title=item.title)
+        # Probe metadata keeps yt-dlp's default selection; reusing it for another format
+        # gives HTTP403.
+        info.pop('requested_formats', None)
+        info.pop('requested_downloads', None)
+        if not info.get('url') and not info.get('formats'):
+            raise MediaFailure('invalid_media')
+        result = ydl.process_ie_result(info, download=True)
+        source = self._source_file(result, ydl, plan.target.parent)
+        context.cancel.raise_if_cancelled()
+        context.emit(StageChanged(JobState.PROCESSING))
+        tools = self._tools
+        target = tools.convert(source, plan.target, request, context, plan.work, plan.tag)
+        tools.verify(target, item, request, context)
+        if plan.tag and target.stem != planned:
+            context.emit(TitleChanged(target.stem))  # a name collision added " (n)"
+        source.unlink(missing_ok=True)
+        Path(str(source) + '.ytdl').unlink(missing_ok=True)
+        return target
+
+    @staticmethod
+    def _captions(item, request, target):
+        description = item.info.get('description')
+        if request.options.description and isinstance(description, str) and description.strip():
+            return (write_caption(target, description, request.options.description),)
+        return ()
 
     def _options(self, item, request, context, target):
         options = dict(
@@ -260,189 +283,3 @@ class MediaPipeline:
                 if path.is_relative_to(directory.resolve()) and path.is_file():
                     return path
         raise MediaFailure('missing_output')
-
-    @staticmethod
-    def _run(args, context, *, capture=False, capture_error=False, expected_retcodes=(0,)):
-        context.cancel.raise_if_cancelled()
-        try:
-            with subprocess.Popen(
-                args,
-                stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                stderr=subprocess.PIPE if capture_error else subprocess.DEVNULL,
-                start_new_session=os.name != 'nt',
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-            ) as process:
-                try:
-                    while True:
-                        try:
-                            output, errors = process.communicate(timeout=0.1)
-                            break
-                        except subprocess.TimeoutExpired:
-                            context.cancel.raise_if_cancelled()
-                    context.cancel.raise_if_cancelled()
-                    if process.returncode not in expected_retcodes:
-                        raise MediaFailure('processing_failed')
-                    return errors if capture_error else output
-                except BaseException:
-                    if process.poll() is None:
-                        MediaPipeline._stop_process_tree(process)
-                        try:
-                            process.communicate(timeout=2)
-                        except subprocess.TimeoutExpired:
-                            MediaPipeline._stop_process_tree(process, force=True)
-                            process.communicate(timeout=2)
-                    raise
-        except FileNotFoundError:
-            raise MediaFailure('tool_missing') from None
-
-    @staticmethod
-    def _stop_process_tree(process, force=False):
-        if os.name == 'nt':
-            # Chocolatey and user launchers can own the actual FFmpeg child.
-            # Kill the tree while its root still exists, then drain inherited
-            # pipes: killing just the shim can leave communicate() blocked.
-            taskkill = Path(os.environ.get('SYSTEMROOT', 'C:/Windows')) / 'System32/taskkill.exe'
-            with contextlib.suppress(OSError, subprocess.TimeoutExpired):
-                subprocess.run(
-                    [str(taskkill), '/PID', str(process.pid), '/T', '/F'],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=2,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-            if process.poll() is None:
-                process.kill()
-        else:
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
-
-    def _probe(self, path, context):
-        if not self.ffprobe:
-            raise MediaFailure('tool_missing')
-        try:
-            data = self._run(
-                [
-                    self.ffprobe,
-                    '-v',
-                    'error',
-                    '-show_streams',
-                    '-show_format',
-                    '-of',
-                    'json',
-                    str(path),
-                ],
-                context,
-                capture=True,
-            )
-            return json.loads(data)
-        except (ValueError, TypeError):
-            raise MediaFailure('invalid_media') from None
-
-    def _verify(self, path, item, request, context):
-        if not path.is_file() or path.stat().st_size == 0:
-            raise MediaFailure('invalid_media')
-        if item.kind == 'photo':
-            return
-        data = self._probe(path, context)
-        streams = data.get('streams', [])
-        kinds = {s.get('codec_type') for s in streams}
-        fmt = request.options.format
-        expected = {'mp4': 'mp4', 'mkv': 'matroska', 'webm': 'webm', 'mp3': 'mp3'}[fmt]
-        if expected not in data.get('format', {}).get('format_name', ''):
-            raise MediaFailure('invalid_media')
-        if 'audio' not in kinds if fmt == 'mp3' else 'video' not in kinds:
-            raise MediaFailure('invalid_media')
-
-    @staticmethod
-    def _numbered(target, n):
-        return target if n == 1 else target.with_name(f'{target.stem} ({n}){target.suffix}')
-
-    def _tagged(self, target, tag, context):
-        for n in range(1, 100):
-            candidate = self._numbered(target, n)
-            if candidate.is_file():
-                try:
-                    tags = self._probe(candidate, context).get('format', {}).get('tags') or {}
-                except MediaFailure:
-                    continue  # unreadable foreign file: not ours, keep looking
-                if any(key.lower() == 'comment' and value == tag for key, value in tags.items()):
-                    return candidate
-        return None
-
-    def _publish(self, temporary, target):
-        # Never replace an equally named file of another video: link fails if the name is taken.
-        for n in range(1, 100):
-            candidate = self._numbered(target, n)
-            try:
-                os.link(temporary, candidate)
-            except FileExistsError:
-                continue
-            except OSError:
-                if candidate.exists():
-                    continue
-                os.replace(temporary, candidate)  # volume without hard links
-                return candidate
-            temporary.unlink()
-            return candidate
-        raise MediaFailure('write_failed')
-
-    def _convert(self, source, target, request, context, work=None, tag=None):
-        if not self.ffmpeg:
-            raise MediaFailure('tool_missing')
-        fmt = request.options.format
-        codecs = {s.get('codec_name') for s in self._probe(source, context).get('streams', [])}
-        args = [self.ffmpeg, '-v', 'error', '-nostdin', '-y', '-i', str(source)]
-        if fmt == 'mp3':
-            args += ['-vn', '-c:a', 'libmp3lame', '-b:a', '320k']
-        elif fmt == 'webm' and not codecs.issubset({'vp8', 'vp9', 'av1', 'opus', 'vorbis'}):
-            args += [
-                '-map',
-                '0:v:0',
-                '-map',
-                '0:a:0?',
-                '-c:v',
-                'libvpx-vp9',
-                '-crf',
-                '32',
-                '-b:v',
-                '0',
-                '-c:a',
-                'libopus',
-            ]
-        else:
-            args += ['-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy']
-        if tag:
-            args += ['-metadata', 'comment=' + tag]
-        work = work or target
-        temporary = work.with_name(work.stem + '.processing' + target.suffix)
-        self._run(args + [str(temporary)], context)
-        self._verify(temporary, MediaItem('', 1, 'video', '', {}), request, context)
-        context.cancel.raise_if_cancelled()
-        if tag:
-            return self._publish(temporary, target)
-        os.replace(temporary, target)
-        return target
-
-    @staticmethod
-    def _caption(target, description, fmt):
-        caption = target.with_suffix('.' + fmt)
-        temporary = None
-        try:
-            with NamedTemporaryFile(
-                mode='w',
-                encoding='utf-8-sig' if fmt == 'txt' else 'utf-8',
-                newline='',
-                dir=caption.parent,
-                prefix=caption.name + '.',
-                suffix='.tmp',
-                delete=False,
-            ) as output:
-                temporary = Path(output.name)
-                output.write(description)
-                output.flush()
-                os.fsync(output.fileno())
-            os.replace(temporary, caption)
-        finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-        return caption

@@ -615,8 +615,28 @@ def test_disk_full_when_opening_partial_is_typed(tmp_path, context, media_server
     assert not any(isinstance(e, FilesSaved) for e in events)
 
 
+@pytest.mark.parametrize('failure', [OSError(28, 'Disk full'), RuntimeError('socket closed')])
+def test_cancel_during_download_is_reported_as_cancel_not_failure(
+    tmp_path, context, media_server, monkeypatch, failure
+):
+    ctx, events = context
+    base, _, _ = media_server
+    original = Path.open
+
+    def interrupted(path, *args, **kwargs):
+        if path.suffix == '.part':
+            ctx.cancel.cancel('pause')  # the user paused; the transfer then breaks
+            raise failure
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'open', interrupted)
+    with pytest.raises(WorkCancelled):
+        MediaPipeline().save(item(base + '/photo.png', 'photo', 'png'), request(tmp_path), ctx)
+    assert not any(isinstance(e, FilesSaved) for e in events)
+
+
 def test_cancellation_reaps_processing_child(context, monkeypatch):
-    from clipflow.providers import media
+    from clipflow.providers import processes
 
     ctx, _ = context
     real_popen = subprocess.Popen
@@ -627,7 +647,7 @@ def test_cancellation_reaps_processing_child(context, monkeypatch):
         children.append(child)
         return child
 
-    monkeypatch.setattr(media.subprocess, 'Popen', observed_popen)
+    monkeypatch.setattr(processes.subprocess, 'Popen', observed_popen)
     timer = Timer(0.25, lambda: ctx.cancel.cancel('shutdown'))
     timer.start()
     start = time.monotonic()
