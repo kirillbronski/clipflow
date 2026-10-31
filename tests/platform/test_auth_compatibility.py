@@ -442,3 +442,287 @@ def test_getcourse_storage_bug_is_not_disguised_as_storage(tmp_path, monkeypatch
     monkeypatch.setattr(gateway.platform, 'protect', buggy)
     with pytest.raises(RuntimeError):
         gateway.configure_getcourse(LESSON, 'email', email='a@b', password='p')
+
+
+class Stubborn(Process):
+    """A sign-in window that ignores the polite close and terminate requests."""
+
+    def terminate(self):
+        self.terminated = True
+
+
+def test_unwritable_close_request_terminates_then_kills_the_window(tmp_path, monkeypatch):
+    import clipflow.infrastructure.auth as auth
+
+    monkeypatch.setattr(auth.subprocess, 'Popen', Stubborn)
+    gateway = NativeAuthGateway(tmp_path)
+    handle = gateway.sign_in(Service.YOUTUBE, 'ru')
+    handle.close_path = tmp_path / 'missing-folder/close-request'
+    handle.close()
+    assert handle.process.terminated
+    assert handle.poll().state == 'closing'
+    handle._deadline = 0
+    assert handle.poll().state == 'signed_out'
+    assert handle.process.returncode == -9
+
+
+def test_closing_a_finished_window_sends_nothing(tmp_path, monkeypatch):
+    import clipflow.infrastructure.auth as auth
+
+    monkeypatch.setattr(auth.subprocess, 'Popen', Process)
+    handle = NativeAuthGateway(tmp_path).sign_in(Service.YOUTUBE, 'ru')
+    handle.process.returncode = 0
+    handle.close()
+    assert not handle.close_path.exists()
+    assert not handle.process.terminated
+
+
+@pytest.mark.parametrize(
+    ('service', 'language', 'closing'),
+    [
+        (Service.GETCOURSE, 'ru', False),
+        (Service.YOUTUBE, 'de', False),
+        (Service.YOUTUBE, 'ru', True),
+    ],
+)
+def test_sign_in_is_unavailable_for_other_services_languages_or_after_close(
+    tmp_path, service, language, closing
+):
+    gateway = NativeAuthGateway(tmp_path)
+    if closing:
+        gateway.close()
+    with pytest.raises(MediaFailure, match='auth_unavailable'):
+        gateway.sign_in(service, language)
+
+
+def test_sign_in_window_that_cannot_start_is_reported(tmp_path, monkeypatch):
+    import clipflow.infrastructure.auth as auth
+
+    def missing(*args, **kwargs):
+        raise FileNotFoundError('python')
+
+    monkeypatch.setattr(auth.subprocess, 'Popen', missing)
+    with pytest.raises(MediaFailure, match='auth_launch_failed'):
+        NativeAuthGateway(tmp_path).sign_in(Service.INSTAGRAM, 'en')
+
+
+def test_logout_closes_the_open_sign_in_window(tmp_path, monkeypatch):
+    import clipflow.infrastructure.auth as auth
+
+    monkeypatch.setattr(auth.subprocess, 'Popen', Process)
+    gateway = NativeAuthGateway(tmp_path)
+    handle = gateway.sign_in(Service.YOUTUBE, 'ru')
+    gateway.logout('youtube-default')
+    assert handle.close_path.is_file()
+
+
+def test_drain_waits_until_every_window_has_closed(tmp_path, monkeypatch):
+    import clipflow.infrastructure.auth as auth
+
+    class SlowToClose(Process):
+        polls = 0
+
+        def poll(self):
+            self.polls += 1
+            if self.polls > 6:
+                self.returncode = 0
+            return self.returncode
+
+    monkeypatch.setattr(auth.subprocess, 'Popen', SlowToClose)
+    gateway = NativeAuthGateway(tmp_path)
+    handle = gateway.sign_in(Service.INSTAGRAM, 'ru')
+    gateway.drain()
+    assert handle.process.returncode == 0
+    assert handle.process.polls > 6
+
+
+def test_no_profile_means_no_credentials(tmp_path):
+    assert NativeAuthGateway(tmp_path).options_for(None, 'https://youtu.be/ABC') == {}
+
+
+def test_school_profile_is_never_given_to_another_site(tmp_path):
+    gateway = NativeAuthGateway(tmp_path)
+    profile = gateway.configure_getcourse(LESSON, 'email', email='a@b', password='p')
+    with pytest.raises(MediaFailure, match='auth_scope_mismatch'):
+        gateway.options_for(profile, 'https://youtu.be/ABC')
+
+
+def test_unexpected_cookie_failure_asks_to_sign_in_without_details(tmp_path, monkeypatch):
+    import clipflow.infrastructure.auth as auth
+
+    gateway = NativeAuthGateway(tmp_path)
+    seed(tmp_path, Service.YOUTUBE, gateway.platform.protect)
+
+    def broken(cookies):
+        raise RuntimeError(cookies[0]['value'])
+
+    monkeypatch.setattr(auth, 'cookie_jar', broken)
+    with pytest.raises(MediaFailure) as raised:
+        gateway.options_for('youtube-default', 'https://youtu.be/ABC')
+    assert raised.value.code == 'auth_required'
+    assert 'synthetic-private-token' not in str(raised.value)
+    assert raised.value.__suppress_context__
+
+
+def test_unreadable_school_profile_asks_to_sign_in(tmp_path):
+    gateway = NativeAuthGateway(tmp_path)
+    profile = gateway.configure_getcourse(LESSON, 'email', email='a@b', password='p')
+    (tmp_path / 'GetCourseAuth' / (profile + '.dat')).write_bytes(b'not sealed')
+    with pytest.raises(MediaFailure, match='auth_required'):
+        gateway.options_for(profile, LESSON)
+
+
+def test_public_school_downloads_without_credentials(tmp_path):
+    gateway = NativeAuthGateway(tmp_path)
+    profile = gateway.configure_getcourse(LESSON, 'public')
+    assert gateway.status(Service.GETCOURSE).state == 'configured'
+    assert gateway.options_for(profile, LESSON) == {}
+
+
+def test_browser_cookies_are_read_from_the_chosen_browser_and_scoped(tmp_path, monkeypatch):
+    from http.cookiejar import Cookie, CookieJar
+
+    import yt_dlp.cookies
+
+    def cookie(domain):
+        return Cookie(0, 'sid', 'v-' + domain, None, False, domain, True, True, '/', True,
+                      True, None, True, None, None, {}, False)  # fmt: skip
+
+    jar = CookieJar()
+    for domain in ('.school.getcourse.ru', '.other.getcourse.ru'):
+        jar.set_cookie(cookie(domain))
+    sources = []
+
+    def load_cookies(cookie_file, browser, ydl):
+        sources.append(browser)
+        return jar
+
+    monkeypatch.setattr(yt_dlp.cookies, 'load_cookies', load_cookies)
+    gateway = NativeAuthGateway(tmp_path)
+    profile = gateway.configure_getcourse(LESSON, 'browser', browser='firefox')
+    scoped = gateway.options_for(profile, LESSON)['_cookiejar']
+    assert sources == [('firefox',)]
+    assert [c.value for c in scoped] == ['v-.school.getcourse.ru']
+
+
+def test_browser_without_school_cookies_asks_to_sign_in(tmp_path, monkeypatch):
+    from http.cookiejar import CookieJar
+
+    import yt_dlp.cookies
+
+    monkeypatch.setattr(yt_dlp.cookies, 'load_cookies', lambda *args: CookieJar())
+    gateway = NativeAuthGateway(tmp_path)
+    profile = gateway.configure_getcourse(LESSON, 'browser', browser='chrome')
+    with pytest.raises(MediaFailure, match='auth_required'):
+        gateway.options_for(profile, LESSON)
+
+
+@pytest.mark.parametrize(
+    ('system', 'browser', 'expected'),
+    [
+        ('darwin', 'yandex', ('chrome', 'Library/Application Support/Yandex/YandexBrowser')),
+        ('win32', 'yandex', ('chrome', 'Local/Yandex/YandexBrowser/User Data')),
+        ('darwin', 'opera_gx', ('opera', 'Library/Application Support/com.operasoftware.OperaGX')),
+        ('win32', 'opera_gx', ('opera', 'Roaming/Opera Software/Opera GX Stable')),
+    ],
+)
+def test_browsers_without_own_reader_use_their_engine_and_profile_folder(
+    monkeypatch, tmp_path, system, browser, expected
+):
+    monkeypatch.setattr(sys, 'platform', system)
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / 'Local'))
+    monkeypatch.setenv('APPDATA', str(tmp_path / 'Roaming'))
+    engine, folder = NativeAuthGateway.browser_source(browser)
+    assert engine == expected[0]
+    assert Path(folder).as_posix().endswith(expected[1])
+    assert NativeAuthGateway.browser_source('edge') == ('edge',)
+
+
+@pytest.mark.parametrize(
+    ('method', 'details'),
+    [
+        ('telepathy', {}),
+        ('email', {'email': '  ', 'password': 'p'}),
+        ('email', {'email': 'a@b', 'password': ''}),
+        ('cookies', {'file': 'no-such-export.txt'}),
+        ('browser', {'browser': 'netscape'}),
+    ],
+)
+def test_incomplete_school_settings_are_refused(tmp_path, method, details):
+    gateway = NativeAuthGateway(tmp_path)
+    with pytest.raises(MediaFailure, match='auth_invalid_settings'):
+        gateway.configure_getcourse(LESSON, method, **details)
+    assert not (tmp_path / 'GetCourseAuth').exists()
+
+
+@pytest.mark.parametrize(
+    ('content', 'code'),
+    [(None, 'auth_required'), ({'method': 'Голубиная почта'}, 'auth_invalid_settings')],
+)
+def test_unusable_old_school_profile_is_not_imported(tmp_path, content, code):
+    gateway = NativeAuthGateway(tmp_path)
+    if content is not None:
+        sealed = gateway.platform.protect(json.dumps(content).encode())
+        (tmp_path / 'getcourse-profile.dat').write_bytes(sealed)
+    with pytest.raises(MediaFailure, match=code):
+        gateway.import_legacy_getcourse(LESSON)
+
+
+def browser_cookie(**changes):
+    cookie = dict(
+        domain='.youtube.com', path='/', name='SAPISID', value='token', expires=-1, secure=True
+    )
+    return {**cookie, **changes}
+
+
+@pytest.mark.parametrize(
+    'rejected',
+    [
+        'not a cookie',
+        browser_cookie(domain='.evil-youtube.com'),
+        browser_cookie(domain=None),
+        browser_cookie(value=None),
+        browser_cookie(expires=1),
+        browser_cookie(expires='never'),
+        browser_cookie(path='relative'),
+        browser_cookie(name='SAP\0ISID'),
+    ],
+)
+def test_only_well_formed_live_cookies_of_the_service_are_kept(rejected):
+    from clipflow.infrastructure.auth_process.sessions import scoped_cookies
+
+    kept = scoped_cookies([rejected, browser_cookie()], 'youtube.com')
+    assert [c['value'] for c in kept] == ['token']
+    assert scoped_cookies({'not': 'a list'}, 'youtube.com') == []
+
+
+def test_sign_in_saves_only_a_session_with_its_auth_cookie(tmp_path):
+    from clipflow.infrastructure.auth_process.sessions import SessionStore, load_protected
+
+    store = SessionStore(tmp_path / 'YouTubeAuth', Service.YOUTUBE, PlatformServices().protect)
+    assert not store.save([browser_cookie(name='PREF')])
+    assert not store.snapshot.exists()
+    assert store.save([browser_cookie(), browser_cookie(domain='.google.com')])
+    written = load_protected(store.snapshot, store.protect)
+    assert [c['domain'] for c in written] == ['.youtube.com']
+
+
+def test_session_saved_after_sign_out_is_dropped(tmp_path):
+    from clipflow.infrastructure.auth_process.sessions import SessionStore
+
+    store = SessionStore(tmp_path / 'YouTubeAuth', Service.YOUTUBE, PlatformServices().protect)
+    store.logout()
+    assert not store.save([browser_cookie()])
+    assert not store.snapshot.exists()
+
+
+def test_oversized_protected_file_is_not_read(tmp_path):
+    from clipflow.infrastructure.auth_process.sessions import load_protected
+
+    huge = tmp_path / 'session.dat'
+    huge.write_bytes(b'0' * (16 * 1024 * 1024 + 1))
+
+    def protect(data, decrypt=False):
+        raise AssertionError('must not decrypt')
+
+    assert load_protected(huge, protect) is None
