@@ -36,6 +36,7 @@ class MainWindow(QMainWindow):
         self._closing_requested = False
         self._ui_disposed = False
         self._dialogs = []
+        self._counts_pending = False
         self.dialogs = WindowDialogs(self)
         self._service = Service.YOUTUBE
         self.setWindowTitle(f'ClipFlow {APP_VERSION}')
@@ -156,7 +157,7 @@ class MainWindow(QMainWindow):
         presenter.probe_ready.connect(self.composer.apply_probe)
         presenter.auth_changed.connect(self.composer._invalidate)
         presenter.input_accepted.connect(self._input_accepted)
-        presenter.jobs_changed.connect(self._update_counts)
+        presenter.jobs_changed.connect(self._counts_later)
         presenter.error_raised.connect(self._show_error)
         presenter.settings_changed.connect(self._settings_changed)
         presenter.selection_requested.connect(self._select_dialog)
@@ -314,6 +315,16 @@ class MainWindow(QMainWindow):
             self.auto_start.blockSignals(True)
             self.auto_start.setChecked(self.presenter.settings.auto_start)
             self.auto_start.blockSignals(False)
+
+    def _counts_later(self):
+        # A burst of job events (stopping a long playlist) recounts once, not once per job.
+        if not self._counts_pending:
+            self._counts_pending = True
+            QTimer.singleShot(0, self, self._counts_now)
+
+    def _counts_now(self):
+        self._counts_pending = False
+        self._update_counts()
 
     def _update_counts(self, *args):
         self.queue_panel.update_counts(self._section == 'downloads')

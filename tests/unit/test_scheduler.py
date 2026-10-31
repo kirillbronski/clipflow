@@ -555,3 +555,50 @@ def test_rule_codes_without_own_text_keep_the_generic_message():
 
     shown = {code for code in RULE_CODES if 'error.' + code in CATALOG['ru']}
     assert shown == {'source_changed', 'cooldown_active'}
+
+
+class CountingRepository(MemoryJobRepository):
+    """Counts full reads: each one decodes the whole queue in the real SQLite store."""
+
+    def __init__(self):
+        super().__init__()
+        self.reads = 0
+
+    def list(self):
+        self.reads += 1
+        return super().list()
+
+
+def test_stop_all_reads_a_long_queue_once():
+    repo = CountingRepository()
+    playlist = DownloadRequest(
+        parse_url('https://music.youtube.com/playlist?list=PL_x'), DownloadOptions(Path('/d'))
+    )
+    repo.add(Job('parent', playlist, state=JobState.COMPLETED))
+    for n in range(700):
+        repo.add(Job(f'c{n:03d}', request(f'v{n:04d}'), parent_id='parent'))
+    worker = ControlledExecutor()
+    scheduler = Scheduler(repo, worker)
+    scheduler.start()
+    repo.reads = 0
+    cancelled = scheduler.clear_queue()
+    assert len(cancelled) == 700
+    assert all(repo.get(f'c{n:03d}').state == JobState.CANCELLED for n in range(700))
+    assert worker.stops == [('c000', 'cancel')]
+    assert repo.reads <= 2  # was two full reads per job: 700 tracks took minutes
+
+
+def test_cancel_one_job_still_cancels_its_children():
+    repo = MemoryJobRepository()
+    repo.add(Job('p', request('p0')))
+    repo.add(Job('c', request('c0'), parent_id='p'))
+    repo.add(Job('g', request('g0'), parent_id='c'))
+    repo.add(Job('other', request('o0')))
+    scheduler = Scheduler(repo, ControlledExecutor())
+    scheduler.cancel('p')
+    assert [repo.get(i).state for i in ('p', 'c', 'g', 'other')] == [
+        JobState.CANCELLED,
+        JobState.CANCELLED,
+        JobState.CANCELLED,
+        JobState.QUEUED,
+    ]

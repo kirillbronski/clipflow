@@ -569,3 +569,16 @@ def test_window_exposes_the_widgets_of_its_parts(make_window):
     assert window.nav_buttons is sidebar.nav_buttons
     assert window.accounts_button is sidebar.accounts_button
     assert window.settings_button is sidebar.settings_button
+
+
+def test_a_burst_of_job_events_recounts_the_queue_once(make_window, qtbot, monkeypatch):
+    """Stopping a long playlist sends an event per job; counting each one froze the window."""
+    window, _ = make_window()
+    calls = []
+    original = window.sidebar.set_counts
+    monkeypatch.setattr(window.sidebar, 'set_counts', lambda jobs: calls.append(original(jobs)))
+    for _ in range(50):
+        window.presenter.jobs_changed.emit()
+    qtbot.waitUntil(lambda: bool(calls))
+    qtbot.wait(50)
+    assert len(calls) == 1

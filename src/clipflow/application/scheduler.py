@@ -206,18 +206,19 @@ class Scheduler:
                 )
 
     def cancel(self, job_id: str, include_children: bool = True) -> None:
-        targets = {job_id}
         self.repository.get(job_id)
+        self._cancel({job_id}, include_children, self.repository.list())
+
+    def _cancel(self, targets: set[str], include_children: bool, jobs) -> None:
+        """Cancel the targets (and their descendants) from one snapshot of the queue."""
         if include_children:
             while True:
-                expanded = targets | {
-                    j.id for j in self.repository.list() if j.parent_id in targets
-                }
+                expanded = targets | {j.id for j in jobs if j.parent_id in targets}
                 if expanded == targets:
                     break
                 targets = expanded
         # Persist the whole subtree before stop(), which may acknowledge inline.
-        for job in self.repository.list():
+        for job in jobs:
             if job.id in targets and job.state not in TERMINAL_STATES:
                 self._save(
                     replace(job, state=JobState.CANCELLED, pause_reason=None, next_allowed_at=None)
@@ -308,9 +309,10 @@ class Scheduler:
 
     def clear_queue(self) -> tuple[str, ...]:
         self._running = False
-        identities = tuple(j.id for j in self.repository.list() if j.state not in TERMINAL_STATES)
-        for identity in identities:
-            self.cancel(identity)
+        jobs = self.repository.list()
+        identities = tuple(j.id for j in jobs if j.state not in TERMINAL_STATES)
+        # One snapshot for the whole queue: per-job reads made a long playlist take minutes.
+        self._cancel(set(identities), True, jobs)
         return identities
 
     def handle(self, event: JobEvent) -> None:
