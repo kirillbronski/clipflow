@@ -22,7 +22,7 @@ class YouTubeProvider:
     def __init__(self, pipeline: MediaPipeline):
         self.pipeline = pipeline
 
-    def probe(self, request: DownloadRequest, context: ExecutionContext) -> ProbeResult:  # noqa: C901  # подпроект 3
+    def probe(self, request: DownloadRequest, context: ExecutionContext) -> ProbeResult:
         context.cancel.raise_if_cancelled()
         if (
             request.link.service != Service.YOUTUBE
@@ -36,25 +36,29 @@ class YouTubeProvider:
         if not info:
             raise MediaFailure('unavailable_media')
         if request.link.kind == ContentKind.PLAYLIST:
-            items = []
-            for ordinal, entry in enumerate(info.get('entries') or (), 1):
-                context.cancel.raise_if_cancelled()
-                if not isinstance(entry, dict) or not self._valid_id(entry.get('id')):
-                    continue
-                identity = entry['id']
-                if request.selection is not None and identity not in request.selection:
-                    continue
-                index = entry.get('playlist_index')
-                if type(index) is not int or index < 1:
-                    index = ordinal
-                items.append(MediaItem(identity, index, 'video', self._title(entry), entry))
-            if not items:
-                raise MediaFailure('unavailable_media')
-            title = info.get('title')
-            title = (
-                ' '.join(title.split())[:500] if isinstance(title, str) and title.strip() else None
-            )
-            return ProbeResult(tuple(items), (), collection_title=title)
+            return self._playlist(request, info, context)
+        return self._video(request, info)
+
+    def _playlist(self, request, info, context) -> ProbeResult:
+        items = []
+        for ordinal, entry in enumerate(info.get('entries') or (), 1):
+            context.cancel.raise_if_cancelled()
+            if not isinstance(entry, dict) or not self._valid_id(entry.get('id')):
+                continue
+            identity = entry['id']
+            if request.selection is not None and identity not in request.selection:
+                continue
+            index = entry.get('playlist_index')
+            if type(index) is not int or index < 1:
+                index = ordinal
+            items.append(MediaItem(identity, index, 'video', self._title(entry), entry))
+        if not items:
+            raise MediaFailure('unavailable_media')
+        title = info.get('title')
+        title = ' '.join(title.split())[:500] if isinstance(title, str) and title.strip() else None
+        return ProbeResult(tuple(items), (), collection_title=title)
+
+    def _video(self, request, info) -> ProbeResult:
         identity = info.get('id') or request.link.canonical_id
         if (
             not self._valid_id(identity)
@@ -66,19 +70,8 @@ class YouTubeProvider:
             raise MediaFailure('unavailable_media')
         index = request.playlist.index if request.playlist else 1
         item = MediaItem(identity, index, 'video', self._title(info), info)
-        heights = {
-            f['height']
-            for f in info.get('formats') or ()
-            if isinstance(f, dict)
-            and type(f.get('height')) is int
-            and f['height'] > 0
-            and f.get('vcodec') != 'none'
-        }
-        if type(info.get('height')) is int and info['height'] > 0:
-            heights.add(info['height'])
-        return ProbeResult(
-            (item,), tuple(sorted(heights, reverse=True)) if request.options.format != 'mp3' else ()
-        )
+        heights = () if request.options.format == 'mp3' else _heights(info)
+        return ProbeResult((item,), heights)
 
     def planned_title(self, request: DownloadRequest, context: ExecutionContext) -> str:
         """The file name this single video will get, from one metadata request."""
@@ -175,3 +168,18 @@ class YouTubeProvider:
         except Exception:  # noqa: BLE001  # подпроект 3
             context.cancel.raise_if_cancelled()
             raise MediaFailure('probe_failed') from None
+
+
+def _heights(info) -> tuple[int, ...]:
+    """Video heights on offer, highest first; audio-only formats do not count."""
+    heights = {
+        f['height']
+        for f in info.get('formats') or ()
+        if isinstance(f, dict)
+        and type(f.get('height')) is int
+        and f['height'] > 0
+        and f.get('vcodec') != 'none'
+    }
+    if type(info.get('height')) is int and info['height'] > 0:
+        heights.add(info['height'])
+    return tuple(sorted(heights, reverse=True))
