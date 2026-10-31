@@ -213,6 +213,11 @@ def offline_check(monkeypatch, codes):
     """Load scripts/check.py with fake ruff results and a fake coverage run."""
     import types
 
+    # check.main may set QT_QPA_PLATFORM: record the caller's value so monkeypatch restores it.
+    current = os.environ.get('QT_QPA_PLATFORM')
+    monkeypatch.setenv('QT_QPA_PLATFORM', current or 'unset')
+    if current is None:
+        monkeypatch.delenv('QT_QPA_PLATFORM')
     check = module('clipflow_check_script', ROOT / 'scripts/check.py')
     calls = []
 

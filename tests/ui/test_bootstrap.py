@@ -20,10 +20,24 @@ def frozen(monkeypatch, tmp_path):
     return folder
 
 
+@pytest.fixture(autouse=True)
+def no_window_outlives_the_test(qtbot):
+    """Startup builds real main windows; a leftover one would steal focus from later tests."""
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    from clipflow.ui.window import MainWindow
+
+    yield
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not [w for w in QApplication.topLevelWidgets() if isinstance(w, MainWindow)]
+
+
 def close(window, qtbot):
     window.presenter.shutdown()
     qtbot.waitUntil(lambda: window.presenter.is_closed)
     window.dispose_ui()
+    window.close()
+    window.deleteLater()
 
 
 def test_tools_bundled_with_the_build_win_over_the_system_ones(monkeypatch, tmp_path):
@@ -145,3 +159,5 @@ def test_normal_run_waits_for_running_work_before_exit(monkeypatch, tmp_path, qt
     assert not window.presenter.executor.naming
     assert sign_in.returncode == 0
     assert window.presenter.is_closed
+    window.close()
+    window.deleteLater()
