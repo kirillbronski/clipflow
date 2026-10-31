@@ -9,14 +9,13 @@ from PySide6.QtGui import QDesktopServices
 
 from clipflow.application.history import (
     HistoryError,
-    deletion_paths,
-    removable_targets,
     result_status,
 )
 from clipflow.application.probe_cache import ProbeCache
 from clipflow.domain.events import RequestsDiscovered, SelectionRequired
-from clipflow.domain.models import TERMINAL_STATES, JobState, Service
+from clipflow.domain.models import JobState, Service
 from clipflow.domain.urls import parse_url
+from clipflow.ui.presenter_clearing import ClearingController
 from clipflow.ui.queue_model import JobListModel
 
 _UNSET = object()
@@ -48,8 +47,7 @@ class WorkbenchPresenter(QObject):
         self._selections = {}
         self._probe_id = ''
         self._probe_cache = ProbeCache()
-        self._clear_pending = set()
-        self._clear_delete_ids = set()
+        self._clearing = ClearingController(self)
         self.auth_gateway = None
         self._auth_snapshot = None
         self._auth_timer = QTimer(self)
@@ -256,90 +254,28 @@ class WorkbenchPresenter(QObject):
         return self._command(action)
 
     def remove_jobs(self, identities):
-        def action():
-            jobs = tuple(self.repository.get(identity) for identity in identities)
-            if not self.executor.is_idle or any(j.state not in TERMINAL_STATES for j in jobs):
-                raise HistoryError('job_busy')
-            self.repository.remove(identities)
-            self._reload_jobs()
-
-        return self._command(action)
+        return self._command(lambda: self._clearing.remove_jobs(identities))
 
     def clear_history(self):
-        def action():
-            if not self.executor.is_idle:
-                raise HistoryError('job_busy')
-            self.repository.clear_history()
-            self._reload_jobs()
-
-        return self._command(action)
+        return self._command(self._clearing.clear_history)
 
     def clear_queue(self):
-        def action():
-            self._clear_pending.update(self.scheduler.clear_queue())
-            self._flush_clear()
-
-        return self._command(action)
+        return self._command(self._clearing.clear_queue)
 
     def cancel_queue(self):
         # Scheduler cancels every service and stops pumping before worker ACK.
         return self._command(self.scheduler.clear_queue)
 
     def clear_all(self, *, delete_files=False):
-        def action():
-            identities = {job.id for job in self.repository.list()}
-            if not identities:
-                return
-            self._clear_pending.update(identities)
-            # A later confirmation applies only to its own target snapshot.
-            # In particular an unchecked dialog revokes deletion for those IDs.
-            self._clear_delete_ids.difference_update(identities)
-            if delete_files:
-                self._clear_delete_ids.update(identities)
-            self.scheduler.clear_queue()
-            self._flush_clear()
-
-        return self._command(action)
+        return self._command(lambda: self._clearing.clear_all(delete_files))
 
     def _flush_clear(self):
-        if not self._clear_pending or not self.executor.is_idle:
-            return
-        jobs = self.repository.list()
-        targets = removable_targets(jobs, self._clear_pending)
-        delete_ids = targets & self._clear_delete_ids
-        # Never retry destructive IO on the periodic tick after an error.
-        self._clear_pending.clear()
-        self._clear_delete_ids = set()
-        if delete_ids:
-            selected = tuple(job for job in jobs if job.id in delete_ids)
-            paths = deletion_paths(selected, jobs)
-            try:
-                for path in paths:
-                    path.unlink(missing_ok=True)
-            except OSError:
-                self._reload_jobs()
-                raise HistoryError('file_delete_failed') from None
-        self.repository.remove(tuple(targets))
-        self._reload_jobs()
+        self._clearing.flush()
 
     def delete_files(self, job_ids, confirmed=False):
         if confirmed is not True:
-            return
-
-        def action():
-            if not self.executor.is_idle:
-                raise HistoryError('job_busy')
-            jobs = tuple(self.repository.get(identity) for identity in job_ids)
-            paths = deletion_paths(jobs, self.repository.list())
-            try:
-                for path in paths:
-                    path.unlink(missing_ok=True)
-            except OSError:
-                raise HistoryError('file_delete_failed') from None
-            finally:
-                self._reload_jobs()
-
-        return self._command(action)
+            return None
+        return self._command(lambda: self._clearing.delete_files(job_ids))
 
     def update_folder(self, service, path):
         def action():
