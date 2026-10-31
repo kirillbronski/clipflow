@@ -4,8 +4,8 @@ from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPen
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
+from clipflow.application.history import result_status
 from clipflow.domain.models import TERMINAL_STATES, JobState
-from clipflow.ui.history import result_status
 from clipflow.ui.i18n import Translator
 from clipflow.ui.job_status import error_text, meta_text
 from clipflow.ui.queue_model import JobListModel

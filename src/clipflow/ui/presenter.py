@@ -8,10 +8,10 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
+from clipflow.application.history import HistoryError, deletion_paths, result_status
 from clipflow.domain.events import RequestsDiscovered, SelectionRequired
 from clipflow.domain.models import TERMINAL_STATES, JobState, Service
 from clipflow.domain.urls import parse_url
-from clipflow.ui.history import HistoryError, deletion_paths, result_status
 from clipflow.ui.queue_model import JobListModel
 
 _UNSET = object()

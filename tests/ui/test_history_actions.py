@@ -73,7 +73,7 @@ def test_deleted_file_history_is_honest(make_window, tmp_path, monkeypatch):
     monkeypatch.setattr(QDesktopServices, 'openUrl', lambda url: opened.append(url))
     window.presenter.open_result(job.id)
     assert errors == ['files_missing'] and not opened
-    from clipflow.ui.history import result_status
+    from clipflow.application.history import result_status
 
     assert result_status(job) == 'files_missing'
 
