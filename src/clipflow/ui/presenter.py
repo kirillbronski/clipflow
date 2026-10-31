@@ -1,7 +1,6 @@
 """Owner-thread commands bridge submission/scheduler/storage to Qt views."""
 
 import contextlib
-import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from clipflow.application.history import (
     removable_targets,
     result_status,
 )
+from clipflow.application.probe_cache import ProbeCache
 from clipflow.domain.events import RequestsDiscovered, SelectionRequired
 from clipflow.domain.models import TERMINAL_STATES, JobState, Service
 from clipflow.domain.urls import parse_url
@@ -47,7 +47,7 @@ class WorkbenchPresenter(QObject):
         self.is_closed = False
         self._selections = {}
         self._probe_id = ''
-        self._probe_cache = {}
+        self._probe_cache = ProbeCache()
         self._clear_pending = set()
         self._clear_delete_ids = set()
         self.auth_gateway = None
@@ -146,26 +146,17 @@ class WorkbenchPresenter(QObject):
         except ValueError:
             self.probe_ready.emit(request_id, (), 'invalid_link')
             return
-        key = (
-            link.service,
-            request.link.kind,
-            request.link.canonical_id,
-            request.options.auth_profile,
-            request.options.media_filter,
-            request.options.format == 'mp3',
-        )
+        key = ProbeCache.key_for(request)
         cached = self._probe_cache.get(key)
-        if cached and time.monotonic() - cached[0] < 120:
-            self.probe_ready.emit(request_id, cached[1], '')
+        if cached is not None:
+            self.probe_ready.emit(request_id, cached, '')
             return
 
         def complete(identity, heights, error):
             if identity != self._probe_id or self._closing:
                 return
             if not error:
-                if len(self._probe_cache) >= 100:
-                    self._probe_cache.pop(next(iter(self._probe_cache)))
-                self._probe_cache[key] = (time.monotonic(), heights)
+                self._probe_cache.put(key, heights)
             self.probe_ready.emit(identity, heights, error)
 
         self.executor.request_probe(request, request_id, complete)

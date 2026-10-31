@@ -325,6 +325,26 @@ def test_quality_probe_is_async_cached_and_does_not_change_best_default(make_win
     assert prober.calls == 1
 
 
+def test_link_without_qualities_is_cached_too(make_window, qtbot):
+    class Prober:
+        calls = 0
+
+        def probe(self, request, context):
+            Prober.calls += 1
+            return ProbeResult((), ())
+
+        def execute(self, *args):
+            return DownloadResult(())
+
+    window, _ = make_window(Prober())
+    composer = window.composer
+    for _ in range(2):
+        window.url_input.clear()
+        window.url_input.setText('https://youtu.be/ABC')
+        qtbot.waitUntil(lambda: not composer.quality_pending)
+    assert Prober.calls == 1
+
+
 def test_autostart_waits_for_probe_teardown_instead_of_failing_job(make_window, qtbot):
     from tests.ui.test_workbench import HeldProvider
 
