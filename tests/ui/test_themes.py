@@ -1,15 +1,13 @@
-from dataclasses import replace
-
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QDialogButtonBox, QLineEdit, QPlainTextEdit
+from PySide6.QtWidgets import QDialogButtonBox, QLineEdit
 
 from clipflow.domain.events import SelectionRequired
 from clipflow.domain.models import Service
 from clipflow.infrastructure.settings import SettingsStore
 from clipflow.ui.i18n import CATALOG, Translator
-from clipflow.ui.themes import PALETTES, TEXT_PAIRS, ThemeManager
+from clipflow.ui.themes import PALETTES, TEXT_PAIRS
 from tests.support.workbench import batch
 
 

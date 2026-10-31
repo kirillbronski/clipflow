@@ -1,7 +1,7 @@
 """Queue behavior with controllable workers: no GUI, network, or wall-clock sleeps."""
 
 from dataclasses import replace
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -408,7 +408,6 @@ def test_discovery_already_in_queue_finishes_parent_without_duplicate_download(q
 
 @pytest.mark.parametrize('state', [JobState.CANCELLED, JobState.FAILED, JobState.COMPLETED])
 def test_collection_retry_rediscovery_restores_terminal_children_without_outputs(tmp_path, state):
-    from dataclasses import replace
 
     repo = MemoryJobRepository()
     parent = DownloadRequest(

@@ -1,15 +1,12 @@
-from dataclasses import replace
 from pathlib import Path
-from threading import Event, get_ident
+from threading import get_ident
 
 import pytest
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QPushButton
 
 from clipflow.application.errors import JobRuleError
-from clipflow.application.scheduler import Scheduler
-from clipflow.application.submission import SubmissionService
-from clipflow.domain.events import JobEvent, ProgressChanged, StageChanged, TitleChanged
+from clipflow.domain.events import JobEvent, ProgressChanged, TitleChanged
 from clipflow.domain.models import (
     ContentKind,
     DownloadOptions,
@@ -19,14 +16,9 @@ from clipflow.domain.models import (
     Service,
 )
 from clipflow.domain.urls import parse_url
-from clipflow.infrastructure.executor import ThreadExecutor
 from clipflow.infrastructure.repository import SqliteJobRepository
-from clipflow.infrastructure.settings import AppSettings
-from clipflow.providers.base import DownloadResult, MediaItem
-from clipflow.ui.presenter import WorkbenchPresenter
+from clipflow.providers.base import DownloadResult
 from clipflow.ui.queue_model import JobListModel
-from clipflow.ui.window import MainWindow
-from tests.instagram_fixtures import Auth
 from tests.support.workbench import HeldProvider, add
 
 

@@ -3,9 +3,9 @@ import subprocess
 import sys
 
 import pytest
-from PySide6.QtCore import QMimeData, QPoint, Qt
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QKeySequence
-from PySide6.QtWidgets import QApplication, QMenu
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent, QKeySequence
+from PySide6.QtWidgets import QApplication
 
 from clipflow.domain.models import Service
 from tests.support.clipboard import context_paste, paste_shortcut

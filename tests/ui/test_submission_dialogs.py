@@ -8,8 +8,6 @@ from PySide6.QtWidgets import QDialogButtonBox, QListWidget
 from clipflow.domain.events import SelectionRequired
 from clipflow.domain.models import ContentKind, DownloadOptions, JobState, Service
 from clipflow.providers.base import DownloadResult, ProbeResult
-from clipflow.ui.batch_dialog import BatchDialog
-from clipflow.ui.composer import Composer
 from tests.support.workbench import batch
 
 

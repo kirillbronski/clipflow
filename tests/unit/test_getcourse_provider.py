@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from yt_dlp import YoutubeDL
 from yt_dlp.cookies import YoutubeDLCookieJar
 
 from clipflow.domain.events import (

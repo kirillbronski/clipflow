@@ -1,9 +1,7 @@
-import pytest
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QTimer
 
 from clipflow.domain.models import Service
 from clipflow.infrastructure.auth import NativeAuthGateway
-from clipflow.ui.accounts import AccountsPage
 from tests.support.auth import Process, seed
 from tests.support.clipboard import context_paste, paste_shortcut
 

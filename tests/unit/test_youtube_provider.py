@@ -1,13 +1,11 @@
 """Synthetic yt-dlp metadata at the network boundary, real provider contracts."""
 
-import copy
 from dataclasses import replace
 
 import pytest
 from yt_dlp import YoutubeDL
 
 from clipflow.domain.events import (
-    CancellationToken,
     FilesSaved,
     ProgressChanged,
     RequestsDiscovered,
@@ -15,7 +13,7 @@ from clipflow.domain.events import (
 )
 from clipflow.domain.models import ContentKind, DownloadOptions, DownloadRequest, PlaylistPosition
 from clipflow.domain.urls import parse_url, request_key
-from clipflow.providers.base import ExecutionContext, MediaFailure
+from clipflow.providers.base import MediaFailure
 from clipflow.providers.media import MediaPipeline
 from clipflow.providers.youtube import YouTubeProvider
 from tests.support.youtube import context, extract_fixture, playlist

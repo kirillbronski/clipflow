@@ -1,11 +1,10 @@
 """Release configuration is executable policy, not a legacy app renamed 2.0."""
 
 import importlib.util
+import os
 import runpy
 import sys
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -196,21 +195,20 @@ def offline_check(monkeypatch, codes):
         tests.calls += 1
         return 0
 
-    monkeypatch.setattr(check.subprocess, 'run', fake_run)
     monkeypatch.setitem(sys.modules, 'check_coverage', types.SimpleNamespace(run=run_tests))
-    return check, calls, tests
+    return (lambda: check.main([], run=fake_run)), calls, tests
 
 
 def test_offline_check_stops_before_tests_when_style_fails(monkeypatch):
-    check, calls, tests = offline_check(monkeypatch, [1, 0])
-    assert check.main([]) == 1
+    main, calls, tests = offline_check(monkeypatch, [1, 0])
+    assert main() == 1
     assert tests.calls == 0
     assert calls[0] == ([sys.executable, '-m', 'ruff', 'format', '--check', '.'], ROOT)
 
 
 def test_offline_check_runs_lint_then_tests(monkeypatch):
-    check, calls, tests = offline_check(monkeypatch, [0, 0])
-    assert check.main([]) == 0
+    main, calls, tests = offline_check(monkeypatch, [0, 0])
+    assert main() == 0
     assert [command for command, _ in calls] == [
         [sys.executable, '-m', 'ruff', 'format', '--check', '.'],
         [sys.executable, '-m', 'ruff', 'check', '.'],
@@ -219,9 +217,24 @@ def test_offline_check_runs_lint_then_tests(monkeypatch):
 
 
 def test_offline_check_runs_tests_from_repository_root(monkeypatch, tmp_path):
-    check, _, _ = offline_check(monkeypatch, [0, 0])
+    main, _, _ = offline_check(monkeypatch, [0, 0])
     seen = []
     monkeypatch.setattr(sys.modules['check_coverage'], 'run', lambda: seen.append(Path.cwd()) or 0)
     monkeypatch.chdir(tmp_path)
-    assert check.main([]) == 0
+    assert main() == 0
     assert seen == [ROOT]
+
+
+def test_check_runs_qt_offscreen_by_default(monkeypatch):
+    """The local check runs Qt like the CI offline job, so a locked screen cannot fail it."""
+    monkeypatch.delenv('QT_QPA_PLATFORM', raising=False)
+    main, _, _ = offline_check(monkeypatch, [0, 0])
+    assert main() == 0
+    assert os.environ['QT_QPA_PLATFORM'] == 'offscreen'
+
+
+def test_check_keeps_an_explicit_qt_platform(monkeypatch):
+    monkeypatch.setenv('QT_QPA_PLATFORM', 'cocoa')
+    main, _, _ = offline_check(monkeypatch, [0, 0])
+    assert main() == 0
+    assert os.environ['QT_QPA_PLATFORM'] == 'cocoa'

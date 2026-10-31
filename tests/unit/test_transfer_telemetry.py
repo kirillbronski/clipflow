@@ -1,4 +1,4 @@
-from clipflow.domain.events import CancellationToken, ProgressChanged
+from clipflow.domain.events import CancellationToken
 from clipflow.providers.base import ExecutionContext
 from clipflow.providers.media import MediaPipeline
 

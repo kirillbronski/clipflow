@@ -1,12 +1,12 @@
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from clipflow.domain.events import RequestsDiscovered, WorkCancelled
 from clipflow.providers.base import MediaFailure
 from clipflow.providers.instagram_profile import InstagramProfileProvider, PostRef, ProfilePage
-from tests.instagram_fixtures import context, request
+from tests.instagram_fixtures import context
 from tests.support.profiles import Source, codes, post, req
 
 

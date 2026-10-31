@@ -35,6 +35,7 @@ skip_empty = true
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-include = ["packaging/*/*.spec"]
 
 [tool.ruff.format]
 quote-style = "single"
@@ -46,8 +47,8 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "C90", "BLE"]
 max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
-# pytest fixtures are imported into test modules and used only as parameter names.
-"tests/**" = ["F401", "F811"]
+# PyInstaller injects SPECPATH, Analysis, PYZ, EXE, COLLECT, BUNDLE; imports follow sys.path setup.
+"packaging/*/*.spec" = ["F821", "E402"]
 # One message per line keeps the RU/EN catalogue greppable; QSS keeps one rule per line.
 "src/clipflow/ui/i18n.py" = ["E501"]
 "src/clipflow/ui/themes.py" = ["E501"]

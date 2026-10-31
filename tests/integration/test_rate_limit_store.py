@@ -1,5 +1,5 @@
 from concurrent.futures import ProcessPoolExecutor
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
 
