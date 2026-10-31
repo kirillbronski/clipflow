@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt
 
+from clipflow.application.groups import descendants, group_summary, is_group
 from clipflow.domain.events import ProgressChanged, TitleChanged
 from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.ui.i18n import Translator
@@ -16,6 +17,7 @@ class JobListModel(QAbstractListModel):
     FilesRole = JobIdRole + 4
     SourceRole = JobIdRole + 5
     JobRole = JobIdRole + 6
+    GroupRole = JobIdRole + 7
 
     def __init__(self, jobs=(), parent=None):
         super().__init__(parent)
@@ -24,6 +26,8 @@ class JobListModel(QAbstractListModel):
         self._rows = {job.id: n for n, job in enumerate(self.jobs)}
         self._titles = {}
         self._progress = {}
+        self._sizes = {}  # job id -> (result files, bytes); read from disk once per file set
+        self._index()
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.jobs)
@@ -37,6 +41,7 @@ class JobListModel(QAbstractListModel):
             self.FilesRole: b'files',
             self.SourceRole: b'source',
             self.JobRole: b'job',
+            self.GroupRole: b'group',
         }
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
@@ -65,6 +70,7 @@ class JobListModel(QAbstractListModel):
             self.FilesRole: job.result_files,
             self.SourceRole: job.request.link.service.value,
             self.JobRole: job,
+            self.GroupRole: self._summary(job) if role == self.GroupRole else None,
             int(Qt.ItemDataRole.ToolTipRole): (
                 error_tooltip(job.error, job.request.link.service, self.translator)
                 if job.state == JobState.FAILED
@@ -72,12 +78,47 @@ class JobListModel(QAbstractListModel):
             ),
         }.get(role)
 
+    def _index(self):
+        """Group membership by id, rebuilt in one pass whenever the list of jobs changes."""
+        groups = descendants(self.jobs)
+        self._members = {key: tuple(j.id for j in value) for key, value in groups.items()}
+        self._groups = {
+            job.id for job in self.jobs if job.id in groups and is_group(job, bool(groups[job.id]))
+        }
+        self._top = {member: key for key, value in self._members.items() for member in value}
+
+    def members(self, group_id):
+        return tuple(self.jobs[self._rows[i]] for i in self._members.get(group_id, ()))
+
+    def is_group_row(self, row):
+        return self.jobs[row].id in self._groups
+
+    def _size(self, job):
+        cached = self._sizes.get(job.id)
+        if cached is None or cached[0] != job.result_files:
+            total = 0
+            for path in job.result_files:
+                try:
+                    total += path.stat().st_size
+                except OSError:
+                    continue
+            cached = self._sizes[job.id] = (job.result_files, total)
+        return cached[1]
+
+    def _summary(self, job):
+        if job.id not in self._groups:
+            return None
+        members = self.members(job.id)
+        sizes = {m.id: self._size(m) for m in members if m.state == JobState.COMPLETED}
+        return group_summary(job, members, sizes)
+
     def set_jobs(self, jobs):
         jobs = tuple(jobs)
         old_ids = tuple(job.id for job in self.jobs)
         new_ids = tuple(job.id for job in jobs)
         if old_ids == new_ids:
             self.jobs = jobs
+            self._index()
             if jobs:
                 self.dataChanged.emit(self.index(0), self.index(len(jobs) - 1))
             return
@@ -85,11 +126,13 @@ class JobListModel(QAbstractListModel):
             self.beginInsertRows(QModelIndex(), len(old_ids), len(jobs) - 1)
             self.jobs = jobs
             self._rows = {job.id: n for n, job in enumerate(jobs)}
+            self._index()
             self.endInsertRows()
         else:
             self.beginResetModel()
             self.jobs = jobs
             self._rows = {job.id: n for n, job in enumerate(jobs)}
+            self._index()
             self.endResetModel()
 
     def update_job(self, job, payload):
@@ -108,6 +151,9 @@ class JobListModel(QAbstractListModel):
         jobs[row] = job
         self.jobs = tuple(jobs)
         self.dataChanged.emit(self.index(row), self.index(row))
+        group = self._rows.get(self._top.get(job.id))
+        if group is not None:
+            self.dataChanged.emit(self.index(group), self.index(group))
 
 
 class QueueFilter(QSortFilterProxyModel):
