@@ -75,9 +75,18 @@ class WindowDialogs:
             return
         if not window.queue_view.selectionModel().isSelected(index):
             window.queue_view.setCurrentIndex(index)
-        identities = tuple(
+        model = window.presenter.model
+        selected = tuple(
             i.data(JobListModel.JobIdRole)
             for i in window.queue_view.selectionModel().selectedRows()
+        )
+        # A selected group row stands for the group with all its members.
+        identities = tuple(
+            dict.fromkeys(
+                member
+                for identity in selected
+                for member in (identity, *(j.id for j in model.members(identity)))
+            )
         )
         jobs = tuple(window.presenter.repository.get(identity) for identity in identities)
         menu = QMenu(window)
@@ -116,22 +125,26 @@ class WindowDialogs:
             action.setEnabled(enabled)
             action.triggered.connect(slot)
 
+        jobs = (presenter.repository.get(group_id), *members)  # the parent may still be listing
         add(
             'group_menu.pause',
             lambda: presenter.pause_group(group_id),
-            any(j.state not in TERMINAL_STATES and j.state != JobState.PAUSED for j in members),
+            any(
+                j.state not in TERMINAL_STATES and (j.state != JobState.PAUSED or j.automatic_retry)
+                for j in jobs
+            ),
         )
         add(
             'group_menu.resume',
             lambda: presenter.resume_group(group_id),
-            any(j.state == JobState.PAUSED and j.pause_reason == 'user' for j in members),
+            any(j.state == JobState.PAUSED and j.pause_reason == 'user' for j in jobs),
         )
         add(
             'group_menu.retry_failed',
             lambda: presenter.retry_group_failures(group_id),
             any(
                 j.state in {JobState.FAILED, JobState.CANCELLED} and not j.source_required
-                for j in members
+                for j in jobs
             ),
         )
         add('group_menu.open_folder', lambda: presenter.open_group_folder(group_id))

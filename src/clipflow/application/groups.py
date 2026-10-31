@@ -73,12 +73,12 @@ class GroupSummary:
 
 
 def group_summary(parent: Job, members: Sequence[Job], sizes: Mapping[str, int]) -> GroupSummary:
-    """Counts for the group row; failed includes cancelled, sizes come from the caller."""
+    """Counts for the group row (cancelled is not a failure); sizes come from the caller."""
     completed = [job for job in members if job.state == JobState.COMPLETED]
     return GroupSummary(
         total=len(members),
         completed=len(completed),
-        failed=sum(job.state in {JobState.FAILED, JobState.CANCELLED} for job in members),
+        failed=sum(job.state == JobState.FAILED for job in members),
         active=sum(job.state not in TERMINAL_STATES for job in members),
         size_bytes=sum(sizes.get(job.id, 0) for job in completed),
         current=next((job for job in members if job.state in _WORKING), None),

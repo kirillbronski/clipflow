@@ -90,6 +90,7 @@ class JobListModel(QAbstractListModel):
             job.id for job in self.jobs if job.id in groups and is_group(job, bool(groups[job.id]))
         }
         self._top = {member: key for key, value in self._members.items() for member in value}
+        self._sizes = {}  # files may have been deleted or replaced since the last list
 
     def members(self, group_id):
         return tuple(self.jobs[self._rows[i]] for i in self._members.get(group_id, ()))

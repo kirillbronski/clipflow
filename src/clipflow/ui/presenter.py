@@ -262,15 +262,20 @@ class WorkbenchPresenter(QObject):
         return self._command(lambda: self.scheduler.pause_many(self._group_ids(group_id)))
 
     def resume_group(self, group_id):
-        return self._command(lambda: self.scheduler.resume_many(self._group_ids(group_id)))
+        return self._command(
+            lambda: self._start_first(self.scheduler.resume_many(self._group_ids(group_id)))
+        )
 
     def retry_group_failures(self, group_id):
-        def action():
-            members = tuple(j.id for j in self.model.members(group_id))
-            if self.scheduler.retry_many(members) and self.settings.auto_start:
-                self._start()
+        """Failed or cancelled members, and the parent itself when its list failed."""
+        return self._command(
+            lambda: self._start_first(self.scheduler.retry_many(self._group_ids(group_id)))
+        )
 
-        return self._command(action)
+    def _start_first(self, identities):
+        # Like ▷ on a row: what was just queued starts even when auto-start is off.
+        if identities:
+            self._start_if_queued(identities[0])
 
     def open_group_folder(self, group_id):
         """The folder the group's files share, else its download folder."""

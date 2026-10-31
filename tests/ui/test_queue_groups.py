@@ -382,3 +382,77 @@ def test_menu_button_offers_what_the_group_allows(make_window, tmp_path):
         'Убрать из списка': True,
         'Удалить файлы с диска…': True,
     }
+
+
+def test_a_parsing_playlist_can_be_paused_and_a_failed_one_retried(make_window):
+    from PySide6.QtWidgets import QMenu
+
+    window, _ = make_window()
+    repository = window.presenter.repository
+    repository.add(job('p', url=PLAYLIST))
+    window.presenter._reload_jobs()
+    window._row_action('p', 'group_menu')
+    menu = window.findChildren(QMenu)[-1]
+    assert {a.text(): a.isEnabled() for a in menu.actions()}['Приостановить все']
+    window.presenter.pause_group('p')
+    assert repository.get('p').state == JobState.PAUSED
+    repository.update(replace(repository.get('p'), state=JobState.FAILED, error='x'))
+    window.presenter._reload_jobs()
+    window._row_action('p', 'group_menu')
+    menu = window.findChildren(QMenu)[-1]
+    assert {a.text(): a.isEnabled() for a in menu.actions()}['Повторить неудачные']
+    window.presenter.retry_group_failures('p')
+    assert repository.get('p').error != 'x'  # retried; the test window cannot list playlists
+
+
+def test_a_parsing_playlist_row_shows_its_state(qapp):
+    model = JobListModel([job('p', url=PLAYLIST, state=JobState.PROBING)])
+    delegate = QueueDelegate()
+    index = model.index(0)
+    assert delegate._group_line(index, index.data(JobListModel.GroupRole)) == (
+        delegate.status_text(model.jobs[0], None)
+    )
+
+
+def test_sizes_follow_deleted_files(make_window, tmp_path):
+    window, _ = make_window()
+    files_playlist(window, tmp_path)
+    model = window.presenter.model
+    assert model.index(model._rows['p']).data(JobListModel.GroupRole).size_bytes == 10
+    window.presenter.delete_group_files('p', confirmed=True)
+    assert model.index(model._rows['p']).data(JobListModel.GroupRole).size_bytes == 0
+
+
+def test_select_all_then_remove_takes_groups_with_their_members(make_window, tmp_path, qtbot):
+    from PySide6.QtWidgets import QMenu
+
+    window, _ = make_window()
+    files_playlist(window, tmp_path)
+    window.presenter.repository.add(job('single', state=JobState.COMPLETED))
+    window.presenter._reload_jobs()
+    errors = []
+    window.presenter.error_raised.connect(errors.append)
+    view = window.queue_view
+    view.selectAll()
+    single = next(
+        view.model().index(n, 0)
+        for n in range(view.model().rowCount())
+        if view.model().index(n, 0).data(JobListModel.JobIdRole) == 'single'
+    )
+    window._history_menu(view.visualRect(single).center())
+    menu = window.findChildren(QMenu)[-1]
+    next(a for a in menu.actions() if a.text() == window.tr.text('remove_list')).trigger()
+    qtbot.waitUntil(lambda: window.presenter.repository.list() == ())
+    assert errors == []
+
+
+def test_group_resume_and_retry_start_like_a_row(make_window, qtbot):
+    window, provider = make_window()
+    window.presenter.set_auto_start(False)
+    repository = window.presenter.repository
+    repository.add(job('p', url=PLAYLIST, state=JobState.COMPLETED))
+    repository.add(job('c00', 'p', JobState.PAUSED))
+    repository.update(replace(repository.get('c00'), pause_reason='user'))
+    window.presenter._reload_jobs()
+    window.presenter.resume_group('p')
+    qtbot.waitUntil(provider.started.is_set)

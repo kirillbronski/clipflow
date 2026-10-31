@@ -45,7 +45,9 @@ class QueueDelegate(QStyledItemDelegate):
         while hasattr(source, 'sourceModel'):
             source = source.sourceModel()
         title, percent = source.current_label(summary.current) if summary.current else (None, None)
-        return group_text(summary, self.tr, title, percent)
+        text = group_text(summary, self.tr, title, percent)
+        # No list yet: the parent's own state, as an ordinary row would show it.
+        return text or self.status_text(summary.parent, index.data(JobListModel.ProgressRole))
 
     def paint(self, painter, option, index):
         job = index.data(JobListModel.JobRole)
@@ -145,7 +147,7 @@ class QueueDelegate(QStyledItemDelegate):
             not summary.total and job.state == JobState.FAILED
         )
         painter.setPen(QColor(t['error'] if failing and not selected else muted))
-        line = self._group_line(index, summary) or self.second_line(job)
+        line = self._group_line(index, summary)
         painter.drawText(
             QRect(left, rect.top() + 39, available, 19),
             Qt.AlignmentFlag.AlignVCenter,

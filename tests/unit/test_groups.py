@@ -61,7 +61,7 @@ def test_summary_counts_states_and_sizes():
         job('g', 'p', JobState.DOWNLOADING),
     )
     summary = group_summary(parent, members, {'a': 10, 'b': 20, 'd': 99})
-    assert (summary.total, summary.completed, summary.failed, summary.active) == (7, 3, 2, 2)
+    assert (summary.total, summary.completed, summary.failed, summary.active) == (7, 3, 1, 2)
     assert summary.size_bytes == 30
     assert summary.current.id == 'g'
     assert summary.parent is parent
@@ -86,3 +86,10 @@ def test_a_parent_cycle_belongs_to_no_group():
     jobs = (job('a', 'b'), job('b', 'a'), job('p', url=PLAYLIST))
     assert descendants(jobs) == {'p': ()}
     assert top_level_id('a', {j.id: j for j in jobs}) is None
+
+
+def test_cancelled_members_are_not_failures():
+    parent = job('p', url=PLAYLIST, state=JobState.COMPLETED)
+    members = (job('a', 'p', JobState.CANCELLED), job('b', 'p', JobState.FAILED))
+    summary = group_summary(parent, members, {})
+    assert summary.failed == 1
