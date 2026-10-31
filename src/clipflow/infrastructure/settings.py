@@ -2,9 +2,10 @@
 
 import json
 import os
+import re
 import shutil
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from types import MappingProxyType
@@ -161,85 +162,99 @@ class SettingsStore:
         self.last_warning = 'settings_reset'
         return settings
 
-    def _migrate(self):  # noqa: C901  # подпроект 3
-        legacy = self.directory / 'settings.json'
-        try:
-            raw = json.loads(legacy.read_text(encoding='utf-8-sig'))
-            if not isinstance(raw, dict):
-                raw = {}
-        except FileNotFoundError:
+    def _migrate(self):
+        raw = self._read_legacy()
+        if raw is None:
             settings = AppSettings()
             self.save(settings)
             return settings
-        except (ValueError, UnicodeError):
-            raw = {}
-            self.last_warning = 'legacy_settings_reset'
-        except OSError as error:
-            raise SettingsError(storage_code(error)) from None
-        defaults = AppSettings()
-        presets = dict(defaults.presets)
-        folder = raw.get('folder')
-        try:
-            folder = path_value(folder).expanduser().resolve()
-        except (ValueError, OSError):
-            folder = defaults.presets[Service.YOUTUBE].folder
-        quality = raw.get('quality')
-        height = None
-        if isinstance(quality, str):
-            import re
-
-            match = re.fullmatch(r'(360|480|720|1080|1440|2160)p(?: \(4K\))?', quality)
-            if match:
-                height = int(match.group(1))
-        for service in Service:
-            presets[service] = DownloadOptions(folder, max_height=height)
-
-        def flag(key, default):
-            value = raw.get(key, default)
-            return value if type(value) is bool else default
-
-        from dataclasses import replace
-
-        presets[Service.INSTAGRAM] = replace(
-            presets[Service.INSTAGRAM],
-            author_folder=flag('instagram_author_folder', True),
-            post_folder=flag('instagram_post_folder', True),
-            description=('md' if raw.get('instagram_description_format') == 'MD' else 'txt')
-            if flag('save_instagram_description', False)
-            else None,
-        )
-        recent = []
-        for value in raw.get('folders', []) if isinstance(raw.get('folders'), list) else []:
-            try:
-                recent.append(path_value(value).expanduser().resolve())
-            except (ValueError, OSError):
-                continue
-        raw_limit = raw.get('instagram_profile_limit')
-        limit = (
-            {'До 10 публикаций': 10, 'До 50 публикаций': 50, 'Все публикации': None}.get(
-                raw_limit, 10
-            )
-            if isinstance(raw_limit, str)
-            else 10
-        )
-        language = raw.get('language') if raw.get('language') in ('ru', 'en') else 'ru'
-        settings = AppSettings(
-            language=language, presets=presets, recent_folders=tuple(recent), profile_limit=limit
-        )
+        folder = _legacy_folder(raw)
+        height = _legacy_height(raw)
+        settings = _legacy_settings(raw, folder, height)
         # The original stays byte-for-byte intact. Back up only normalized
         # whitelisted preferences, never unknown/nested credential-like fields.
-        ig = settings.presets[Service.INSTAGRAM]
-        backup = {
-            'folder': str(folder),
-            'folders': [str(p) for p in settings.recent_folders],
-            'language': language,
-            'quality': f'{height}p' if height else 'Лучшее доступное',
-            'instagram_author_folder': ig.author_folder,
-            'instagram_post_folder': ig.post_folder,
-            'save_instagram_description': ig.description is not None,
-            'instagram_description_format': (ig.description or 'txt').upper(),
-            'instagram_profile_limit': f'До {limit} публикаций' if limit else 'Все публикации',
-        }
+        backup = _legacy_backup(settings, folder, height)
         self._write(self.directory / f'settings-v1.{uuid4().hex}.bak', backup)
         self.save(settings)
         return settings
+
+    def _read_legacy(self):
+        """The 1.x settings as a dict; ``None`` when there were none."""
+        legacy = self.directory / 'settings.json'
+        try:
+            raw = json.loads(legacy.read_text(encoding='utf-8-sig'))
+        except FileNotFoundError:
+            return None
+        except (ValueError, UnicodeError):
+            self.last_warning = 'legacy_settings_reset'
+            return {}
+        except OSError as error:
+            raise SettingsError(storage_code(error)) from None
+        return raw if isinstance(raw, dict) else {}
+
+
+_LEGACY_LIMITS = {'До 10 публикаций': 10, 'До 50 публикаций': 50, 'Все публикации': None}
+
+
+def _legacy_folder(raw):
+    try:
+        return path_value(raw.get('folder')).expanduser().resolve()
+    except (ValueError, OSError):
+        return AppSettings().presets[Service.YOUTUBE].folder
+
+
+def _legacy_height(raw):
+    quality = raw.get('quality')
+    if not isinstance(quality, str):
+        return None
+    match = re.fullmatch(r'(360|480|720|1080|1440|2160)p(?: \(4K\))?', quality)
+    return int(match.group(1)) if match else None
+
+
+def _legacy_flag(raw, key, default):
+    value = raw.get(key, default)
+    return value if type(value) is bool else default
+
+
+def _legacy_recent(raw):
+    recent = []
+    for value in raw.get('folders', []) if isinstance(raw.get('folders'), list) else []:
+        try:
+            recent.append(path_value(value).expanduser().resolve())
+        except (ValueError, OSError):
+            continue
+    return tuple(recent)
+
+
+def _legacy_settings(raw, folder, height):
+    presets = {service: DownloadOptions(folder, max_height=height) for service in Service}
+    presets[Service.INSTAGRAM] = replace(
+        presets[Service.INSTAGRAM],
+        author_folder=_legacy_flag(raw, 'instagram_author_folder', True),
+        post_folder=_legacy_flag(raw, 'instagram_post_folder', True),
+        description=('md' if raw.get('instagram_description_format') == 'MD' else 'txt')
+        if _legacy_flag(raw, 'save_instagram_description', False)
+        else None,
+    )
+    raw_limit = raw.get('instagram_profile_limit')
+    limit = _LEGACY_LIMITS.get(raw_limit, 10) if isinstance(raw_limit, str) else 10
+    language = raw.get('language') if raw.get('language') in ('ru', 'en') else 'ru'
+    return AppSettings(
+        language=language, presets=presets, recent_folders=_legacy_recent(raw), profile_limit=limit
+    )
+
+
+def _legacy_backup(settings, folder, height):
+    ig = settings.presets[Service.INSTAGRAM]
+    limit = settings.profile_limit
+    return {
+        'folder': str(folder),
+        'folders': [str(p) for p in settings.recent_folders],
+        'language': settings.language,
+        'quality': f'{height}p' if height else 'Лучшее доступное',
+        'instagram_author_folder': ig.author_folder,
+        'instagram_post_folder': ig.post_folder,
+        'save_instagram_description': ig.description is not None,
+        'instagram_description_format': (ig.description or 'txt').upper(),
+        'instagram_profile_limit': f'До {limit} публикаций' if limit else 'Все публикации',
+    }
