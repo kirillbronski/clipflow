@@ -21,6 +21,11 @@ presenter = WorkbenchPresenter(
     SubmissionService(repo), Scheduler(repo, executor), AppSettings(), repo
 )
 window = MainWindow(presenter)
+# The expected ratio comes from the primary screen; with a second monitor the window must
+# open there too, not on whichever screen the system picks.
+screen = app.primaryScreen()
+window.setScreen(screen)
+window.move(screen.availableGeometry().topLeft())
 window.resize(880, 680)
 window.show()
 app.processEvents()

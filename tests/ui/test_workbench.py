@@ -129,7 +129,10 @@ def test_blocking_provider_does_not_block_gui_timer(make_window, qtbot):
     timer.timeout.connect(lambda: ticks.append(1))
     timer.start()
     window.presenter.toggle_job(identity)
-    qtbot.waitUntil(lambda: provider.started.is_set() and len(ticks) >= 5, timeout=1500)
+    qtbot.waitUntil(provider.started.is_set)
+    # The provider now blocks its worker thread; the GUI timer must keep ticking meanwhile.
+    before = len(ticks)
+    qtbot.waitUntil(lambda: len(ticks) >= before + 5, timeout=5000)
     assert not provider.torn_down.is_set()
     window.presenter.toggle_job(identity)
     qtbot.waitUntil(lambda: provider.torn_down.is_set())

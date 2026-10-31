@@ -1,4 +1,6 @@
-"""Deterministic in-memory persistence, using the same repository contract."""
+"""Deterministic in-memory persistence, using the same repository contract, and waiting."""
+
+import time
 
 
 class MemoryJobRepository:
@@ -20,3 +22,12 @@ class MemoryJobRepository:
         if job.id not in self.jobs:
             raise KeyError(job.id)
         self.jobs[job.id] = job
+
+
+def wait_until(predicate, timeout=10.0, interval=0.025):
+    """Poll a condition outside the Qt event loop; fail with AssertionError on timeout."""
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        if time.monotonic() >= deadline:
+            raise AssertionError(f'condition not met within {timeout} s')
+        time.sleep(interval)

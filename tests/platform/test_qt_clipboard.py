@@ -8,6 +8,7 @@ from PySide6.QtGui import QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication
 
 from clipflow.domain.models import Service
+from clipflow.ui.batch_dialog import BatchDialog
 from tests.support.clipboard import context_paste, paste_shortcut
 from tests.support.workbench import batch
 
@@ -63,7 +64,21 @@ def test_russian_keyboard_edit_shortcuts(make_window, qtbot, clipboard):
     assert field.text() == 'draft'
 
 
-def test_batch_shortcut_ctrl_command_n(make_window, qtbot):
+def test_batch_action_has_new_shortcut_and_opens_dialog(make_window, qtbot):
+    """Ctrl+N / Command+N is bound to «Несколько ссылок»; triggering it opens the dialog."""
+    window, _ = make_window()
+    action = next(a for a in window.downloads_menu.actions() if a.text() == window.tr.text('batch'))
+    assert QKeySequence(QKeySequence.StandardKey.New) in action.shortcuts()
+    action.trigger()
+    qtbot.waitUntil(lambda: bool(window._dialogs))
+    assert isinstance(window._dialogs[-1], BatchDialog)
+    assert window._dialogs[-1].isVisible()
+
+
+@pytest.mark.native_gui
+def test_native_new_shortcut_opens_batch_dialog(make_window, qtbot):
+    if os.environ.get('CLIPFLOW_NATIVE_QA') != '1':
+        pytest.skip('Run separately with CLIPFLOW_NATIVE_QA=1 in a native GUI session')
     window, _ = make_window()
     window.activateWindow()
     window.url_input.setFocus()

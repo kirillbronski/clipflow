@@ -11,6 +11,7 @@ from clipflow.domain.models import Service
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.infrastructure.platform import PlatformServices
 from clipflow.providers.base import MediaFailure
+from tests.helpers import wait_until
 from tests.support.auth import Process, seed
 
 
@@ -347,10 +348,12 @@ def test_real_auth_child_single_instance_and_parent_close(tmp_path, monkeypatch)
     gateway = NativeAuthGateway(tmp_path)
     handle = gateway.sign_in(Service.YOUTUBE, 'en')
     try:
-        deadline = time.monotonic() + 12
-        while not (tmp_path / 'YouTubeAuth/window.lock').exists() and time.monotonic() < deadline:
+
+        def lock_ready():
             assert handle.process.poll() is None
-            time.sleep(0.025)
+            return (tmp_path / 'YouTubeAuth/window.lock').exists()
+
+        wait_until(lock_ready, timeout=12)
         assert (tmp_path / 'YouTubeAuth/window.lock').exists()
         second = subprocess.run(
             [
@@ -368,9 +371,7 @@ def test_real_auth_child_single_instance_and_parent_close(tmp_path, monkeypatch)
         assert second.returncode == 0 and 'AUTH already_open' in second.stdout
         assert handle.process.poll() is None
         gateway.close()
-        deadline = time.monotonic() + 10
-        while not gateway.is_closed and time.monotonic() < deadline:
-            time.sleep(0.025)
+        wait_until(lambda: gateway.is_closed, timeout=10)
         assert gateway.is_closed and handle.process.returncode == 0
     finally:
         gateway.drain()
@@ -401,9 +402,7 @@ def test_parent_close_during_auth_startup_is_not_lost(tmp_path, monkeypatch):
     try:
         gateway.close()
         handle._deadline = time.monotonic() + 8
-        deadline = time.monotonic() + 12
-        while not gateway.is_closed and time.monotonic() < deadline:
-            time.sleep(0.025)
+        wait_until(lambda: gateway.is_closed, timeout=12)
         assert gateway.is_closed and handle.process.returncode == 0 and not handle._terminated
     finally:
         gateway.drain()

@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QBoxLayout, QMessageBox
 
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
 from clipflow.domain.urls import parse_url
@@ -416,9 +416,11 @@ def test_bulk_toolbar_very_wide_buttons_stack_without_horizontal_scroll(make_win
     for button in (window.start_button, window.cancel_queue_button, window.clear_all_button):
         button.setMinimumWidth(300)
     window.resize(880, 680)
-    qtbot.waitUntil(lambda: window.cancel_queue_button.y() > window.start_button.y())
+    stacked = QBoxLayout.Direction.TopToBottom
+    qtbot.waitUntil(lambda: window.queue_panel.actions_layout.direction() == stacked)
+    qtbot.waitUntil(lambda: window.clear_all_button.y() > window.cancel_queue_button.y())
     assert window.width() == 880
-    assert window.clear_all_button.y() > window.cancel_queue_button.y()
+    assert window.cancel_queue_button.y() > window.start_button.y()
     assert window.main_page.horizontalScrollBar().maximum() == 0
 
 
