@@ -165,34 +165,43 @@ class WorkbenchPresenter(QObject):
     def start_queue(self):
         return self._command(self._start)
 
-    def toggle_job(self, identity):  # noqa: C901  # подпроект 3
-        def action():  # noqa: C901  # подпроект 3
+    def _start_if_queued(self, identity):
+        if self.repository.get(identity).state == JobState.QUEUED:
+            self._start(identity)
+
+    def _resume(self, identity):
+        self.scheduler.resume(identity)
+        self._start_if_queued(identity)
+
+    def _retry(self, identity):
+        self.scheduler.retry(identity)
+        self._start_if_queued(identity)
+
+    def _choose_items(self, identity):
+        if identity in self._selections:
+            self.selection_requested.emit(identity, self._selections[identity])
+        else:
+            self.scheduler.refresh_selection(identity)
+            self._start_if_queued(identity)
+
+    def toggle_job(self, identity):
+        """Row activation: the job's state decides what the one obvious action is."""
+        actions = {
+            JobState.QUEUED: self._start,
+            JobState.PAUSED: self._resume,
+            JobState.FAILED: self._retry,
+            JobState.CANCELLED: self._retry,
+            JobState.COMPLETED: self.open_result,
+        }
+
+        def action():
             job = self.repository.get(identity)
             if job.source_required:
                 self.source_requested.emit(identity)
-                return
-            if job.pause_reason == 'selection_required':
-                if identity in self._selections:
-                    self.selection_requested.emit(identity, self._selections[identity])
-                else:
-                    self.scheduler.refresh_selection(identity)
-                    if self.repository.get(identity).state == JobState.QUEUED:
-                        self._start(identity)
-                return
-            if job.state == JobState.QUEUED:
-                self._start(identity)
-            elif job.state == JobState.PAUSED:
-                self.scheduler.resume(identity)
-                if self.repository.get(identity).state == JobState.QUEUED:
-                    self._start(identity)
-            elif job.state in {JobState.FAILED, JobState.CANCELLED}:
-                self.scheduler.retry(identity)
-                if self.repository.get(identity).state == JobState.QUEUED:
-                    self._start(identity)
-            elif job.state == JobState.COMPLETED:
-                self.open_result(identity)
+            elif job.pause_reason == 'selection_required':
+                self._choose_items(identity)
             else:
-                self.scheduler.pause(identity)
+                actions.get(job.state, self.scheduler.pause)(identity)
 
         self._command(action)
 
@@ -205,9 +214,7 @@ class WorkbenchPresenter(QObject):
     def provide_source(self, identity, text):
         def action():
             self.scheduler.provide_source(identity, parse_url(text))
-            self.scheduler.resume(identity)
-            if self.repository.get(identity).state == JobState.QUEUED:
-                self._start(identity)
+            self._resume(identity)
 
         return self._command(action)
 
