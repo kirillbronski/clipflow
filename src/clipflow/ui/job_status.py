@@ -2,6 +2,7 @@
 
 import re
 
+from clipflow.domain.failures import AUTH_SETTINGS_CODES, failure_group
 from clipflow.domain.models import Job, Service
 from clipflow.ui.i18n import Translator
 
@@ -11,68 +12,13 @@ SOURCE_NAMES = {
     Service.GETCOURSE: 'GetCourse',
 }
 SEPARATOR = '  ·  '
-_GROUPS = {
-    'signin': (
-        'auth_required',
-        'auth_unavailable',
-        'instagram_access_required',
-        'instagram_access_denied',
-        'getcourse_auth_failed',
-        'getcourse_school_login_required',
-    ),
-    'access': (
-        'unavailable_media',
-        'instagram_unavailable_media',
-        'getcourse_access_denied',
-        'getcourse_no_media',
-        'getcourse_invalid_player',
-    ),
-    'network': (
-        'download_failed',
-        'incomplete_download',
-        'probe_failed',
-        'getcourse_probe_failed',
-        'instagram_probe_failed',
-        'instagram_rate_limited',
-        'instagram_profile_failed',
-        'instagram_profile_incomplete',
-    ),
-    'save': ('write_failed', 'invalid_path'),
-    'processing': ('processing_failed', 'invalid_media', 'missing_output'),
-    'tool': ('tool_missing',),
-    'changed': ('getcourse_selection_changed', 'instagram_selection_changed'),
-    'empty': ('no_output', 'instagram_no_matching_media'),
-    'internal': (
-        'worker_failed',
-        'worker_start_failed',
-        'invalid_request',
-        'invalid_provider_event',
-        'instagram_rate_policy_required',
-        'instagram_post_required',
-        'instagram_profile_required',
-        'instagram_incomplete_metadata',
-        'instagram_invalid_metadata',
-    ),
-}
-ERROR_GROUPS = {code: group for group, codes in _GROUPS.items() for code in codes}
-# Sign-in settings failures already have precise texts under ``error.<code>``.
-AUTH_SETTINGS_CODES = frozenset(
-    {
-        'auth_invalid_settings',
-        'auth_invalid_school',
-        'auth_scope_mismatch',
-        'auth_storage_failed',
-        'auth_launch_failed',
-    }
-)
 _ITEM = re.compile(r'instagram_item_failed:(\d{1,3}):([a-z_]+)')
 
 
 def _reason(code: str | None, service: Service, translator: Translator) -> str:
     if code in AUTH_SETTINGS_CODES:
         return translator.text('error.' + code)
-    group = ERROR_GROUPS.get(code, 'internal')
-    return translator.text('job_error.' + group, service=SOURCE_NAMES[service])
+    return translator.text('job_error.' + failure_group(code), service=SOURCE_NAMES[service])
 
 
 def error_text(code: str | None, service: Service, translator: Translator) -> str:

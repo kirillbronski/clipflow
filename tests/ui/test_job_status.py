@@ -8,17 +8,12 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import QStyleOptionViewItem
 
+from clipflow.domain.failures import AUTH_SETTINGS_CODES, FAILURE_GROUPS
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState, Service
 from clipflow.domain.urls import parse_url
 from clipflow.infrastructure.repository import SqliteJobRepository
 from clipflow.ui.i18n import Translator
-from clipflow.ui.job_status import (
-    AUTH_SETTINGS_CODES,
-    ERROR_GROUPS,
-    error_text,
-    error_tooltip,
-    meta_text,
-)
+from clipflow.ui.job_status import error_text, error_tooltip, meta_text
 from clipflow.ui.queue_model import JobListModel
 from tests.ui.test_workbench import make_window
 
@@ -60,7 +55,7 @@ def test_every_source_error_code_has_specific_text():
     assert len(codes) > 20
     assert {'instagram_rate_limited', 'getcourse_school_login_required'} <= codes
     missing = sorted(
-        code for code in codes if code not in ERROR_GROUPS.keys() | AUTH_SETTINGS_CODES
+        code for code in codes if code not in FAILURE_GROUPS.keys() | AUTH_SETTINGS_CODES
     )
     assert missing == []
 

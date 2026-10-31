@@ -7,11 +7,11 @@ import pytest
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QLabel, QPushButton
 
+from clipflow.domain.failures import AUTH_SETTINGS_CODES, FAILURE_GROUPS
 from clipflow.domain.models import JobState, Service
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.infrastructure.auth_process.sessions import AUTH_MODES
 from clipflow.ui.i18n import CATALOG, Translator
-from clipflow.ui.job_status import AUTH_SETTINGS_CODES, ERROR_GROUPS
 from tests.ui.test_workbench import make_window
 
 SOURCE = Path(__file__).resolve().parents[2] / 'src' / 'clipflow'
@@ -61,7 +61,7 @@ def test_every_key_family_is_complete():
     families = {
         'filter_': ('all', 'active', 'completed', 'failed'),
         'state_': tuple(state.value for state in JobState),
-        'job_error.': tuple(set(ERROR_GROUPS.values())),
+        'job_error.': tuple(set(FAILURE_GROUPS.values())),
         'error.': tuple(AUTH_SETTINGS_CODES),
     }
     missing = [
