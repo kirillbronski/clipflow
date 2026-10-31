@@ -555,3 +555,17 @@ def test_command_errors_use_codes_not_message_text(make_window, qtbot, monkeypat
     with qtbot.waitSignal(window.presenter.error_raised) as raised:
         window.presenter.start_queue()
     assert raised.args == [code]
+
+
+def test_window_exposes_the_widgets_of_its_parts(make_window):
+    window, _ = make_window()
+    panel, sidebar = window.queue_panel, window.sidebar
+    assert window.start_button is panel.start_button
+    assert window.cancel_queue_button is panel.cancel_queue_button
+    assert window.clear_all_button is panel.clear_all_button
+    assert window.queue_view is panel.queue_view
+    assert window.proxy is panel.proxy
+    assert window.status_buttons is panel.status_buttons
+    assert window.nav_buttons is sidebar.nav_buttons
+    assert window.accounts_button is sidebar.accounts_button
+    assert window.settings_button is sidebar.settings_button

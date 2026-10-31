@@ -1,20 +1,16 @@
 """Qt workbench following the approved desktop composition and shared commands."""
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QActionGroup, QColor, QFont, QIcon, QKeySequence, QPainter, QPixmap
+from PySide6.QtGui import QActionGroup, QKeySequence
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QApplication,
-    QBoxLayout,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QInputDialog,
     QLabel,
-    QListView,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -22,7 +18,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -35,46 +30,12 @@ from clipflow.ui.composer import Composer
 from clipflow.ui.i18n import CATALOG, Translator
 from clipflow.ui.input import InputActions
 from clipflow.ui.job_status import SOURCE_NAMES
-from clipflow.ui.queue_delegate import QueueDelegate
-from clipflow.ui.queue_model import JobListModel, QueueFilter
+from clipflow.ui.queue_model import JobListModel
+from clipflow.ui.queue_panel import QueuePanel
 from clipflow.ui.settings_page import SettingsPage
+from clipflow.ui.sidebar import Sidebar
 from clipflow.ui.themes import ThemeManager, application_icon, glyph_icon
 from clipflow.version import APP_VERSION
-
-
-class QueueView(QListView):
-    """Return/Enter activate once on both platforms; keep native navigation."""
-
-    def keyPressEvent(self, event):
-        if event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter} and event.modifiers() in {
-            Qt.KeyboardModifier.NoModifier,
-            Qt.KeyboardModifier.KeypadModifier,
-        }:
-            if not event.isAutoRepeat() and self.currentIndex().isValid():
-                self.activated.emit(self.currentIndex())
-            event.accept()
-        else:
-            super().keyPressEvent(event)
-
-
-class NavigationButton(QPushButton):
-    """Keep native button accessibility; paint a separate live count at the right."""
-
-    count = None
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        if self.count is not None:
-            painter = QPainter(self)
-            painter.setPen(self.palette().color(self.foregroundRole()))
-            font = self.font()
-            font.setPixelSize(11)
-            painter.setFont(font)
-            painter.drawText(
-                self.rect().adjusted(0, 0, -12, 0),
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                str(self.count),
-            )
 
 
 class MainWindow(QMainWindow):
@@ -105,70 +66,13 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(root)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        sidebar = QFrame()
-        sidebar.setObjectName('sidebar')
-        sidebar.setFixedWidth(205)
-        self.sidebar = sidebar
-        side = QVBoxLayout(sidebar)
-        side.setContentsMargins(14, 22, 14, 20)
-        side.setSpacing(8)
-        brand_row = QHBoxLayout()
-        logo = QLabel()
-        logo.setPixmap(application_icon().pixmap(32, 32))
-        brand_row.addWidget(logo)
-        brand = QLabel('ClipFlow')
-        brand.setObjectName('brand')
-        brand_row.addWidget(brand)
-        brand_row.addStretch()
-        side.addLayout(brand_row)
-        side.addSpacing(20)
-        self.nav_buttons = []
-        for label, service, history in [
-            ('all_downloads', None, False),
-            ('history', None, True),
-            ('YouTube', 'youtube', False),
-            ('Instagram', 'instagram', False),
-            ('GetCourse', 'getcourse', False),
-        ]:
-            if service == 'youtube':
-                side.addSpacing(22)
-                sources = self.tr.widget(QLabel, 'sources_label')
-                sources.setObjectName('muted')
-                caps = sources.font()
-                caps.setCapitalization(QFont.Capitalization.AllUppercase)
-                caps.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2)
-                sources.setFont(caps)
-                side.addWidget(sources)
-            button = NavigationButton(label) if service else self.tr.widget(NavigationButton, label)
-            button.setProperty('nav_key', label)
-            button.setObjectName('nav')
-            button.setCheckable(True)
-            button.clicked.connect(
-                lambda checked=False, s=service, h=history, t=label: self._navigate(s, h, t)
-            )
-            side.addWidget(button)
-            self.nav_buttons.append(button)
-        self.nav_buttons[0].setChecked(True)
-        side.addStretch()
-        self.accounts_button = self.tr.widget(QPushButton, 'accounts')
-        self.accounts_button.setObjectName('nav')
-        side.addWidget(self.accounts_button)
-        self.settings_button = self.tr.widget(QPushButton, 'menu_settings')
-        self.settings_button.setObjectName('nav')
-        side.addWidget(self.settings_button)
-        self.accounts_button.setCheckable(True)
-        self.settings_button.setCheckable(True)
-        self.accounts_button.clicked.connect(lambda: self._show_section('accounts'))
-        self.settings_button.clicked.connect(lambda: self._show_section('settings'))
-        side.addSpacing(14)
-        line = QFrame()
-        line.setObjectName('divider')
-        line.setFixedHeight(1)
-        side.addWidget(line)
-        local = self.tr.widget(QLabel, 'local_note')
-        local.setObjectName('muted')
-        side.addWidget(local)
-        layout.addWidget(sidebar)
+        self.sidebar = Sidebar(self.tr)
+        self.nav_buttons = self.sidebar.nav_buttons
+        self.accounts_button = self.sidebar.accounts_button
+        self.settings_button = self.sidebar.settings_button
+        self.sidebar.navigate.connect(self._navigate)
+        self.sidebar.section.connect(self._show_section)
+        layout.addWidget(self.sidebar)
         self.main_page = QScrollArea()
         self.main_page.setWidgetResizable(True)
         self.main_page.setFrameShape(QFrame.Shape.NoFrame)
@@ -218,68 +122,24 @@ class MainWindow(QMainWindow):
         self.error_label.setWordWrap(True)
         self.error_label.hide()
         main.addWidget(self.error_label)
-        self.queue_toolbar = QWidget()
-        self.queue_toolbar.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.queue_header = QGridLayout(self.queue_toolbar)
-        self.queue_header.setContentsMargins(0, 0, 0, 0)
-        self.queue_header.setSpacing(8)
-        self.queue_header.setColumnStretch(0, 1)
-        self.count_label = QLabel()
-        self.queue_header.addWidget(self.count_label, 0, 0)
-        self.queue_actions = QWidget()
-        self.queue_actions_layout = QHBoxLayout(self.queue_actions)
-        self.queue_actions_layout.setContentsMargins(0, 0, 0, 0)
-        self.queue_actions_layout.setSpacing(8)
-        self.start_button = self.tr.widget(QPushButton, 'start_queue')
-        self.start_button.clicked.connect(presenter.start_queue)
-        self.queue_actions_layout.addWidget(self.start_button)
-        self.cancel_queue_button = self.tr.widget(QPushButton, 'cancel_queue')
-        self.cancel_queue_button.clicked.connect(presenter.cancel_queue)
-        self.queue_actions_layout.addWidget(self.cancel_queue_button)
-        self.clear_all_button = self.tr.widget(QPushButton, 'clear_all')
-        self.clear_all_button.clicked.connect(self._confirm_clear_all)
-        self.queue_actions_layout.addWidget(self.clear_all_button)
-        # Begin wrapped; the toolbar must never impose a wider window minimum.
-        self.queue_header.addWidget(self.queue_actions, 1, 0, 1, 2, Qt.AlignmentFlag.AlignRight)
-        self._queue_wrap_state = None
-        main.addWidget(self.queue_toolbar)
-        self.status_tabs = QWidget()
-        tab_layout = QHBoxLayout(self.status_tabs)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-        tab_layout.setSpacing(16)
-        self.status_buttons = {}
-        for status in ('all', 'active', 'completed', 'failed'):
-            button = QPushButton()
-            button.setObjectName('statusTab')
-            button.setCheckable(True)
-            button.setChecked(status == 'all')
-            button.clicked.connect(lambda checked=False, s=status: self._filter_status(s))
-            tab_layout.addWidget(button)
-            self.status_buttons[status] = button
-        tab_layout.addStretch()
-        main.addWidget(self.status_tabs)
-        self.queue_view = QueueView()
-        self.queue_view.setObjectName('queue')
-        self.queue_view.setUniformItemSizes(True)
-        self.queue_view.setSpacing(0)
-        self.queue_view.setMinimumHeight(96)
-        self.proxy = QueueFilter(presenter.model, self)
-        self.queue_view.setModel(self.proxy)
-        delegate = QueueDelegate(self.queue_view, theme=self.theme, translator=self.tr)
-        self.queue_view.setItemDelegate(delegate)
-        delegate.action_requested.connect(self._row_action)
-        self.queue_view.activated.connect(
-            lambda index: presenter.toggle_job(index.data(JobListModel.JobIdRole))
-        )
-        self.queue_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.queue_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.queue_view.customContextMenuRequested.connect(self._history_menu)
-        main.addWidget(self.queue_view, 1)
-        self.empty = self.tr.widget(QLabel, 'empty')
-        self.empty.setObjectName('muted')
-        self.empty.setWordWrap(True)
-        main.addWidget(self.empty)
+        self.queue_panel = panel = QueuePanel(presenter, self.theme, self.tr)
+        self.queue_toolbar = panel.toolbar
+        self.count_label = panel.count_label
+        self.start_button = panel.start_button
+        self.cancel_queue_button = panel.cancel_queue_button
+        self.clear_all_button = panel.clear_all_button
+        self.status_tabs = panel.status_tabs
+        self.status_buttons = panel.status_buttons
+        self.queue_view = panel.queue_view
+        self.proxy = panel.proxy
+        self.empty = panel.empty
+        panel.clear_all_requested.connect(self._confirm_clear_all)
+        panel.row_action.connect(self._row_action)
+        panel.context_menu.connect(self._history_menu)
+        panel.status_changed.connect(self._update_counts)
+        main.addWidget(panel, 1)
         self._download_widgets = (
+            self.queue_panel,
             self.batch_button,
             self.composer_host,
             self.queue_toolbar,
@@ -323,7 +183,7 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, 'composer_host'):
-            self.sidebar.setFixedWidth(180 if self.width() < 1000 else 205)
+            self.sidebar.set_compact(self.width() < 1000)
             margin = 24 if self.width() < 1000 else 36
             self.main_layout.setContentsMargins(margin, 32, margin, 18)
             self._resize_composer()
@@ -333,38 +193,9 @@ class MainWindow(QMainWindow):
         def apply():
             if self._section != 'downloads':
                 return
-            available = (
-                self.main_page.viewport().width()
-                - self.main_layout.contentsMargins().left()
-                - self.main_layout.contentsMargins().right()
-            )
-            buttons = [
-                b
-                for b in (self.start_button, self.cancel_queue_button, self.clear_all_button)
-                if not b.isHidden()
-            ]
-            horizontal = sum(
-                max(b.minimumWidth(), b.minimumSizeHint().width()) for b in buttons
-            ) + 8 * max(0, len(buttons) - 1)
-            count = max(self.count_label.minimumWidth(), self.count_label.minimumSizeHint().width())
-            vertical = horizontal > available
-            wrapped = vertical or count + horizontal + 8 > available
-            state = (wrapped, vertical)
-            if state == self._queue_wrap_state:
-                return
-            self._queue_wrap_state = state
-            self.queue_actions_layout.setDirection(
-                QBoxLayout.Direction.TopToBottom if vertical else QBoxLayout.Direction.LeftToRight
-            )
-            self.queue_header.removeWidget(self.queue_actions)
-            self.queue_header.addWidget(
-                self.queue_actions,
-                1 if wrapped else 0,
-                0 if wrapped else 1,
-                1,
-                2 if wrapped else 1,
-                Qt.AlignmentFlag.AlignRight,
-            )
+            margins = self.main_layout.contentsMargins()
+            available = self.main_page.viewport().width() - margins.left() - margins.right()
+            self.queue_panel.arrange(available)
 
         QTimer.singleShot(0, self, apply)
 
@@ -382,12 +213,6 @@ class MainWindow(QMainWindow):
             )
 
         QTimer.singleShot(0, self, apply)
-
-    def _filter_status(self, status):
-        self.proxy.show_status(status)
-        for name, button in self.status_buttons.items():
-            button.setChecked(name == status)
-        self._update_counts()
 
     def _menus(self):
         bar = self.menuBar()
@@ -498,24 +323,7 @@ class MainWindow(QMainWindow):
             size = min(16, button.fontMetrics().height())
             button.setIconSize(QSize(size, size))
             button.setIcon(glyph_icon(glyph, color, size))
-        for button in self.nav_buttons:
-            service = button.property('nav_key').lower()
-            if service in {'youtube', 'instagram', 'getcourse'}:
-                dot = QPixmap(10, 10)
-                dot.fill(Qt.GlobalColor.transparent)
-                painter = QPainter(dot)
-                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                painter.setBrush(QColor(t[service]))
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.drawEllipse(1, 1, 8, 8)
-                painter.end()
-                button.setIcon(QIcon(dot))
-                tint = QColor(t[service])
-                tint.setAlpha(22)
-                button.setStyleSheet(
-                    f'QPushButton:checked {{color:{t[service]};'
-                    f'background:{tint.name(QColor.NameFormat.HexArgb)};}}'
-                )
+        self.sidebar.paint_sources(t)
         self._subtitle()
         self._resize_composer()
 
@@ -632,56 +440,10 @@ class MainWindow(QMainWindow):
             self.auto_start.setChecked(self.presenter.settings.auto_start)
             self.auto_start.blockSignals(False)
 
-    def _update_counts(self):
-        count = self.proxy.rowCount()
-        key = (
-            'job_one'
-            if count % 10 == 1 and count % 100 != 11
-            else 'job_few'
-            if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14
-            else 'job_many'
-        )
-        self.count_label.setText(
-            self.tr.text('history_count', count=count)
-            if self.proxy.history
-            else self.tr.text('queue_count', count=count, word=self.tr.text(key))
-        )
-        self.start_button.setVisible(self._section == 'downloads' and not self.proxy.history)
-        self.cancel_queue_button.setVisible(self._section == 'downloads' and not self.proxy.history)
-        self.clear_all_button.setVisible(self._section == 'downloads')
+    def _update_counts(self, *args):
+        self.queue_panel.update_counts(self._section == 'downloads')
         self._arrange_queue_controls()
-        self.empty.setVisible(self._section == 'downloads' and self.proxy.rowCount() == 0)
-        jobs = self.presenter.model.jobs
-        for button in self.nav_buttons:
-            key = button.property('nav_key')
-            button.count = sum(
-                key == 'all_downloads'
-                or key == 'history'
-                and j.state in {JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED}
-                or j.request.link.service.value == key.lower()
-                for j in jobs
-            )
-            button.update()
-        scoped = [
-            j
-            for j in jobs
-            if (self.proxy.service is None or j.request.link.service.value == self.proxy.service)
-            and (
-                not self.proxy.history
-                or j.state in {JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED}
-            )
-        ]
-        counts = {
-            'all': len(scoped),
-            'active': sum(
-                j.state not in {JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED}
-                for j in scoped
-            ),
-            'completed': sum(j.state == JobState.COMPLETED for j in scoped),
-            'failed': sum(j.state == JobState.FAILED for j in scoped),
-        }
-        for status, button in self.status_buttons.items():
-            button.setText(self.tr.text('filter_' + status) + '  ' + str(counts[status]))
+        self.sidebar.set_counts(self.presenter.model.jobs)
 
     def _row_action(self, identity, action):
         if action == 'cancel':
@@ -771,15 +533,12 @@ class MainWindow(QMainWindow):
         dialog.open()
 
     def _navigate(self, service, history, title):
-        self.accounts_button.setChecked(False)
-        self.settings_button.setChecked(False)
+        self.sidebar.select(nav_key=title)
         self._section = 'downloads'
         self.accounts_page.hide()
         self.settings_page.hide()
         for widget in self._download_widgets:
             widget.show()
-        for button in self.nav_buttons:
-            button.setChecked(button.property('nav_key') == title)
         self.proxy.show_source(service, history)
         self._nav_key = title
         self.heading.setText(self.tr.text(title) if title in CATALOG[self.tr.language] else title)
@@ -793,12 +552,9 @@ class MainWindow(QMainWindow):
 
     def _show_section(self, section):
         self._section = section
-        self.accounts_button.setChecked(section == 'accounts')
-        self.settings_button.setChecked(section == 'settings')
+        self.sidebar.select(section=section)
         for widget in self._download_widgets:
             widget.hide()
-        for button in self.nav_buttons:
-            button.setChecked(False)
         self.accounts_page.setVisible(section == 'accounts')
         self.settings_page.setVisible(section == 'settings')
         self._nav_key = 'accounts' if section == 'accounts' else 'menu_settings'
