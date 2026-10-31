@@ -30,7 +30,7 @@ def server():
                 self.end_headers()
                 return
             data = b'{"status":"ok","data":{}}' if self.path == '/json' else b'abc' * 100000
-            self.send_response(429 if self.path == '/429' else 200)
+            self.send_response({'/429': 429, '/missing': 404}.get(self.path, 200))
             self.send_header('Retry-After', '2000')
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(data)))
@@ -263,3 +263,102 @@ def test_profile_cookie_domains_remain_in_memory(tmp_path, monkeypatch):
         assert not list(tmp_path.rglob('*cookies*'))
     finally:
         source.close()
+
+
+def leased(tmp_path):
+    gate, clock, _ = policy(tmp_path)
+    ctx, events, _ = context()
+    ctx = replace(ctx, instagram_rate=gate)
+    return gate, clock, ctx, events
+
+
+def lease_is_free(gate, clock):
+    free = gate.store.claim('other', clock.now)
+    gate.store.release('other')
+    return free
+
+
+def test_downloader_without_the_shared_budget_is_refused(tmp_path):
+    from clipflow.providers.base import MediaFailure
+
+    ctx, _, _ = context()
+    with (
+        pytest.raises(MediaFailure, match='instagram_rate_policy_required'),
+        open_downloader({'quiet': True}, instagram_context=replace(ctx, instagram_rate=None)),
+    ):
+        pass
+
+
+def test_finished_response_reads_empty_without_touching_the_budget(tmp_path, server):
+    gate, clock, ctx, _ = leased(tmp_path)
+    base, _ = server
+    with open_downloader({'quiet': True}, instagram_context=ctx) as ydl:
+        response = ydl.urlopen(Request(base + '/json'))
+        assert response.read() == b'{"status":"ok","data":{}}'
+        assert response.read() == b''
+    assert lease_is_free(gate, clock)
+
+
+def test_cancel_while_streaming_stops_reading_and_frees_the_budget(tmp_path, server):
+    from clipflow.domain.events import WorkCancelled
+
+    gate, clock, ctx, _ = leased(tmp_path)
+    base, _ = server
+    with open_downloader({'quiet': True}, instagram_context=ctx, instagram_kind='cdn') as ydl:
+        response = ydl.urlopen(Request(base + '/media'))
+        assert response.read(1024)
+        ctx.cancel.cancel('cancel')
+        with pytest.raises(WorkCancelled):
+            response.read(1024)
+        assert response.closed
+    assert lease_is_free(gate, clock)
+
+
+def test_429_recorded_elsewhere_before_a_redirect_defers_once(tmp_path, server):
+    gate, clock, ctx, events = leased(tmp_path)
+    base, calls = server
+    original = gate.acquire
+
+    def acquire(kind, token):
+        if kind == 'metadata' and calls:
+            gate.record_429('2000')
+        return original(kind, token)
+
+    gate.acquire = acquire
+    with (
+        open_downloader({'quiet': True}, instagram_context=ctx) as ydl,
+        pytest.raises(InstagramDeferred),
+    ):
+        ydl.urlopen(Request(base + '/redirect'))
+    assert calls == ['/redirect']
+    assert len([e for e in events if isinstance(e, RateLimitDeferred)]) == 1
+    assert lease_is_free(gate, clock)
+
+
+def test_post_page_is_paced_as_a_post_then_its_requests_as_metadata(tmp_path, server):
+    gate, _, ctx, _ = leased(tmp_path)
+    base, _ = server
+    kinds = []
+    original = gate.acquire
+    gate.acquire = lambda kind, token: kinds.append(kind) or original(kind, token)
+    with open_downloader({'quiet': True}, instagram_context=ctx, instagram_kind='post') as ydl:
+        for path in ('/json', '/metadata'):
+            with ydl.urlopen(Request(base + path)) as response:
+                response.read()
+    assert kinds == ['post', 'metadata']
+
+
+@pytest.mark.parametrize('address', ['/missing', 'closed-port'])
+def test_failed_request_frees_the_budget_and_is_not_a_rate_limit(tmp_path, server, address):
+    from yt_dlp.networking.exceptions import RequestError
+
+    gate, clock, ctx, events = leased(tmp_path)
+    base, _ = server
+    url = base + address if address.startswith('/') else 'http://127.0.0.1:9/'
+    with (
+        open_downloader({'quiet': True}, instagram_context=ctx) as ydl,
+        pytest.raises(RequestError),
+    ):
+        ydl.urlopen(Request(url))
+    assert events == []
+    assert lease_is_free(gate, clock)
