@@ -11,7 +11,7 @@ from clipflow.domain.urls import InvalidLink, parse_url, request_key
 from clipflow.providers.media import MediaPipeline
 from clipflow.providers.youtube import YouTubeProvider
 from tests.helpers import MemoryJobRepository
-from tests.unit.test_youtube_provider import context, extract_fixture, playlist
+from tests.support.youtube import context, extract_fixture, playlist
 
 
 @pytest.mark.parametrize('route', ['watch?v=track', 'playlist?list=PL_music'])

@@ -9,8 +9,7 @@ from clipflow.domain.events import StageChanged
 from clipflow.domain.models import JobState, Service
 from clipflow.infrastructure.repository import SqliteJobRepository
 from clipflow.providers.media import MediaPipeline
-from tests.integration.test_media_pipeline import context, media_server, tools
-from tests.ui.test_workbench import add, make_window
+from tests.support.workbench import add
 
 
 def test_restart_does_not_autostart(make_window, qtbot, tmp_path):
@@ -199,7 +198,7 @@ def test_ytdlp_real_merger_still_combines_separate_tracks(media_server, tools, t
     from yt_dlp.postprocessor.ffmpeg import FFmpegMergerPP
 
     from clipflow.providers.access import open_downloader
-    from tests.integration.test_media_pipeline import probe
+    from tests.support.media import probe
 
     video = tmp_path / 'video.mp4'
     audio = tmp_path / 'audio.m4a'

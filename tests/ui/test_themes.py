@@ -10,8 +10,7 @@ from clipflow.domain.models import Service
 from clipflow.infrastructure.settings import SettingsStore
 from clipflow.ui.i18n import CATALOG, Translator
 from clipflow.ui.themes import PALETTES, TEXT_PAIRS, ThemeManager
-from tests.ui.test_submission_dialogs import batch
-from tests.ui.test_workbench import make_window
+from tests.support.workbench import batch
 
 
 def contrast(a, b):

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 
 import pytest
@@ -6,32 +6,7 @@ import pytest
 from clipflow.application.instagram_rate_policy import InstagramDeferred, InstagramRatePolicy
 from clipflow.domain.events import CancellationToken, WorkCancelled
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
-
-
-class Clock:
-    def __init__(self):
-        self.now = datetime(2026, 10, 28, tzinfo=UTC)
-        self.waits = []
-
-    def __call__(self):
-        return self.now
-
-    def wait(self, token, seconds):
-        token.raise_if_cancelled()
-        self.waits.append(seconds)
-        self.now += timedelta(seconds=seconds)
-        return False
-
-
-def policy(tmp_path):
-    clock = Clock()
-    gate = InstagramRatePolicy(
-        RateLimitStore(tmp_path / 'instagram-rate.sqlite3'),
-        clock=clock,
-        random=lambda: 0,
-        wait=clock.wait,
-    )
-    return gate, clock, CancellationToken()
+from tests.support.rate import Clock, policy
 
 
 def test_metadata_minimum_3_seconds(tmp_path):
@@ -98,8 +73,8 @@ def test_user_pause_disables_automatic_retry_and_other_instagram_jobs_wait(tmp_p
     from clipflow.domain.models import Job, JobState
     from tests.helpers import MemoryJobRepository
     from tests.instagram_fixtures import request
-    from tests.unit.test_scheduler import ControlledExecutor
-    from tests.unit.test_scheduler import request as youtube_request
+    from tests.support.scheduler import ControlledExecutor
+    from tests.support.scheduler import request as youtube_request
 
     repo = MemoryJobRepository()
     worker = ControlledExecutor()
@@ -186,7 +161,7 @@ def test_instagram_cooldown_releases_youtube_worker():
     from clipflow.domain.events import RateLimitDeferred, WorkStopped
     from clipflow.domain.models import Job, JobState
     from tests.helpers import MemoryJobRepository
-    from tests.unit.test_scheduler import ControlledExecutor, request
+    from tests.support.scheduler import ControlledExecutor, request
 
     repo = MemoryJobRepository()
     worker = ControlledExecutor()
@@ -209,7 +184,7 @@ def test_manual_cooldown_does_not_auto_resume():
     from clipflow.domain.events import RateLimitDeferred, WorkStopped
     from clipflow.domain.models import Job, JobState
     from tests.helpers import MemoryJobRepository
-    from tests.unit.test_scheduler import ControlledExecutor, request
+    from tests.support.scheduler import ControlledExecutor, request
 
     repo = MemoryJobRepository()
     worker = ControlledExecutor()

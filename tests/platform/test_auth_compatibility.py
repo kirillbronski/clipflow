@@ -11,27 +11,12 @@ from clipflow.domain.models import Service
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.infrastructure.platform import PlatformServices
 from clipflow.providers.base import MediaFailure
+from tests.support.auth import Process, seed
 
 
 @pytest.fixture(autouse=True)
 def auth_root(tmp_path, monkeypatch):
     monkeypatch.setenv('CLIPFLOW_DATA_DIR', str(tmp_path))
-
-
-def seed(directory, service, protect):
-    folder = directory / ('YouTubeAuth' if service == Service.YOUTUBE else 'InstagramAuth')
-    folder.mkdir(parents=True, exist_ok=True)
-    cookie = dict(
-        domain='.youtube.com' if service == Service.YOUTUBE else '.instagram.com',
-        path='/',
-        name='SAPISID' if service == Service.YOUTUBE else 'sessionid',
-        value='synthetic-private-token',
-        expires=-1,
-        secure=True,
-        httpOnly=True,
-    )
-    (folder / 'session.dat').write_bytes(protect(json.dumps([cookie]).encode()))
-    return folder
 
 
 def test_old_encrypted_session_readable(tmp_path):
@@ -73,25 +58,6 @@ def test_logout_only_selected_service(tmp_path):
     )
     assert (tmp_path / 'InstagramAuth/session.dat').read_bytes() == other
     assert (tmp_path / 'YouTubeAuth/logout-request').is_file()
-
-
-class Process:
-    def __init__(self, *args, **kwargs):
-        self.returncode = None
-        self.terminated = False
-
-    def poll(self):
-        return self.returncode
-
-    def terminate(self):
-        self.terminated = True
-        self.returncode = 0
-
-    def kill(self):
-        self.returncode = -9
-
-    def wait(self, timeout=None):
-        return self.returncode
 
 
 def test_auth_process_single_instance(tmp_path, monkeypatch):

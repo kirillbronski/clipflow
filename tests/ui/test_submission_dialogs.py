@@ -10,7 +10,7 @@ from clipflow.domain.models import ContentKind, DownloadOptions, JobState, Servi
 from clipflow.providers.base import DownloadResult, ProbeResult
 from clipflow.ui.batch_dialog import BatchDialog
 from clipflow.ui.composer import Composer
-from tests.ui.test_workbench import make_window
+from tests.support.workbench import batch
 
 
 def test_music_locks_mp3_and_restores_video_preset(make_window, qtbot, tmp_path, monkeypatch):
@@ -87,15 +87,6 @@ def test_matching_music_probe_never_displays_video_height(make_window, qtbot):
     assert composer.quality_box.currentData() is None and composer.quality_box.count() == 1
     window.url_input.clear()
     assert composer.quality_box.currentData() == 720
-
-
-def batch(window, qtbot):
-    qtbot.mouseClick(window.batch_button, Qt.MouseButton.LeftButton)
-    return next(
-        dialog
-        for dialog in window._dialogs
-        if isinstance(dialog, BatchDialog) and dialog.isVisible()
-    )
 
 
 def test_batch_button_always_visible(make_window, qtbot):
@@ -346,7 +337,7 @@ def test_link_without_qualities_is_cached_too(make_window, qtbot):
 
 
 def test_autostart_waits_for_probe_teardown_instead_of_failing_job(make_window, qtbot):
-    from tests.ui.test_workbench import HeldProvider
+    from tests.support.workbench import HeldProvider
 
     class Prober(HeldProvider):
         def __init__(self):
@@ -437,7 +428,7 @@ def test_batch_shows_already_queued_without_creating_copy(make_window, qtbot):
 
 
 def test_autostart_batch_cancels_optional_probe_without_clearing_draft(make_window, qtbot):
-    from tests.ui.test_workbench import HeldProvider
+    from tests.support.workbench import HeldProvider
 
     class Prober(HeldProvider):
         def __init__(self):

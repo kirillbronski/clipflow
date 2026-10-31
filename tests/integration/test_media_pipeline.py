@@ -6,10 +6,8 @@ import subprocess
 import sys
 import time
 from dataclasses import replace
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread, Timer
+from threading import Timer
 
 import pytest
 
@@ -23,166 +21,9 @@ from clipflow.domain.events import (
 from clipflow.domain.models import DownloadOptions, DownloadRequest, JobState
 from clipflow.domain.paths import PostIdentity
 from clipflow.domain.urls import parse_url
-from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
+from clipflow.providers.base import MediaFailure, MediaItem
 from clipflow.providers.media import MediaPipeline
-
-
-class NoAuth:
-    def options_for(self, profile, url):
-        return {}
-
-
-@pytest.fixture
-def context():
-    from tests.instagram_fixtures import Gate
-
-    events = []
-    return ExecutionContext(CancellationToken(), events.append, NoAuth(), Gate()), events
-
-
-@pytest.fixture(scope='module')
-def tools():
-    ffmpeg, ffprobe = shutil.which('ffmpeg'), shutil.which('ffprobe')
-    assert ffmpeg and ffprobe, 'Native FFmpeg and FFprobe are required for T4 acceptance'
-    return ffmpeg, ffprobe
-
-
-@pytest.fixture(scope='module')
-def media_server(tmp_path_factory, tools):
-    root = tmp_path_factory.mktemp('media-http')
-    source = root / 'sample.mp4'
-    subprocess.run(
-        [
-            tools[0],
-            '-v',
-            'error',
-            '-f',
-            'lavfi',
-            '-i',
-            'color=c=blue:s=96x64:r=10',
-            '-f',
-            'lavfi',
-            '-i',
-            'sine=frequency=440:sample_rate=48000',
-            '-t',
-            '0.4',
-            '-c:v',
-            'libx264',
-            '-c:a',
-            'aac',
-            '-y',
-            str(source),
-        ],
-        check=True,
-    )
-    compatible = root / 'compatible.webm'
-    subprocess.run(
-        [
-            tools[0],
-            '-v',
-            'error',
-            '-i',
-            str(source),
-            '-c:v',
-            'libvpx-vp9',
-            '-c:a',
-            'libopus',
-            '-y',
-            str(compatible),
-        ],
-        check=True,
-    )
-    subprocess.run(
-        [
-            tools[0],
-            '-v',
-            'error',
-            '-i',
-            str(source),
-            '-an',
-            '-c:v',
-            'copy',
-            '-y',
-            str(root / 'video-only.mp4'),
-        ],
-        check=True,
-    )
-    subprocess.run(
-        [
-            tools[0],
-            '-v',
-            'error',
-            '-i',
-            str(source),
-            '-vn',
-            '-c:a',
-            'copy',
-            '-y',
-            str(root / 'audio.m4a'),
-        ],
-        check=True,
-    )
-    # A real tiny PNG; larger payload lets the cancellation test leave a partial.
-    subprocess.run(
-        [
-            tools[0],
-            '-v',
-            'error',
-            '-f',
-            'lavfi',
-            '-i',
-            'color=c=red:s=8x8',
-            '-frames:v',
-            '1',
-            '-y',
-            str(root / 'photo.png'),
-        ],
-        check=True,
-    )
-    (root / 'large.jpg').write_bytes(b'photo-byte-stream' * 20000)
-    (root / 'empty.jpg').write_bytes(b'')
-
-    class Handler(SimpleHTTPRequestHandler):
-        hits = 0
-        ranges = []
-        paths = []
-
-        def log_message(self, *args):
-            pass
-
-        def do_GET(self):
-            type(self).hits += 1
-            type(self).paths.append(self.path)
-            if self.path == '/protected.png':
-                if self.headers.get('Referer') != 'https://www.instagram.com/':
-                    self.send_error(403)
-                    return
-                self.path = '/photo.png'
-            if self.path == '/resume.jpg':
-                data = (root / 'large.jpg').read_bytes()
-                range_header = self.headers.get('Range')
-                type(self).ranges.append(range_header)
-                start = int(range_header[6:-1]) if range_header else 0
-                if start >= len(data):
-                    self.send_response(416)
-                    self.send_header('Content-Range', f'bytes */{len(data)}')
-                    self.end_headers()
-                    return
-                self.send_response(206 if start else 200)
-                self.send_header('Content-Length', str(len(data) - start))
-                self.send_header('Content-Range', f'bytes {start}-{len(data) - 1}/{len(data)}')
-                self.end_headers()
-                self.wfile.write(data[start:])
-                return
-            super().do_GET()
-
-    server = ThreadingHTTPServer(('127.0.0.1', 0), partial(Handler, directory=str(root)))
-    thread = Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f'http://127.0.0.1:{server.server_port}', root, Handler
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=3)
+from tests.support.media import probe
 
 
 def request(tmp_path, fmt='mp4', **options):
@@ -209,18 +50,6 @@ def item(url, kind='video', ext='mp4', **info):
             **info,
         },
     )
-
-
-def probe(path, tools):
-    data = json.loads(
-        subprocess.check_output(
-            [tools[1], '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(path)],
-            text=True,
-            encoding='utf-8',
-        )
-    )
-    assert Path(data['format']['filename']) == path
-    return data
 
 
 def test_mp3_uses_320k_audio_only(tmp_path, context, media_server, tools):

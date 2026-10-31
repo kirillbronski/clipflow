@@ -12,7 +12,6 @@ from clipflow.domain.models import JobState, Service
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.infrastructure.auth_process.sessions import AUTH_MODES
 from clipflow.ui.i18n import CATALOG, Translator
-from tests.ui.test_workbench import make_window
 
 SOURCE = Path(__file__).resolve().parents[2] / 'src' / 'clipflow'
 REMOVED = (

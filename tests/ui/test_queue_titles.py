@@ -6,7 +6,7 @@ from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobSta
 from clipflow.domain.urls import parse_url
 from clipflow.infrastructure.repository import SqliteJobRepository
 from clipflow.providers.base import MediaFailure
-from tests.ui.test_workbench import HeldProvider, make_window
+from tests.support.workbench import HeldProvider
 
 
 class Naming(HeldProvider):

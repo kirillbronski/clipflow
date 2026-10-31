@@ -8,40 +8,8 @@ from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QMenu
 
 from clipflow.domain.models import Service
-from tests.ui.test_submission_dialogs import batch
-from tests.ui.test_workbench import make_window
-
-
-@pytest.fixture
-def clipboard(qapp):
-    clipboard = qapp.clipboard()
-    original = QMimeData()
-    current = clipboard.mimeData()
-    if current:
-        for fmt in current.formats():
-            original.setData(fmt, current.data(fmt))
-    yield clipboard
-    if original.formats():
-        clipboard.setMimeData(original)
-    else:
-        clipboard.clear()  # Restore an empty clipboard, not an owned empty MIME object.
-
-
-def paste_shortcut(qtbot, widget):
-    widget.setFocus()
-    qtbot.keySequence(widget, QKeySequence(QKeySequence.StandardKey.Paste))
-
-
-def context_paste(qtbot, widget):
-    point = QPoint(10, 10)
-    QApplication.sendEvent(
-        widget, QContextMenuEvent(QContextMenuEvent.Reason.Mouse, point, widget.mapToGlobal(point))
-    )
-    menu = QApplication.activePopupWidget()
-    assert isinstance(menu, QMenu)
-    action = next(action for action in menu.actions() if action.data() == 'paste')
-    assert action.isEnabled()
-    qtbot.mouseClick(menu, Qt.MouseButton.LeftButton, pos=menu.actionGeometry(action).center())
+from tests.support.clipboard import context_paste, paste_shortcut
+from tests.support.workbench import batch
 
 
 @pytest.mark.parametrize('method', ['shortcut', 'button', 'context'])

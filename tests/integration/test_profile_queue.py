@@ -7,7 +7,7 @@ from clipflow.domain.events import RequestsDiscovered
 from clipflow.providers.base import MediaFailure
 from clipflow.providers.instagram_profile import InstagramProfileProvider, ProfilePage
 from tests.instagram_fixtures import context
-from tests.unit.test_profile_discovery import Source, codes, post, req
+from tests.support.profiles import Source, codes, post, req
 
 
 def test_429_second_page_keeps_discovered_jobs_but_not_success(tmp_path):

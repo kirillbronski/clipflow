@@ -98,3 +98,25 @@ def test_checker_sees_relative_and_package_imports():
         'clipflow.domain -> clipflow.ui',
         'clipflow.domain -> clipflow',
     ]
+
+
+TESTS = Path(__file__).resolve().parents[1]
+
+
+def test_test_modules_do_not_import_each_other():
+    """Shared fixtures live in conftest.py and helpers in tests/support, never in test files."""
+    found = []
+    for path in sorted(TESTS.rglob('test_*.py')):
+        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            elif isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            else:
+                continue
+            found += [
+                f'{path.relative_to(TESTS)} -> {name}'
+                for name in names
+                if name.startswith('tests.') and name.split('.')[-1].startswith('test_')
+            ]
+    assert found == []

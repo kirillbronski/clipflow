@@ -27,68 +27,7 @@ from clipflow.ui.presenter import WorkbenchPresenter
 from clipflow.ui.queue_model import JobListModel
 from clipflow.ui.window import MainWindow
 from tests.instagram_fixtures import Auth
-from tests.integration.test_media_pipeline import (
-    media_server,
-    tools,
-)  # real local HTTP/FFmpeg fixtures
-
-
-class HeldProvider:
-    def __init__(self):
-        self.started = Event()
-        self.released = Event()
-        self.torn_down = Event()
-        self.thread = None
-
-    def execute(self, request, context):
-        self.thread = get_ident()
-        self.started.set()
-        try:
-            context.emit(TitleChanged('Настоящее название'))
-            context.emit(StageChanged(JobState.DOWNLOADING))
-            context.emit(ProgressChanged(25, 100))
-            while not self.released.is_set():
-                if context.cancel.wait(0.005):
-                    context.cancel.raise_if_cancelled()
-            return DownloadResult(())
-        finally:
-            self.torn_down.set()
-
-
-@pytest.fixture
-def make_window(qtbot, tmp_path):
-    windows = []
-
-    def make(provider=None, repository=None, settings=None):
-        provider = provider or HeldProvider()
-        repository = repository or SqliteJobRepository(tmp_path / f'queue-{len(windows)}.sqlite3')
-        presets = {s: DownloadOptions(tmp_path / 'downloads') for s in Service}
-        settings = settings or AppSettings(presets=presets)
-        executor = ThreadExecutor({(Service.YOUTUBE, ContentKind.VIDEO): provider}, Auth())
-        scheduler = Scheduler(repository, executor)
-        presenter = WorkbenchPresenter(
-            SubmissionService(repository), scheduler, settings, repository
-        )
-        # This fixture owns teardown: pytest-qt deletes registered widgets even
-        # when closeEvent correctly waits for an asynchronous worker.
-        window = MainWindow(presenter)
-        window.show()
-        windows.append(window)
-        return window, provider
-
-    yield make
-    for window in windows:
-        window.presenter.shutdown()
-        qtbot.waitUntil(lambda w=window: w.presenter.is_closed, timeout=5000)
-        window.close()
-        window.deleteLater()
-
-
-def add(window, qtbot, url='https://youtu.be/ABC'):
-    window.url_input.setText(url)
-    qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
-    qtbot.waitUntil(lambda: window.presenter.model.rowCount() > 0)
-    return window.presenter.model.jobs[0].id
+from tests.support.workbench import HeldProvider, add
 
 
 def test_real_url_command_creates_model_row(make_window, qtbot):
@@ -151,7 +90,7 @@ def test_local_media_download_reaches_real_completed_file(
     saved = window.presenter.repository.get(identity).result_files
     assert len(saved) == 1 and saved[0].is_file() and saved[0].stat().st_size > 0
     assert titles == ['Local video']
-    from tests.integration.test_media_pipeline import probe
+    from tests.support.media import probe
 
     assert 'mp4' in probe(saved[0], tools)['format']['format_name']
     path = window.presenter.repository.path

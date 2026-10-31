@@ -15,7 +15,6 @@ from clipflow.infrastructure.repository import SqliteJobRepository
 from clipflow.ui.i18n import Translator
 from clipflow.ui.job_status import error_text, error_tooltip, meta_text
 from clipflow.ui.queue_model import JobListModel
-from tests.ui.test_workbench import make_window
 
 SOURCE = Path(__file__).resolve().parents[2] / 'src' / 'clipflow'
 NETWORK_RU = 'Не удалось скачать. Проверьте интернет и повторите.'

@@ -10,7 +10,7 @@ from clipflow.application.instagram_rate_policy import InstagramDeferred
 from clipflow.domain.events import RateLimitDeferred
 from clipflow.providers.access import open_downloader
 from tests.instagram_fixtures import context
-from tests.unit.test_instagram_rate_policy import policy
+from tests.support.rate import policy
 
 
 @pytest.fixture
@@ -141,7 +141,7 @@ def test_instaloader_source_merges_and_marks_exhaustion(tmp_path, monkeypatch):
     import instaloader
 
     from clipflow.providers.instagram_profile import InstagramProfileProvider, InstaloaderPageSource
-    from tests.unit.test_profile_discovery import codes, post, req
+    from tests.support.profiles import codes, post, req
 
     gate, clock, token = policy(tmp_path)
     ctx, events, _ = context()
@@ -207,7 +207,7 @@ def test_profile_cookie_domains_remain_in_memory(tmp_path, monkeypatch):
     import instaloader
 
     from clipflow.providers.instagram_profile import InstaloaderPageSource
-    from tests.unit.test_profile_discovery import req
+    from tests.support.profiles import req
 
     jar = CookieJar()
     jar.set_cookie(

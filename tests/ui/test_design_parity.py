@@ -9,7 +9,7 @@ from PySide6.QtGui import QColor
 from clipflow.domain.events import ProgressChanged
 from clipflow.domain.models import DownloadRequest, Job, JobState, Service
 from clipflow.domain.urls import parse_url
-from tests.ui.test_workbench import add, make_window
+from tests.support.workbench import add
 
 
 def test_collapsed_composer_leaves_queue_space_and_discloses_folder(make_window, qtbot):

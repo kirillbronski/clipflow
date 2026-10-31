@@ -4,8 +4,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox
 
-from tests.ui.test_submission_dialogs import batch
-from tests.ui.test_workbench import add, make_window
+from tests.support.workbench import add, batch
 
 TEXTS = {
     'ru': {

@@ -18,20 +18,11 @@ from clipflow.domain.urls import parse_url, request_key
 from clipflow.providers.base import ExecutionContext, MediaFailure
 from clipflow.providers.media import MediaPipeline
 from clipflow.providers.youtube import YouTubeProvider
-
-
-class Auth:
-    def options_for(self, profile, url):
-        return {'http_headers': {'X-Test-Session': 'synthetic-secret'}}
+from tests.support.youtube import context, extract_fixture, playlist
 
 
 def request(folder, url='https://youtu.be/video_A', **options):
     return DownloadRequest(parse_url(url), DownloadOptions(folder, **options))
-
-
-def context():
-    events = []
-    return ExecutionContext(CancellationToken(), events.append, Auth()), events
 
 
 def video(identity='video_A'):
@@ -64,50 +55,6 @@ def video(identity='video_A'):
                 'vcodec': 'none',
                 'acodec': 'aac',
                 'abr': 128,
-            },
-        ],
-    }
-
-
-def extract_fixture(monkeypatch, info):
-    def extract(self, url, download=False):
-        assert download is False
-        return copy.deepcopy(info)
-
-    monkeypatch.setattr(YoutubeDL, 'extract_info', extract)
-
-
-def playlist():
-    return {
-        '_type': 'playlist',
-        'id': 'PL_music',
-        'title': 'Музыка',
-        'entries': [
-            {
-                '_type': 'url',
-                'ie_key': 'Youtube',
-                'id': 'video_A',
-                'url': 'https://www.youtube.com/watch?v=video_A',
-                'title': 'Первый',
-                'playlist_index': 1,
-            },
-            None,
-            {
-                '_type': 'url',
-                'ie_key': 'Youtube',
-                'id': 'private_B',
-                'url': 'https://www.youtube.com/watch?v=private_B',
-                'title': '[Private video]',
-                'availability': 'private',
-                'playlist_index': 3,
-            },
-            {
-                '_type': 'url',
-                'ie_key': 'Youtube',
-                'id': 'video_C',
-                'url': 'https://www.youtube.com/watch?v=video_C',
-                'title': 'Последний',
-                'playlist_index': 4,
             },
         ],
     }

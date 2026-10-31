@@ -4,9 +4,8 @@ from PySide6.QtCore import Qt, QTimer
 from clipflow.domain.models import Service
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.ui.accounts import AccountsPage
-from tests.platform.test_auth_compatibility import Process, seed
-from tests.platform.test_qt_clipboard import clipboard, context_paste, paste_shortcut
-from tests.ui.test_workbench import make_window
+from tests.support.auth import Process, seed
+from tests.support.clipboard import context_paste, paste_shortcut
 
 
 def test_accounts_use_saved_sessions_without_showing_sign_in(make_window, qtbot, tmp_path):

@@ -7,7 +7,6 @@ from PySide6.QtWidgets import QMessageBox
 
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
 from clipflow.domain.urls import parse_url
-from tests.ui.test_workbench import make_window
 
 
 def completed(window, tmp_path, identity='done', files=None):

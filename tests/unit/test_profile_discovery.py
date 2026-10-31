@@ -7,33 +7,7 @@ from clipflow.domain.events import RequestsDiscovered, WorkCancelled
 from clipflow.providers.base import MediaFailure
 from clipflow.providers.instagram_profile import InstagramProfileProvider, PostRef, ProfilePage
 from tests.instagram_fixtures import context, request
-
-
-class Source:
-    def __init__(self, pages):
-        self.values = pages
-        self.calls = 0
-
-    def pages(self, request, context):
-        self.calls += 1
-        for page in self.values:
-            if isinstance(page, Exception):
-                raise page
-            yield page
-
-
-def post(i):
-    return PostRef(f'C{i}', datetime(2026, 1, 1, tzinfo=UTC) + timedelta(days=i), 'alice')
-
-
-def req(path, limit=None):
-    return replace(request(path, 'https://instagram.com/alice/'), profile_limit=limit)
-
-
-def codes(events):
-    return [
-        r.link.canonical_id for e in events if isinstance(e, RequestsDiscovered) for r in e.requests
-    ]
+from tests.support.profiles import Source, codes, post, req
 
 
 def test_latest_10_with_old_pinned_posts(tmp_path):
@@ -101,7 +75,7 @@ def test_cancellation_interrupts_backoff(tmp_path):
 
 def test_expired_checkpoint_reenumerates_and_never_reuses_old_completeness(tmp_path):
     from clipflow.domain.urls import request_key
-    from tests.unit.test_instagram_rate_policy import policy
+    from tests.support.rate import policy
 
     gate, _, _ = policy(tmp_path)
     ctx, events, _ = context()

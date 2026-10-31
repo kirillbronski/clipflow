@@ -190,7 +190,7 @@ def test_no_credentials_or_signed_cdn_urls_persisted(tmp_path):
         assert recovered.request.options.auth_profile == 'school-main'
         assert 'SIGNED_SECRET' not in repr(recovered)
         from clipflow.application.scheduler import Scheduler
-        from tests.unit.test_scheduler import ControlledExecutor
+        from tests.support.scheduler import ControlledExecutor
 
         worker = ControlledExecutor()
         scheduler = Scheduler(repo, worker)
@@ -227,7 +227,7 @@ def test_cooldown_and_manual_pause_survive_recovery_without_auto_retry(tmp_path)
 
 def test_secret_source_cannot_run_before_recover_or_be_replaced_by_another_video(tmp_path):
     from clipflow.application.scheduler import Scheduler
-    from tests.unit.test_scheduler import ControlledExecutor
+    from tests.support.scheduler import ControlledExecutor
 
     path = tmp_path / 'queue.sqlite3'
     repo = SqliteJobRepository(path)
@@ -322,7 +322,7 @@ def test_secret_source_dedup_survives_restart(tmp_path):
 )
 def test_source_required_blocks_other_start_commands(tmp_path, state, reason, command):
     from clipflow.application.scheduler import Scheduler
-    from tests.unit.test_scheduler import ControlledExecutor
+    from tests.support.scheduler import ControlledExecutor
 
     path = tmp_path / 'queue.sqlite3'
     repo = SqliteJobRepository(path)
