@@ -16,6 +16,8 @@ _ITEM = re.compile(r'instagram_item_failed:(\d{1,3}):([a-z_]+)')
 
 
 def _reason(code: str | None, service: Service, translator: Translator) -> str:
+    if not code:
+        return translator.text('job_error.unknown')  # nothing to report: no code to ask for
     if code in AUTH_SETTINGS_CODES:
         return translator.text('error.' + code)
     return translator.text('job_error.' + failure_group(code), service=SOURCE_NAMES[service])

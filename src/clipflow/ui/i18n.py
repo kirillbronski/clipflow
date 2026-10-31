@@ -405,6 +405,7 @@ MESSAGES.update(
             'Internal ClipFlow error. Try again; if it persists, report the code.',
         ),
         'job_error.item': ('Элемент {number} не скачан: ', 'Item {number} failed: '),
+        'job_error.unknown': ('Загрузка не удалась. Повторите.', 'Download failed. Try again.'),
         'job_error.code': ('Код: {code}', 'Code: {code}'),
         'meta.mp3_quality': ('320 кбит/с', '320 kbps'),
         'meta.photos_videos': ('Фото и видео', 'Photos and videos'),

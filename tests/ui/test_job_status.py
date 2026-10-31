@@ -70,7 +70,7 @@ def test_signin_names_the_service(ru):
     ('code', 'russian', 'english'),
     [
         (
-            'getcourse_auth_failed',
+            'auth_required',
             'Нужен вход в YouTube. Откройте «Аккаунты».',
             'Sign-in to YouTube is required. Open Accounts.',
         ),
@@ -127,10 +127,29 @@ def test_carousel_item_prefix(ru, en):
     )
 
 
+def test_getcourse_signin_names_getcourse(ru, en):
+    assert (
+        error_text('getcourse_auth_failed', Service.GETCOURSE, ru)
+        == 'Нужен вход в GetCourse. Откройте «Аккаунты».'
+    )
+    assert (
+        error_text('getcourse_auth_failed', Service.GETCOURSE, en)
+        == 'Sign-in to GetCourse is required. Open Accounts.'
+    )
+
+
+@pytest.mark.parametrize('code', [None, ''])
+def test_missing_code_has_its_own_text(ru, en, code):
+    """Without a code there is nothing to report, so the text does not ask for one."""
+    assert error_text(code, Service.INSTAGRAM, ru) == 'Загрузка не удалась. Повторите.'
+    assert error_text(code, Service.INSTAGRAM, en) == 'Download failed. Try again.'
+    assert error_tooltip(code, Service.YOUTUBE, ru) == 'Загрузка не удалась. Повторите.'
+
+
 @pytest.mark.parametrize(
-    'code', [None, '', 'something_new', 'instagram_item_failed:abc:x', 'instagram_item_failed']
+    'code', ['something_new', 'instagram_item_failed:abc:x', 'instagram_item_failed']
 )
-def test_unknown_missing_or_malformed_codes_fall_back_to_internal(ru, code):
+def test_unknown_or_malformed_codes_fall_back_to_internal(ru, code):
     assert error_text(code, Service.INSTAGRAM, ru) == INTERNAL_RU
 
 
@@ -139,7 +158,6 @@ def test_tooltip_appends_code(ru, en):
         'Не найден FFmpeg. Переустановите ClipFlow.\nКод: tool_missing'
     )
     assert error_tooltip('tool_missing', Service.YOUTUBE, en).endswith('\nCode: tool_missing')
-    assert error_tooltip(None, Service.YOUTUBE, ru) == INTERNAL_RU
 
 
 def job(url, **options):
