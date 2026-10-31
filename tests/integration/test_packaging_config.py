@@ -102,7 +102,7 @@ def test_coverage_threshold_gate_fails_below_each_limit():
         }
 
     assert gate.evaluate(report())['passed']
-    for data in (report(core_lines=94), report(core_branches=89), report(runtime_lines=69)):
+    for data in (report(core_lines=94), report(core_branches=89), report(runtime_lines=79)):
         assert not gate.evaluate(data)['passed']
     assert not gate.evaluate({'files': {}})['passed']
 

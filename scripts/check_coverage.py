@@ -40,7 +40,7 @@ def evaluate(report):
     limits = {
         'core_lines': (ratio(core, 'covered_lines', 'num_statements'), 0.95),
         'core_branches': (ratio(core, 'covered_branches', 'num_branches'), 0.90),
-        'runtime_lines': (ratio(total, 'covered_lines', 'num_statements'), 0.85),
+        'runtime_lines': (ratio(total, 'covered_lines', 'num_statements'), 0.90),
     }
     return {
         'passed': all(value >= minimum for value, minimum in limits.values()),
