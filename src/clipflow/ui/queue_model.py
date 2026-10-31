@@ -90,6 +90,9 @@ class JobListModel(QAbstractListModel):
     def members(self, group_id):
         return tuple(self.jobs[self._rows[i]] for i in self._members.get(group_id, ()))
 
+    def group_of(self, job_id):
+        return self._top.get(job_id)
+
     def is_group_row(self, row):
         return self.jobs[row].id in self._groups
 
@@ -162,6 +165,7 @@ class QueueFilter(QSortFilterProxyModel):
         self.service = None
         self.history = False
         self.status = 'all'
+        self.group_id = None
         self.setSourceModel(model)
 
     def show_status(self, status):
@@ -177,11 +181,31 @@ class QueueFilter(QSortFilterProxyModel):
         self.history = history
         self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
 
+    def show_group(self, group_id=None):
+        """None lists top-level rows (a group is one row); an id lists that group's members."""
+        self.beginFilterChange()
+        self.group_id = group_id
+        self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
+
     def filterAcceptsRow(self, row, parent):
         model = self.sourceModel()
-        job = model.data(model.index(row, 0, parent), model.JobRole)
+        job = model.jobs[row]
+        if self.group_id is not None:
+            return model.group_of(job.id) == self.group_id and self._matches(job)
+        if job.parent_id is not None:
+            return False
+        members = model.members(job.id) if model.is_group_row(row) else ()
+        if not members:
+            return self._matches(job)
+        # A group shows under a tab when any of its members would.
+        return self._service_matches(job) and any(self._matches(m) for m in members)
+
+    def _service_matches(self, job):
+        return self.service is None or job.request.link.service.value == self.service
+
+    def _matches(self, job):
         return (
-            (self.service is None or job.request.link.service.value == self.service)
+            self._service_matches(job)
             and (not self.history or job.state in TERMINAL_STATES)
             and (
                 self.status == 'all'

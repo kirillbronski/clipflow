@@ -5,7 +5,7 @@ from pathlib import Path
 from clipflow.domain.events import ProgressChanged
 from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState
 from clipflow.domain.urls import parse_url
-from clipflow.ui.queue_model import JobListModel
+from clipflow.ui.queue_model import JobListModel, QueueFilter
 
 PLAYLIST = 'https://www.youtube.com/playlist?list=PLgroup'
 
@@ -59,3 +59,52 @@ def test_missing_files_count_as_nothing(qapp, tmp_path):
     (tmp_path / 'a.mp4').unlink()
     model = JobListModel(jobs)
     assert model.index(0).data(JobListModel.GroupRole).size_bytes == 0
+
+
+def big_playlist(done=70, failed=2, queued=4):
+    states = [JobState.COMPLETED] * done + [JobState.FAILED] * failed + [JobState.QUEUED] * queued
+    members = [job(f'c{n:02d}', 'p', state) for n, state in enumerate(states)]
+    return [job('p', url=PLAYLIST, state=JobState.COMPLETED), *members, job('single')]
+
+
+def test_a_playlist_of_76_is_one_row(qapp):
+    proxy = QueueFilter(JobListModel(big_playlist()))
+    assert proxy.rowCount() == 2
+    assert proxy.group_id is None
+
+
+def test_group_screen_lists_only_its_members(qapp):
+    proxy = QueueFilter(JobListModel(big_playlist()))
+    proxy.show_group('p')
+    assert proxy.rowCount() == 76
+    rows = [proxy.index(n, 0).data(JobListModel.JobRole) for n in range(76)]
+    assert {r.parent_id for r in rows} == {'p'}
+    proxy.show_group(None)
+    assert proxy.rowCount() == 2
+
+
+def test_status_tabs_follow_group_content(qapp):
+    proxy = QueueFilter(JobListModel(big_playlist()))
+    ids = lambda: [proxy.index(n, 0).data(JobListModel.JobIdRole) for n in range(proxy.rowCount())]  # noqa: E731
+    for status in ('active', 'completed', 'failed'):
+        proxy.show_status(status)
+        assert 'p' in ids()
+    proxy.show_status('failed')
+    assert 'single' not in ids()
+    proxy.show_group('p')
+    assert proxy.rowCount() == 2
+    proxy.show_status('completed')
+    assert proxy.rowCount() == 70
+
+
+def test_group_without_members_filters_by_its_parent(qapp):
+    proxy = QueueFilter(JobListModel([job('p', url=PLAYLIST, state=JobState.FAILED)]))
+    for status, visible in (('all', 1), ('failed', 1), ('active', 0), ('completed', 0)):
+        proxy.show_status(status)
+        assert proxy.rowCount() == visible
+
+
+def test_history_shows_a_group_with_finished_members(qapp):
+    proxy = QueueFilter(JobListModel(big_playlist(done=1, failed=0, queued=3)))
+    proxy.show_source(history=True)
+    assert [proxy.index(0, 0).data(JobListModel.JobIdRole)] == ['p']
