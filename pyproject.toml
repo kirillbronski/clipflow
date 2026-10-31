@@ -27,6 +27,9 @@ markers = ["native_gui: requires an explicitly enabled real Windows/Cocoa GUI se
 [tool.coverage.run]
 branch = true
 source = ["clipflow"]
+# Tests start the app, the sign-in window and the package self-test as child processes.
+parallel = true
+patch = ["subprocess"]
 
 [tool.coverage.report]
 show_missing = true

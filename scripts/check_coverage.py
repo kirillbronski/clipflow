@@ -53,6 +53,22 @@ def evaluate(report):
     }
 
 
+def combine_data(root):
+    """Merge the data files of the test run and of the processes it started into one."""
+    from coverage import Coverage
+
+    if not list(root.glob('.coverage.*')):
+        return
+    config = root / 'pyproject.toml'
+    coverage = Coverage(
+        data_file=str(root / '.coverage'),
+        config_file=str(config) if config.exists() else False,
+    )
+    coverage.load()
+    coverage.combine(data_paths=[str(root)])
+    coverage.save()
+
+
 def run():
     from coverage import Coverage
 
@@ -73,6 +89,7 @@ def run():
         )
     if result.returncode:
         return result.returncode
+    combine_data(ROOT)
     coverage = Coverage(config_file=str(ROOT / 'pyproject.toml'))
     coverage.load()
     coverage.json_report(

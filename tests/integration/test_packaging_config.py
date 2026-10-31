@@ -105,6 +105,24 @@ def test_coverage_threshold_gate_fails_below_each_limit():
     assert not gate.evaluate({'files': {}})['passed']
 
 
+def test_coverage_combines_child_process_data(tmp_path):
+    from coverage import CoverageData
+
+    gate = module('check_coverage', ROOT / 'scripts/check_coverage.py')
+    source = str(tmp_path / 'work.py')
+    for suffix, lines in (('a', [1, 2]), ('b', [5])):
+        data = CoverageData(basename=str(tmp_path / '.coverage'), suffix=suffix)
+        data.add_lines({source: lines})
+        data.write()
+
+    gate.combine_data(tmp_path)
+
+    combined = CoverageData(basename=str(tmp_path / '.coverage'))
+    combined.read()
+    assert sorted(combined.lines(source)) == [1, 2, 5]
+    assert not list(tmp_path.glob('.coverage.*'))
+
+
 def test_windows_build_path_excludes_foreign_dlls(tmp_path):
     cfg = configuration()
     foreign = tmp_path / 'poppler/bin'
