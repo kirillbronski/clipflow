@@ -36,7 +36,7 @@ class Composer(QFrame):
     service_changed = Signal(object)
     layout_changed = Signal()
 
-    def __init__(self, settings, parent=None, *, translator=None):  # noqa: C901  # подпроект 3
+    def __init__(self, settings, parent=None, *, translator=None):
         super().__init__(parent)
         self.setObjectName('composer')
         self.tr = translator or Translator(settings.language, self)
@@ -59,6 +59,21 @@ class Composer(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
+        self._build_top(layout)
+        self._build_profile_row(layout)
+        self._build_entry(layout)
+        self._build_parameters(layout, settings.auto_start)
+        self._connect_inputs()
+        self._load(settings)
+        self._loading = False
+        self.tr.changed.connect(self.retranslate)
+        for box in (self.format_box, self.quality_box, self.filter_box):
+            box.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+            )
+            box.setMinimumContentsLength(8)
+
+    def _build_top(self, layout):
         top = QHBoxLayout()
         self.download_label = self.tr.widget(QLabel, 'download_label')
         top.addWidget(self.download_label)
@@ -80,6 +95,8 @@ class Composer(QFrame):
             button.clicked.connect(lambda checked=False, m=mode: self._set_mode(m))
         top.addLayout(modes)
         layout.addLayout(top)
+
+    def _build_profile_row(self, layout):
         self.profile_row = QWidget()
         self.profile_row.setObjectName('composerSection')
         profile = QHBoxLayout(self.profile_row)
@@ -95,6 +112,8 @@ class Composer(QFrame):
         profile.addWidget(self.limit_box)
         profile.addStretch()
         layout.addWidget(self.profile_row)
+
+    def _build_entry(self, layout):
         entry = QGridLayout()
         self._entry = entry
         self.paste_button = self.tr.widget(QPushButton, 'paste')
@@ -118,6 +137,8 @@ class Composer(QFrame):
         self.hint.setObjectName('muted')
         self.hint.setWordWrap(True)
         layout.addWidget(self.hint)
+
+    def _build_parameters(self, layout, auto_start):
         disclosure = QHBoxLayout()
         self.parameters_button = QToolButton()
         self.parameters_button.setText(self.tr.text('download_options'))
@@ -218,9 +239,11 @@ class Composer(QFrame):
         self.profile_note.setWordWrap(True)
         bottom.addWidget(self.profile_note, 1)
         self.auto_start = self.tr.widget(QCheckBox, 'auto_start')
-        self.auto_start.setChecked(settings.auto_start)
+        self.auto_start.setChecked(auto_start)
         bottom.addWidget(self.auto_start)
         params.addLayout(bottom)
+
+    def _connect_inputs(self):
         self.parameters_button.toggled.connect(self._expand)
         self.service_box.currentIndexChanged.connect(
             lambda: self.set_service(Service(self.service_box.currentData()))
@@ -239,14 +262,6 @@ class Composer(QFrame):
         for box in (self.author_folder, self.post_folder, self.description, self.numbering):
             box.toggled.connect(self._options_changed)
         self.limit_box.currentIndexChanged.connect(self._options_changed)
-        self._load(settings)
-        self._loading = False
-        self.tr.changed.connect(self.retranslate)
-        for box in (self.format_box, self.quality_box, self.filter_box):
-            box.setSizeAdjustPolicy(
-                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-            )
-            box.setMinimumContentsLength(8)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
