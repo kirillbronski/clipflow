@@ -1,6 +1,5 @@
 """Owner-thread commands bridge submission/scheduler/storage to Qt views."""
 
-import contextlib
 from dataclasses import replace
 from pathlib import Path
 
@@ -17,6 +16,7 @@ from clipflow.domain.models import JobState
 from clipflow.domain.urls import parse_url
 from clipflow.ui.presenter_accounts import AccountsController
 from clipflow.ui.presenter_clearing import ClearingController
+from clipflow.ui.presenter_titles import TitleNamer
 from clipflow.ui.queue_model import JobListModel
 
 _UNSET = object()
@@ -63,10 +63,7 @@ class WorkbenchPresenter(QObject):
         self._timer.start()
         # Background naming: one metadata lookup at a time, paced to stay polite to the site.
         self.title_interval_ms = 1000
-        self._titled = set()
-        self._title_timer = QTimer(self)
-        self._title_timer.setSingleShot(True)
-        self._title_timer.timeout.connect(self._name_next)
+        self._titles = TitleNamer(self)
 
     def _command(self, action):
         if self._closing:
@@ -349,30 +346,7 @@ class WorkbenchPresenter(QObject):
         if not self._closing:
             self._command(self._flush_clear)
             self._command(self.scheduler.tick)
-            if not self._title_timer.isActive() and not self.executor.naming:
-                self._title_timer.start(self.title_interval_ms)
-
-    @Slot()
-    def _name_next(self):
-        if self._closing or self.executor.naming:
-            return
-        for job in self.repository.list():
-            if (
-                job.title is None
-                and job.id not in self._titled
-                and job.state in {JobState.QUEUED, JobState.PAUSED}
-                and self.executor.can_name(job)
-            ):
-                self._titled.add(job.id)  # one attempt per session; a failure keeps the label
-                if self.executor.request_title(job, self._title_ready):
-                    return
-
-    def _title_ready(self, identity, title):
-        if title and not self._closing:
-            with contextlib.suppress(KeyError):
-                self._command(lambda: self.scheduler.set_title(identity, title))
-        if not self._closing:
-            self._title_timer.start(self.title_interval_ms)
+            self._titles.schedule()
 
     @Slot(str)
     def _executor_error(self, code):
@@ -386,7 +360,7 @@ class WorkbenchPresenter(QObject):
         self._closing = True
         self._timer.stop()
         self._accounts.stop()
-        self._title_timer.stop()
+        self._titles.stop()
         if self.auth_gateway is not None:
             self.auth_gateway.close()
         try:
