@@ -53,6 +53,11 @@ def evaluate(report):
     }
 
 
+def foreign_system(system=sys.platform):
+    """The desktop OS whose code (marked `# pragma: only <os>`) cannot run on this one."""
+    return 'macos' if system == 'win32' else 'windows'
+
+
 def combine_data(root):
     """Merge the data files of the test run and of the processes it started into one."""
     from coverage import Coverage
@@ -90,6 +95,7 @@ def run():
     if result.returncode:
         return result.returncode
     combine_data(ROOT)
+    os.environ.setdefault('CLIPFLOW_FOREIGN_OS', foreign_system())
     coverage = Coverage(config_file=str(ROOT / 'pyproject.toml'))
     coverage.load()
     coverage.json_report(

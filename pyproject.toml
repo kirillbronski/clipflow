@@ -33,6 +33,8 @@ patch = ["subprocess"]
 
 [tool.coverage.report]
 show_missing = true
+# Code for the other desktop OS (DPAPI on macOS, Keychain on Windows) cannot run here.
+exclude_also = ["# pragma: only ${CLIPFLOW_FOREIGN_OS-none}\\b"]
 skip_empty = true
 
 [tool.ruff]

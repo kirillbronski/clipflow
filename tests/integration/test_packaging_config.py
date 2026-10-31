@@ -6,6 +6,8 @@ import runpy
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -121,6 +123,19 @@ def test_coverage_combines_child_process_data(tmp_path):
     combined.read()
     assert sorted(combined.lines(source)) == [1, 2, 5]
     assert not list(tmp_path.glob('.coverage.*'))
+
+
+@pytest.mark.parametrize(('system', 'measured'), [('darwin', False), ('win32', True)])
+def test_coverage_leaves_out_code_only_the_other_os_runs(tmp_path, monkeypatch, system, measured):
+    from coverage import Coverage
+
+    gate = module('check_coverage', ROOT / 'scripts/check_coverage.py')
+    monkeypatch.setenv('CLIPFLOW_FOREIGN_OS', gate.foreign_system(system))
+    source = tmp_path / 'native.py'
+    source.write_text('def seal():  # pragma: only windows\n    return 1\n', encoding='utf-8')
+    coverage = Coverage(config_file=str(ROOT / 'pyproject.toml'), data_file=str(tmp_path / 'data'))
+    statements = coverage.analysis2(str(source))[1]
+    assert bool(statements) is measured
 
 
 def test_windows_build_path_excludes_foreign_dlls(tmp_path):

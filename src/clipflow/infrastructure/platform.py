@@ -68,7 +68,7 @@ class PlatformServices:
         return Path(result).resolve() if result else None
 
 
-def _protect_windows(data, decrypt=False):
+def _protect_windows(data, decrypt=False):  # pragma: only windows
     import ctypes
     from ctypes import wintypes
 
