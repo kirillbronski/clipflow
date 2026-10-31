@@ -228,7 +228,7 @@ class Recorder(QPainter):
         super().__init__(device)
         self.drawn = []
 
-    def drawText(self, *args):  # noqa: N802 - overrides the Qt method
+    def drawText(self, *args):
         self.drawn.append((args[-1], self.pen().color().name()))
         super().drawText(*args)
 

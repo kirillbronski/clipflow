@@ -41,7 +41,7 @@ extend-include = ["packaging/*/*.spec"]
 quote-style = "single"
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "UP", "SIM", "C90", "BLE"]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C90", "BLE", "PT", "RUF005", "RUF012", "RUF059", "RUF100"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
