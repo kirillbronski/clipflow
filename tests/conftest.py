@@ -23,7 +23,13 @@ from clipflow.infrastructure.settings import AppSettings
 from clipflow.ui.presenter import WorkbenchPresenter
 from clipflow.ui.window import MainWindow
 from tests.instagram_fixtures import Auth
+from tests.support.keychain import forget_test_keys
 from tests.support.workbench import HeldProvider
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Sealed test sessions created Keychain keys on macOS; leave none behind."""
+    forget_test_keys()
 
 
 @pytest.fixture(autouse=True)
