@@ -203,7 +203,7 @@ class GetCourseProvider:
         self.pipeline = pipeline
 
     @contextmanager
-    def _session(self, request, context):  # noqa: C901  # подпроект 3
+    def _session(self, request, context):
         context.cancel.raise_if_cancelled()
         if request.link.service != Service.GETCOURSE or request.link.kind not in {
             ContentKind.LESSON,
@@ -214,20 +214,7 @@ class GetCourseProvider:
             access = dict(
                 context.auth.options_for(request.options.auth_profile, request.link.canonical_url)
             )
-            options = dict(
-                access,
-                quiet=True,
-                no_warnings=True,
-                logger=_QuietLogger(),
-                skip_download=True,
-                socket_timeout=30,
-                retries=3,
-            )
-            if self.pipeline.node:
-                options['js_runtimes'] = {'node': {'path': self.pipeline.node}}
-            if self.pipeline.ffmpeg:
-                options['ffmpeg_location'] = self.pipeline.ffmpeg
-            with open_downloader(options, context=context) as ydl:
+            with open_downloader(self._downloader_options(access), context=context) as ydl:
                 ydl.add_info_extractor(LessonExtractor())
                 ydl.add_info_extractor(PlayerExtractor())
                 yield ydl, access
@@ -235,24 +222,23 @@ class GetCourseProvider:
             raise
         except Exception as error:  # noqa: BLE001  # подпроект 3
             context.cancel.raise_if_cancelled()
-            seen = set()
-            pending = [error]
-            while pending:
-                current = pending.pop()
-                if current is None or id(current) in seen:
-                    continue
-                seen.add(id(current))
-                if isinstance(current, SchoolAccessError):
-                    raise MediaFailure(current.code) from None
-                if isinstance(current, HTTPError) and current.status in {401, 403}:
-                    raise MediaFailure('getcourse_access_denied') from None
-                if isinstance(current, (LoadError, CookieLoadError, FileNotFoundError)):
-                    raise MediaFailure('getcourse_auth_failed') from None
-                nested = getattr(current, 'exc_info', None)
-                pending.extend(
-                    [nested[1] if nested else None, current.__cause__, current.__context__]
-                )
-            raise MediaFailure('getcourse_probe_failed') from None
+            raise MediaFailure(_failure_code(error)) from None
+
+    def _downloader_options(self, access):
+        options = dict(
+            access,
+            quiet=True,
+            no_warnings=True,
+            logger=_QuietLogger(),
+            skip_download=True,
+            socket_timeout=30,
+            retries=3,
+        )
+        if self.pipeline.node:
+            options['js_runtimes'] = {'node': {'path': self.pipeline.node}}
+        if self.pipeline.ffmpeg:
+            options['ffmpeg_location'] = self.pipeline.ffmpeg
+        return options
 
     def _inspect(self, ydl, request, context):
         context.emit(StageChanged(JobState.PROBING))
@@ -356,3 +342,23 @@ class GetCourseProvider:
             item = self._resolve(ydl, items[0], context)
             session_context = replace(context, auth=SessionAuth(access, ydl.cookiejar))
             return DownloadResult(self.pipeline.save(item, request, session_context))
+
+
+def _failure_code(error):
+    """The first recognisable cause anywhere in the error chain decides the code."""
+    seen = set()
+    pending = [error]
+    while pending:
+        current = pending.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, SchoolAccessError):
+            return current.code
+        if isinstance(current, HTTPError) and current.status in {401, 403}:
+            return 'getcourse_access_denied'
+        if isinstance(current, (LoadError, CookieLoadError, FileNotFoundError)):
+            return 'getcourse_auth_failed'
+        nested = getattr(current, 'exc_info', None)
+        pending.extend([nested[1] if nested else None, current.__cause__, current.__context__])
+    return 'getcourse_probe_failed'
