@@ -76,7 +76,7 @@ class InstagramProfileProvider:
             return DownloadResult((), count)
         except (WorkCancelled, MediaFailure):
             raise
-        except Exception:  # noqa: BLE001  # сторонняя библиотека: наружу только безопасный код, без секретов
+        except Exception:  # noqa: BLE001  # сторонняя библиотека и собственный конвейер: наружу только безопасный код
             raise MediaFailure('instagram_profile_failed') from None
 
     def _enumerate(self, request, context):

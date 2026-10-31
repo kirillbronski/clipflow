@@ -34,12 +34,22 @@ def test_catalogue_languages_have_same_keys():
     assert CATALOG['ru'].keys() == CATALOG['en'].keys()
 
 
+# Keys handed to tr.text/tr.bind through a table, e.g. ('cancel_queue', presenter.cancel_queue).
+TABLE_KEYS = re.compile(r"\(\s*'([a-z_][\w.]*)'\s*,")
+
+
 def test_removed_keys_are_gone_and_unreferenced():
     code = '\n'.join(text for path, text in sources().items() if path.name != 'i18n.py')
     for key in REMOVED:
         assert key not in CATALOG['ru'], key
-        for pattern in LITERAL_KEYS:
+        for pattern in (*LITERAL_KEYS, TABLE_KEYS):
             assert key not in pattern.findall(code), key
+
+
+def test_key_scan_sees_keys_in_tables():
+    menus = (SOURCE / 'ui' / 'window_menus.py').read_text(encoding='utf-8')
+    found = set(TABLE_KEYS.findall(menus)) & CATALOG['ru'].keys()
+    assert {'cancel_queue', 'clear_all', 'clear_queue', 'clear_history', 'undo'} <= found
 
 
 def test_every_referenced_key_exists():

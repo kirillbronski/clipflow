@@ -2,8 +2,10 @@
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QMessageBox
 
+from clipflow.ui.themes import PALETTES
 from tests.support.workbench import add, batch
 
 TEXTS = {
@@ -59,12 +61,41 @@ def test_buttons_use_icons_not_glyph_text(make_window):
     assert all(not set('▷↓+') & set(action.text()) for action in downloads_menu(window).actions())
 
 
+def glyph_colours(widget):
+    """Colours of the fully opaque pixels of a button's glyph icon."""
+    image = widget.icon().pixmap(32, 32).toImage()
+    return {
+        image.pixelColor(x, y).rgb()
+        for x in range(image.width())
+        for y in range(image.height())
+        if image.pixelColor(x, y).alpha() == 255
+    }
+
+
+def close_to(colours, token):
+    want = QColor(token)
+    return any(
+        max(
+            abs(QColor.fromRgb(c).red() - want.red()),
+            abs(QColor.fromRgb(c).green() - want.green()),
+            abs(QColor.fromRgb(c).blue() - want.blue()),
+        )
+        <= 8
+        for c in colours
+    )
+
+
 def test_icons_follow_theme(make_window):
+    """Glyphs are drawn in the theme's own colours and repainted when the theme changes."""
     window, _ = make_window()
-    before = {n: button(window, n).icon().cacheKey() for n in ('start_button', 'add_button')}
-    window.theme.set_mode('light' if window.theme.resolved_mode() == 'dark' else 'dark')
-    after = {n: button(window, n).icon().cacheKey() for n in ('start_button', 'add_button')}
-    assert all(before[n] != after[n] for n in before)
+    tokens = {'start_button': 'text', 'add_button': 'accent_text'}
+    for mode in ('dark', 'light'):
+        window.theme.set_mode(mode)
+        palette = window.theme.tokens()
+        for name, token in tokens.items():
+            assert close_to(glyph_colours(button(window, name)), palette[token]), (mode, name)
+    dark, light = (PALETTES['dark']['text'], PALETTES['light']['text'])
+    assert QColor(dark).rgb() != QColor(light).rgb()
 
 
 def test_batch_dialog_accept_text_has_no_icon(make_window, qtbot):
