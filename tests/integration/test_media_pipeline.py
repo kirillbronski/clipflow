@@ -534,3 +534,169 @@ def test_same_title_videos_publish_separate_media_and_captions(
     assert pipeline.save(first, req, ctx) == a
     assert a[0].is_file()
     assert b[0].is_file()
+
+
+def test_tool_that_ignores_stop_is_killed(context):
+    ctx, _ = context
+    stubborn = (
+        'import signal, time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(30)\n'
+    )
+    timer = Timer(0.5, lambda: ctx.cancel.cancel('cancel'))
+    timer.start()
+    start = time.monotonic()
+    try:
+        with pytest.raises(WorkCancelled):
+            MediaPipeline._run([sys.executable, '-c', stubborn], ctx)
+    finally:
+        timer.cancel()
+        timer.join()
+    assert time.monotonic() - start < 8
+
+
+class Tool:
+    """A started tool as stop_process_tree sees it: a pid that may outlive the stop."""
+
+    pid = 4321
+
+    def __init__(self, alive=True):
+        self.alive = alive
+        self.killed = False
+
+    def poll(self):
+        return None if self.alive else 0
+
+    def kill(self):
+        self.killed = True
+
+
+@pytest.mark.parametrize('taskkill_hangs', [False, True])
+def test_stop_on_windows_kills_the_tool_tree_then_the_root(monkeypatch, taskkill_hangs):
+    import types
+
+    from clipflow.providers import processes
+
+    commands = []
+
+    def run(args, **kwargs):
+        commands.append(args)
+        if taskkill_hangs:
+            raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+
+    environ = {'SYSTEMROOT': 'C:/Windows'}
+    monkeypatch.setattr(processes, 'os', types.SimpleNamespace(name='nt', environ=environ))
+    monkeypatch.setattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000, raising=False)
+    monkeypatch.setattr(processes.subprocess, 'run', run)
+    tool = Tool()
+    processes.stop_process_tree(tool)
+    assert Path(commands[0][0]) == Path('C:/Windows/System32/taskkill.exe')
+    assert commands[0][1:] == ['/PID', '4321', '/T', '/F']
+    assert tool.killed
+    finished = Tool(alive=False)
+    processes.stop_process_tree(finished)
+    assert not finished.killed
+
+
+def test_stop_elsewhere_signals_the_tool_group_and_tolerates_a_gone_tool(monkeypatch):
+    import types
+
+    from clipflow.providers import processes
+
+    signals = []
+
+    def killpg(pid, sent):
+        signals.append((pid, sent))
+        if len(signals) == 3:
+            raise ProcessLookupError(pid)
+
+    monkeypatch.setattr(processes, 'os', types.SimpleNamespace(name='posix', killpg=killpg))
+    monkeypatch.setattr(processes, 'signal', types.SimpleNamespace(SIGTERM=15, SIGKILL=9))
+    processes.stop_process_tree(Tool())
+    processes.stop_process_tree(Tool(), force=True)
+    processes.stop_process_tree(Tool())
+    assert signals == [(4321, 15), (4321, 9), (4321, 15)]
+
+
+def test_publish_without_hard_links_moves_the_file_beside_a_taken_name(tmp_path, monkeypatch):
+    from clipflow.providers import publishing
+
+    def no_links(source, target):
+        raise OSError('Operation not permitted')
+
+    monkeypatch.setattr(publishing.os, 'link', no_links)
+    (tmp_path / 'clip.mp4').write_bytes(b'other material')
+    temporary = tmp_path / 'clip.part'
+    temporary.write_bytes(b'new')
+    published = publishing.publish(temporary, tmp_path / 'clip.mp4')
+    assert published == tmp_path / 'clip (2).mp4'
+    assert published.read_bytes() == b'new'
+    assert (tmp_path / 'clip.mp4').read_bytes() == b'other material'
+    assert not temporary.exists()
+
+
+def test_publish_gives_up_when_every_numbered_name_is_taken(tmp_path, monkeypatch):
+    from clipflow.providers import publishing
+
+    def taken(source, target):
+        raise FileExistsError(target)
+
+    monkeypatch.setattr(publishing.os, 'link', taken)
+    temporary = tmp_path / 'clip.part'
+    temporary.write_bytes(b'new')
+    with pytest.raises(MediaFailure, match='write_failed'):
+        publishing.publish(temporary, tmp_path / 'clip.mp4')
+    assert temporary.read_bytes() == b'new'
+
+
+def test_missing_ffmpeg_or_ffprobe_is_reported_as_missing_tool(tmp_path, context):
+    from clipflow.providers.conversion import MediaTools
+
+    ctx, _ = context
+    with pytest.raises(MediaFailure, match='tool_missing'):
+        MediaTools('ffmpeg', None).probe(tmp_path / 'clip.mp4', ctx)
+    without_ffmpeg = MediaTools(None, 'ffprobe')
+    without_ffmpeg.probe = lambda path, ctx: {'streams': []}
+    with pytest.raises(MediaFailure, match='tool_missing'):
+        without_ffmpeg.convert(tmp_path / 'clip.mp4', tmp_path / 'out.mp4', request(tmp_path), ctx)
+
+
+def test_unreadable_probe_output_means_invalid_media(tmp_path, context, monkeypatch):
+    from clipflow.providers import conversion
+
+    monkeypatch.setattr(conversion, 'run_process', lambda *args, **kwargs: b'not json')
+    with pytest.raises(MediaFailure, match='invalid_media'):
+        conversion.MediaTools('ffmpeg', 'ffprobe').probe(tmp_path / 'clip.mp4', context[0])
+
+
+@pytest.mark.parametrize(
+    ('fmt', 'size', 'probed'),
+    [
+        ('mp4', 0, {'format': {'format_name': 'mov,mp4'}, 'streams': [{'codec_type': 'video'}]}),
+        ('mkv', 9, {'format': {'format_name': 'mov,mp4'}, 'streams': [{'codec_type': 'video'}]}),
+        ('mp4', 9, {'format': {'format_name': 'mov,mp4'}, 'streams': [{'codec_type': 'audio'}]}),
+        ('mp3', 9, {'format': {'format_name': 'mp3'}, 'streams': [{'codec_type': 'video'}]}),
+    ],
+)
+def test_result_of_the_wrong_kind_is_invalid_media(tmp_path, context, fmt, size, probed):
+    from clipflow.providers.conversion import MediaTools
+
+    result = tmp_path / ('clip.' + fmt)
+    result.write_bytes(b'0' * size)
+    tools = MediaTools('ffmpeg', 'ffprobe')
+    tools.probe = lambda path, ctx: probed
+    with pytest.raises(MediaFailure, match='invalid_media'):
+        tools.verify(result, item('x'), request(tmp_path, fmt), context[0])
+
+
+def test_matching_result_and_any_photo_pass_verification(tmp_path, context):
+    from clipflow.providers.conversion import MediaTools
+
+    result = tmp_path / 'clip.mp4'
+    result.write_bytes(b'0' * 9)
+    tools = MediaTools('ffmpeg', 'ffprobe')
+    tools.probe = lambda path, ctx: {
+        'format': {'format_name': 'mov,mp4'},
+        'streams': [{'codec_type': 'video'}],
+    }
+    tools.verify(result, item('x'), request(tmp_path), context[0])
+    tools.probe = None
+    tools.verify(result, item('x', kind='photo'), request(tmp_path), context[0])
