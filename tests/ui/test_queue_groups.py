@@ -248,3 +248,137 @@ def test_counts_follow_the_screen(make_window, qtbot):
     assert panel.status_buttons['all'].text().endswith(' 76')
     assert panel.group_title.text() == window.presenter.model.index(0).data(JobListModel.TitleRole)
     assert panel.group_details.text() == '76 видео'
+
+
+def member_states(window):
+    return [window.presenter.repository.get(f'c{n:02d}').state for n in range(5)]
+
+
+def test_group_pause_and_resume_cover_all_members(make_window):
+    window, _ = make_window()
+    repository = window.presenter.repository
+    repository.add(job('p', url=PLAYLIST, state=JobState.COMPLETED))
+    for n in range(5):
+        repository.add(job(f'c{n:02d}', 'p'))
+    window.presenter._reload_jobs()
+    window.presenter.pause_group('p')
+    assert member_states(window) == [JobState.PAUSED] * 5
+    window.presenter.resume_group('p')
+    assert JobState.PAUSED not in member_states(window)
+
+
+def test_retry_failures_only_touches_failed_members(make_window):
+    window, _ = make_window()
+    repository = window.presenter.repository
+    repository.add(job('p', url=PLAYLIST, state=JobState.COMPLETED))
+    repository.add(job('c00', 'p', JobState.FAILED))
+    repository.add(job('c01', 'p', JobState.CANCELLED))
+    repository.add(job('c02', 'p', JobState.COMPLETED))
+    window.presenter._reload_jobs()
+    window.presenter.retry_group_failures('p')
+    states = [repository.get(i).state for i in ('c00', 'c01', 'c02')]
+    assert JobState.FAILED not in states[:2]
+    assert JobState.CANCELLED not in states[:2]
+    assert states[2] == JobState.COMPLETED
+
+
+def files_playlist(window, tmp_path):
+    root = tmp_path / 'downloads'
+    folder = root / 'YouTube' / 'Плейлист [PLgroup]'
+    folder.mkdir(parents=True)
+    repository = window.presenter.repository
+    repository.add(job('p', url=PLAYLIST, state=JobState.COMPLETED, folder=root))
+    for n in range(2):
+        media = folder / f'{n:03d} - track.mp3'
+        media.write_bytes(b'audio')
+        repository.add(job(f'c{n:02d}', 'p', JobState.COMPLETED, files=(media,), folder=root))
+    window.presenter._reload_jobs()
+    return root, folder
+
+
+def test_group_folder_is_the_common_folder(make_window, tmp_path, monkeypatch):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+
+    window, _ = make_window()
+    _, folder = files_playlist(window, tmp_path)
+    opened = []
+    monkeypatch.setattr(QDesktopServices, 'openUrl', lambda url: opened.append(url) or True)
+    window._row_action('p', 'group_folder')
+    assert opened == [QUrl.fromLocalFile(str(folder))]
+
+
+def test_remove_group_takes_its_members_and_keeps_files(make_window, tmp_path, qtbot):
+    window, _ = make_window()
+    _, folder = files_playlist(window, tmp_path)
+    window.presenter.repository.add(job('single'))
+    window.presenter._reload_jobs()
+    window.presenter.remove_group('p')
+    qtbot.waitUntil(lambda: [j.id for j in window.presenter.repository.list()] == ['single'])
+    assert len(list(folder.iterdir())) == 2
+
+
+def test_delete_group_files_needs_confirmation(make_window, tmp_path):
+    window, _ = make_window()
+    root, folder = files_playlist(window, tmp_path)
+    window.presenter.delete_group_files('p')
+    assert len(list(folder.iterdir())) == 2
+    window.presenter.delete_group_files('p', confirmed=True)
+    assert not folder.exists()
+    assert root.is_dir()
+    assert len(window.presenter.repository.list()) == 3
+
+
+def test_context_menu_on_a_group_acts_on_the_whole_group(make_window, tmp_path, qtbot):
+    from PySide6.QtCore import QItemSelectionModel
+    from PySide6.QtWidgets import QMenu
+
+    window, _ = make_window()
+    files_playlist(window, tmp_path)
+    window.presenter.repository.add(job('single', state=JobState.COMPLETED))
+    window.presenter._reload_jobs()
+    view = window.queue_view
+    selection = view.selectionModel()
+    for row in range(view.model().rowCount()):
+        selection.select(view.model().index(row, 0), QItemSelectionModel.SelectionFlag.Select)
+    window._history_menu(view.visualRect(group_index(window)).center())
+    menu = window.findChildren(QMenu)[-1]
+    texts = [a.text() for a in menu.actions()]
+    assert window.tr.text('group_menu.retry_failed') in texts
+    remove = next(a for a in menu.actions() if a.text() == window.tr.text('group_menu.remove'))
+    remove.trigger()
+    qtbot.waitUntil(lambda: [j.id for j in window.presenter.repository.list()] == ['single'])
+
+
+def test_group_actions_read_a_long_queue_a_fixed_number_of_times(make_window):
+    window, _ = make_window()
+    repository = window.presenter.repository
+    repository.add(job('p', url=PLAYLIST, state=JobState.COMPLETED))
+    for n in range(700):
+        repository.add(job(f'c{n:03d}', 'p', JobState.FAILED))
+    window.presenter._reload_jobs()
+    reads = []
+    original = repository.list
+    repository.list = lambda: reads.append(1) or original()
+    for action in ('pause_group', 'resume_group', 'retry_group_failures'):
+        reads.clear()
+        getattr(window.presenter, action)('p')
+        assert len(reads) <= 4, action
+
+
+def test_menu_button_offers_what_the_group_allows(make_window, tmp_path):
+    from PySide6.QtWidgets import QMenu
+
+    window, _ = make_window()
+    files_playlist(window, tmp_path)
+    window._row_action('p', 'group_menu')
+    menu = window.findChildren(QMenu)[-1]
+    enabled = {a.text(): a.isEnabled() for a in menu.actions() if a.text()}
+    assert enabled == {
+        'Приостановить все': False,
+        'Продолжить все': False,
+        'Повторить неудачные': False,
+        'Открыть папку': True,
+        'Убрать из списка': True,
+        'Удалить файлы с диска…': True,
+    }

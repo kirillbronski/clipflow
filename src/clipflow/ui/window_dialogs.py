@@ -1,6 +1,6 @@
 """Dialogs and the context menu of the main window; open dialogs are tracked on the window."""
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from clipflow.domain.models import JobState
+from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.domain.urls import request_key
 from clipflow.ui.batch_dialog import BatchDialog
 from clipflow.ui.queue_model import JobListModel
@@ -70,6 +70,9 @@ class WindowDialogs:
         index = window.queue_view.indexAt(position)
         if not index.isValid():
             return
+        if index.data(JobListModel.GroupRole) is not None:
+            self.group_menu(index.data(JobListModel.JobIdRole), position)
+            return
         if not window.queue_view.selectionModel().isSelected(index):
             window.queue_view.setCurrentIndex(index)
         identities = tuple(
@@ -100,6 +103,63 @@ class WindowDialogs:
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(window.queue_view.viewport().mapToGlobal(position))
 
+    def group_menu(self, group_id, position=None):
+        """Actions on a whole playlist or profile, at the cursor or under its row."""
+        window = self.window
+        presenter = window.presenter
+        members = presenter.model.members(group_id)
+        idle = presenter.executor.is_idle
+        menu = QMenu(window)
+
+        def add(key, slot, enabled=True):
+            action = menu.addAction(window.tr.text(key))
+            action.setEnabled(enabled)
+            action.triggered.connect(slot)
+
+        add(
+            'group_menu.pause',
+            lambda: presenter.pause_group(group_id),
+            any(j.state not in TERMINAL_STATES and j.state != JobState.PAUSED for j in members),
+        )
+        add(
+            'group_menu.resume',
+            lambda: presenter.resume_group(group_id),
+            any(j.state == JobState.PAUSED and j.pause_reason == 'user' for j in members),
+        )
+        add(
+            'group_menu.retry_failed',
+            lambda: presenter.retry_group_failures(group_id),
+            any(
+                j.state in {JobState.FAILED, JobState.CANCELLED} and not j.source_required
+                for j in members
+            ),
+        )
+        add('group_menu.open_folder', lambda: presenter.open_group_folder(group_id))
+        menu.addSeparator()
+        add('group_menu.remove', lambda: presenter.remove_group(group_id))
+        add(
+            'group_menu.delete_files',
+            lambda: self.confirm_delete_group(group_id),
+            idle
+            and all(j.state in TERMINAL_STATES for j in members)
+            and any(j.result_files for j in members),
+        )
+        menu.aboutToHide.connect(menu.deleteLater)
+        view = window.queue_view
+        if position is None:
+            row = presenter.model._rows.get(group_id)
+            index = window.queue_panel.proxy.mapFromSource(presenter.model.index(row))
+            rect = view.visualRect(index)
+            position = rect.topRight() + QPoint(-80, rect.height() // 2)
+        menu.popup(view.viewport().mapToGlobal(position))
+
+    def confirm_delete_group(self, group_id):
+        members = self.window.presenter.model.members(group_id)
+        self.confirm_delete(
+            (group_id, *(j.id for j in members)),
+            lambda: self.window.presenter.delete_group_files(group_id, True),
+        )
+
     def confirm_clear_all(self):
         window = self.window
         count = len(window.presenter.repository.list())
@@ -126,7 +186,7 @@ class WindowDialogs:
         self.track(dialog)
         dialog.open()
 
-    def confirm_delete(self, identities):
+    def confirm_delete(self, identities, delete=None):
         window = self.window
         jobs = tuple(window.presenter.repository.get(identity) for identity in identities)
         count = len({path for job in jobs for path in job.result_files})
@@ -142,7 +202,7 @@ class WindowDialogs:
         window.tr.bind(dialog.button(QMessageBox.StandardButton.No), 'cancel')
         dialog.finished.connect(
             lambda result: (
-                window.presenter.delete_files(identities, True)
+                (delete or (lambda: window.presenter.delete_files(identities, True)))()
                 if result == QMessageBox.StandardButton.Yes
                 else None
             )

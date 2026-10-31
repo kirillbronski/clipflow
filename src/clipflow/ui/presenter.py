@@ -1,5 +1,6 @@
 """Owner-thread commands bridge submission/scheduler/storage to Qt views."""
 
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -253,6 +254,50 @@ class WorkbenchPresenter(QObject):
                 self._start()
 
         return self._command(action)
+
+    def _group_ids(self, group_id):
+        return (group_id, *(j.id for j in self.model.members(group_id)))
+
+    def pause_group(self, group_id):
+        return self._command(lambda: self.scheduler.pause_many(self._group_ids(group_id)))
+
+    def resume_group(self, group_id):
+        return self._command(lambda: self.scheduler.resume_many(self._group_ids(group_id)))
+
+    def retry_group_failures(self, group_id):
+        def action():
+            members = tuple(j.id for j in self.model.members(group_id))
+            if self.scheduler.retry_many(members) and self.settings.auto_start:
+                self._start()
+
+        return self._command(action)
+
+    def open_group_folder(self, group_id):
+        """The folder the group's files share, else its download folder."""
+
+        def action():
+            parent = self.repository.get(group_id)
+            root = parent.request.options.folder
+            files = [path for job in self.model.members(group_id) for path in job.result_files]
+            directory = root
+            if files:
+                common = Path(os.path.commonpath([str(path.parent) for path in files]))
+                if common.is_relative_to(root):
+                    directory = common
+            if not directory.is_dir() or not QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(directory))
+            ):
+                self.error_raised.emit('folder_missing')
+
+        return self._command(action)
+
+    def remove_group(self, group_id):
+        return self._command(lambda: self._clearing.remove_group(self._group_ids(group_id)))
+
+    def delete_group_files(self, group_id, confirmed=False):
+        if confirmed is not True:
+            return None
+        return self._command(lambda: self._clearing.delete_files(self._group_ids(group_id)))
 
     def remove_jobs(self, identities):
         return self._command(lambda: self._clearing.remove_jobs(identities))

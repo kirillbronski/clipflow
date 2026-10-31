@@ -55,6 +55,13 @@ class ClearingController:
         self.presenter.scheduler.clear_queue()
         self.flush()
 
+    def remove_group(self, identities):
+        """Stop a group's work, then take the group and its members off the list."""
+        self._pending.update(identities)
+        self._delete_ids.difference_update(identities)
+        self.presenter.scheduler.cancel(identities[0])
+        self.flush()
+
     def flush(self):
         if not self._pending or not self._idle:
             return

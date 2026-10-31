@@ -336,6 +336,10 @@ class MainWindow(QMainWindow):
             self.presenter.cancel_job(identity)
         elif action == 'open_group':
             self.queue_panel.open_group(identity)
+        elif action == 'group_folder':
+            self.presenter.open_group_folder(identity)
+        elif action == 'group_menu':
+            self.dialogs.group_menu(identity)
         else:
             self.presenter.toggle_job(identity)
 
