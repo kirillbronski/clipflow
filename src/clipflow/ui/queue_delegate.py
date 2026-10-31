@@ -35,7 +35,7 @@ class QueueDelegate(QStyledItemDelegate):
             rect.right() - 40, rect.top() + 26, 30, 30
         )
 
-    def paint(self, painter, option, index):  # noqa: C901  # подпроект 3
+    def paint(self, painter, option, index):
         job = index.data(JobListModel.JobRole)
         if job is None:
             return
@@ -49,30 +49,16 @@ class QueueDelegate(QStyledItemDelegate):
         muted = t['selection_text'] if selected else t['muted']
         painter.setPen(QColor(t['border']))
         painter.drawLine(rect.bottomLeft(), rect.bottomRight())
-        badge = QRect(rect.left(), rect.top() + 21, 47, 54)
-        tint = QColor(t[job.request.link.service.value])
-        tint.setAlpha(28)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(tint)
-        painter.drawRoundedRect(badge, 6, 6)
-        painter.setPen(QColor(t[job.request.link.service.value]))
         font = QFont(option.font)
-        font.setPixelSize(18)
-        painter.setFont(font)
-        painter.drawText(
-            badge,
-            Qt.AlignmentFlag.AlignCenter,
-            '▧' if job.request.options.media_filter == 'photo' else '▷',
-        )
+        self._paint_badge(painter, font, rect, job, t)
         left = rect.left() + 60
         available = max(50, rect.width() - 230)
-        title_rect = QRect(left, rect.top() + 16, available, 23)
         font.setPixelSize(13)
         font.setBold(True)
         painter.setFont(font)
         painter.setPen(QColor(foreground))
         painter.drawText(
-            title_rect,
+            QRect(left, rect.top() + 16, available, 23),
             Qt.AlignmentFlag.AlignVCenter,
             painter.fontMetrics().elidedText(
                 index.data(JobListModel.TitleRole), Qt.TextElideMode.ElideRight, available
@@ -92,64 +78,54 @@ class QueueDelegate(QStyledItemDelegate):
             ),
         )
         progress = index.data(JobListModel.ProgressRole)
-        label = self.tr.text('state_' + job.state.value)
-        if result_status(job) == 'files_missing':
-            label = self.tr.text('files_missing')
-        if job.source_required:
-            label = self.tr.text('source_needed')
-        elif job.pause_reason == 'selection_required':
-            label = self.tr.text('selection_needed')
-        elif job.pause_reason in {'rate_limit', 'rate_spacing'}:
-            label = self.tr.text('instagram_wait')
-            if job.next_allowed_at:
-                label += ' · ' + job.next_allowed_at.astimezone().strftime('%H:%M')
-        elif progress and job.state == JobState.DOWNLOADING:
-            label = (
-                f'{min(99, int(progress.downloaded_bytes / progress.total_bytes * 100))}%'
-                if progress.total_bytes
-                else f'{progress.downloaded_bytes / 1048576:.1f} ' + self.tr.text('mb')
-            )
-            if progress.speed_bytes_per_second:
-                label += f' · {progress.speed_bytes_per_second / 1048576:.1f} ' + self.tr.text(
-                    'mb_s'
-                )
-        painter.setPen(
-            QColor(
-                foreground
-                if selected
-                else t['muted']
-                if result_status(job) == 'files_missing'
-                else t['success']
-                if job.state == JobState.COMPLETED
-                else t['error']
-                if job.state == JobState.FAILED
-                else t['muted']
-            )
-        )
-        active_progress = (
+        active_progress = bool(
             progress
             and progress.total_bytes
             and job.state in {JobState.DOWNLOADING, JobState.PROCESSING, JobState.PAUSED}
         )
+        painter.setPen(QColor(foreground if selected else _status_color(job, t)))
         painter.drawText(
             QRect(rect.right() - 235, rect.top() + (59 if active_progress else 25), 146, 26),
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            label,
+            self.status_text(job, progress),
         )
-        if (
-            progress
-            and progress.total_bytes
-            and job.state in {JobState.DOWNLOADING, JobState.PROCESSING, JobState.PAUSED}
-        ):
-            bar = QRect(left, rect.top() + 71, max(20, rect.width() - 310), 3)
-            painter.fillRect(bar, QColor(t['border']))
-            width = int(
-                bar.width() * max(0, min(0.99, progress.downloaded_bytes / progress.total_bytes))
+        if active_progress:
+            self._paint_progress(
+                painter, QRect(left, rect.top() + 71, 0, 3), rect, job, t, progress
             )
-            painter.fillRect(
-                QRect(bar.left(), bar.top(), width, bar.height()),
-                QColor(t[job.request.link.service.value]),
-            )
+        self._paint_buttons(painter, rect, job, muted)
+        painter.restore()
+
+    @staticmethod
+    def _paint_badge(painter, font, rect, job, t):
+        badge = QRect(rect.left(), rect.top() + 21, 47, 54)
+        tint = QColor(t[job.request.link.service.value])
+        tint.setAlpha(28)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(tint)
+        painter.drawRoundedRect(badge, 6, 6)
+        painter.setPen(QColor(t[job.request.link.service.value]))
+        font.setPixelSize(18)
+        painter.setFont(font)
+        painter.drawText(
+            badge,
+            Qt.AlignmentFlag.AlignCenter,
+            '▧' if job.request.options.media_filter == 'photo' else '▷',
+        )
+
+    @staticmethod
+    def _paint_progress(painter, origin, rect, job, t, progress):
+        bar = QRect(origin.left(), origin.top(), max(20, rect.width() - 310), 3)
+        painter.fillRect(bar, QColor(t['border']))
+        width = int(
+            bar.width() * max(0, min(0.99, progress.downloaded_bytes / progress.total_bytes))
+        )
+        painter.fillRect(
+            QRect(bar.left(), bar.top(), width, bar.height()),
+            QColor(t[job.request.link.service.value]),
+        )
+
+    def _paint_buttons(self, painter, rect, job, muted):
         primary, secondary = self._buttons(rect)
         painter.setPen(QPen(QColor(muted), 1.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -163,7 +139,34 @@ class QueueDelegate(QStyledItemDelegate):
         painter.drawText(primary, Qt.AlignmentFlag.AlignCenter, glyph)
         if job.state not in TERMINAL_STATES:
             painter.drawText(secondary, Qt.AlignmentFlag.AlignCenter, '×')
-        painter.restore()
+
+    def status_text(self, job, progress):
+        """The short state at the right of a row: waiting reasons, percent and speed."""
+        if job.source_required:
+            return self.tr.text('source_needed')
+        if job.pause_reason == 'selection_required':
+            return self.tr.text('selection_needed')
+        if job.pause_reason in {'rate_limit', 'rate_spacing'}:
+            label = self.tr.text('instagram_wait')
+            if job.next_allowed_at:
+                label += ' · ' + job.next_allowed_at.astimezone().strftime('%H:%M')
+            return label
+        if progress and job.state == JobState.DOWNLOADING:
+            return self._transfer_text(progress)
+        if result_status(job) == 'files_missing':
+            return self.tr.text('files_missing')
+        return self.tr.text('state_' + job.state.value)
+
+    def _transfer_text(self, progress):
+        label = (
+            f'{min(99, int(progress.downloaded_bytes / progress.total_bytes * 100))}%'
+            if progress.total_bytes
+            else f'{progress.downloaded_bytes / 1048576:.1f} ' + self.tr.text('mb')
+        )
+        if progress.speed_bytes_per_second:
+            mb_s = progress.speed_bytes_per_second / 1048576
+            label += f' · {mb_s:.1f} ' + self.tr.text('mb_s')
+        return label
 
     def editorEvent(self, event, model, option, index):
         if (
@@ -181,3 +184,13 @@ class QueueDelegate(QStyledItemDelegate):
                 self.action_requested.emit(index.data(JobListModel.JobIdRole), 'cancel')
                 return True
         return super().editorEvent(event, model, option, index)
+
+
+def _status_color(job, t):
+    if result_status(job) == 'files_missing':
+        return t['muted']
+    if job.state == JobState.COMPLETED:
+        return t['success']
+    if job.state == JobState.FAILED:
+        return t['error']
+    return t['muted']
