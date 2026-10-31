@@ -7,7 +7,7 @@ request alone never frees the worker slot. Subscribers receive accepted JobEvent
 command state changes use StageChanged after the repository has been updated.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Protocol
@@ -237,6 +237,68 @@ class Scheduler:
         )
         self._drained = False
         self._pump()
+
+    # Group actions: one snapshot of the queue, unsuitable jobs are skipped instead of refused.
+    def pause_many(self, job_ids: Iterable[str]) -> tuple[str, ...]:
+        targets = set(job_ids)
+        changed = []
+        for job in self.repository.list():
+            if job.id not in targets or job.state in TERMINAL_STATES:
+                continue
+            if job.state == JobState.PAUSED and not job.automatic_retry:
+                continue
+            self._save(
+                replace(job, state=JobState.PAUSED, pause_reason='user', automatic_retry=False)
+            )
+            changed.append(job.id)
+        if self._active and self._active[0] in changed:
+            self._stop(self._active[0], 'pause')
+        return tuple(changed)
+
+    def resume_many(self, job_ids: Iterable[str]) -> tuple[str, ...]:
+        targets = set(job_ids)
+        now = self.clock()
+        changed = []
+        for job in self.repository.list():
+            if (
+                job.id in targets
+                and job.state == JobState.PAUSED
+                and job.pause_reason == 'user'
+                and not job.source_required
+                and not (job.next_allowed_at and job.next_allowed_at > now)
+            ):
+                self._save(
+                    replace(job, state=JobState.QUEUED, pause_reason=None, next_allowed_at=None)
+                )
+                changed.append(job.id)
+        if changed:
+            self._drained = False
+            self._pump()
+        return tuple(changed)
+
+    def retry_many(self, job_ids: Iterable[str]) -> tuple[str, ...]:
+        targets = set(job_ids)
+        changed = []
+        for job in self.repository.list():
+            if (
+                job.id in targets
+                and job.state in {JobState.FAILED, JobState.CANCELLED}
+                and not job.source_required
+            ):
+                self._save(
+                    replace(
+                        job,
+                        state=JobState.QUEUED,
+                        error=None,
+                        pause_reason=None,
+                        next_allowed_at=None,
+                    )
+                )
+                changed.append(job.id)
+        if changed:
+            self._drained = False
+            self._pump()
+        return tuple(changed)
 
     def provide_source(self, job_id: str, link: ParsedLink) -> None:
         """Explicit replacement for a source whose secret URL was not persisted."""

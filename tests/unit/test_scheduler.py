@@ -579,3 +579,88 @@ def test_cancel_one_job_still_cancels_its_children():
         JobState.CANCELLED,
         JobState.QUEUED,
     ]
+
+
+def long_playlist(size=700, state=JobState.QUEUED):
+    repo = CountingRepository()
+    playlist = DownloadRequest(
+        parse_url('https://www.youtube.com/playlist?list=PL_group'), DownloadOptions(Path('/d'))
+    )
+    repo.add(Job('parent', playlist, state=JobState.COMPLETED))
+    for n in range(size):
+        repo.add(Job(f'c{n:03d}', request(f'v{n:04d}'), state=state, parent_id='parent'))
+    return repo, [f'c{n:03d}' for n in range(size)]
+
+
+def test_group_pause_reads_a_long_queue_once():
+    repo, ids = long_playlist()
+    scheduler = Scheduler(repo, ControlledExecutor())
+    repo.reads = 0
+    assert scheduler.pause_many(ids) == tuple(ids)
+    assert all(repo.get(i).state == JobState.PAUSED for i in ids)
+    assert {repo.get(i).pause_reason for i in ids} == {'user'}
+    assert repo.reads <= 2
+
+
+def test_group_pause_stops_the_active_job():
+    repo, ids = long_playlist(3)
+    worker = ControlledExecutor()
+    scheduler = Scheduler(repo, worker)
+    scheduler.start()
+    assert worker.runs[-1][0].id == 'c000'
+    scheduler.pause_many(ids)
+    assert worker.stops == [('c000', 'pause')]
+
+
+def test_group_resume_skips_jobs_that_cannot_resume():
+    repo = MemoryJobRepository()
+    future = datetime(2999, 1, 1, tzinfo=UTC)
+    repo.add(Job('user', request('u'), state=JobState.PAUSED, pause_reason='user'))
+    repo.add(Job('pick', request('p'), state=JobState.PAUSED, pause_reason='selection_required'))
+    repo.add(
+        Job('src', request('s'), state=JobState.PAUSED, pause_reason='user', source_required=True)
+    )
+    repo.add(
+        Job(
+            'wait',
+            request('w'),
+            state=JobState.PAUSED,
+            pause_reason='rate_limit',
+            next_allowed_at=future,
+        )
+    )
+    scheduler = Scheduler(repo, ControlledExecutor())
+    assert scheduler.resume_many(('user', 'pick', 'src', 'wait')) == ('user',)
+    assert repo.get('user').state == JobState.QUEUED
+    assert [repo.get(i).state for i in ('pick', 'src', 'wait')] == [JobState.PAUSED] * 3
+
+
+def test_group_retry_requeues_failed_and_cancelled_only():
+    repo, ids = long_playlist(state=JobState.FAILED)
+    repo.update(replace(repo.get('c001'), state=JobState.CANCELLED))
+    repo.update(replace(repo.get('c002'), state=JobState.COMPLETED))
+    repo.update(replace(repo.get('c003'), source_required=True))
+    scheduler = Scheduler(repo, ControlledExecutor())
+    repo.reads = 0
+    retried = scheduler.retry_many(ids)
+    assert 'c001' in retried
+    assert 'c002' not in retried
+    assert 'c003' not in retried
+    assert repo.get('c000').state == JobState.QUEUED
+    assert repo.get('c000').error is None
+    assert repo.get('c002').state == JobState.COMPLETED
+    assert repo.get('c003').state == JobState.FAILED
+    assert repo.reads <= 2
+
+
+def test_group_pause_takes_over_an_automatic_wait_and_skips_finished_jobs():
+    repo = MemoryJobRepository()
+    repo.add(Job('auto', request('a'), state=JobState.PAUSED, automatic_retry=True))
+    repo.add(Job('mine', request('m'), state=JobState.PAUSED, pause_reason='user'))
+    repo.add(Job('done', request('d'), state=JobState.COMPLETED))
+    scheduler = Scheduler(repo, ControlledExecutor())
+    assert scheduler.pause_many(('auto', 'mine', 'done')) == ('auto',)
+    assert repo.get('auto').pause_reason == 'user'
+    assert not repo.get('auto').automatic_retry
+    assert scheduler.resume_many(('done',)) == ()
+    assert scheduler.retry_many(('mine',)) == ()
