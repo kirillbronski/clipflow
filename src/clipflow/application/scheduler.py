@@ -32,6 +32,7 @@ from clipflow.domain.events import (
 )
 from clipflow.domain.models import (
     TERMINAL_STATES,
+    ContentKind,
     Job,
     JobState,
     MediaDetails,
@@ -454,7 +455,12 @@ class Scheduler:
                 or (j.result_files and all(path.is_file() for path in j.result_files))
             )
         }
-        downloaded = self._downloaded() if self.skip_downloaded else set()
+        # Only a YouTube playlist's tracks: a GetCourse lesson lists its videos by selection.
+        playlist = (
+            job.request.link.service == Service.YOUTUBE
+            and job.request.link.kind == ContentKind.PLAYLIST
+        )
+        downloaded = self._downloaded() if self.skip_downloaded and playlist else set()
         for request in payload.requests:
             key = request_key(request)
             if key not in keys and _same_media(request) not in downloaded:

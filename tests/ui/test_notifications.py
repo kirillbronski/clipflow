@@ -22,6 +22,10 @@ def queue(make_window, tmp_path, states, notify=True, monkeypatch=None):
                 'pause_reason': 'rate_limit',
                 'next_allowed_at': datetime.now(UTC) + timedelta(minutes=5),
             }
+        if state == JobState.COMPLETED:
+            media = tmp_path / f'note{n}.mp4'
+            media.write_bytes(b'x')
+            extra = {'result_files': (media,)}
         repo.add(Job(f'j{n}', request, state=state, **extra))
     window, _ = make_window(repository=repo)
     window.presenter.update_preferences(notify_done=notify)
@@ -81,3 +85,23 @@ def test_texts_follow_language(make_window, tmp_path, monkeypatch, language, tex
     window.presenter.update_preferences(language=language)
     events(window, ('j0', WorkFinished()))
     assert shown == [('ClipFlow — downloads finished', text)]
+
+
+def test_playlist_listing_is_not_a_download(make_window, tmp_path, monkeypatch):
+    repo = SqliteJobRepository(tmp_path / 'list.sqlite3')
+    playlist = DownloadRequest(
+        parse_url('https://www.youtube.com/playlist?list=PLnote'), DownloadOptions(tmp_path)
+    )
+    repo.add(Job('list', playlist, state=JobState.COMPLETED))
+    media = tmp_path / 'a.mp4'
+    media.write_bytes(b'x')
+    track = DownloadRequest(parse_url('https://youtu.be/track'), DownloadOptions(tmp_path))
+    repo.add(Job('t', track, state=JobState.COMPLETED, parent_id='list', result_files=(media,)))
+    window, _ = make_window(repository=repo)
+    window.presenter.update_preferences(notify_done=True)
+    shown = []
+    monkeypatch.setattr(
+        window.notifier, 'showMessage', lambda title, text, *args: shown.append(text)
+    )
+    events(window, ('list', WorkFinished()), ('t', WorkFinished()))
+    assert shown == ['Скачано: 1']

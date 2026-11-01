@@ -51,12 +51,15 @@ class MediaTools:
         if 'audio' not in kinds if fmt == 'mp3' else 'video' not in kinds:
             raise MediaFailure('invalid_media')
 
-    def convert(self, source, target, request, context, work=None, tag=None):
+    def convert(self, source, target, request, context, work=None, tag=None, subtitles=()):
         if not self.ffmpeg:
             raise MediaFailure('tool_missing')
         fmt = request.options.format
         codecs = {s.get('codec_name') for s in self.probe(source, context).get('streams', [])}
         args = [self.ffmpeg, '-v', 'error', '-nostdin', '-y', '-i', str(source)]
+        subtitles = () if fmt == 'mp3' else tuple(subtitles)
+        for path in subtitles:
+            args += ['-i', str(path)]
         if fmt == 'mp3':
             args += ['-vn', '-c:a', 'libmp3lame', '-b:a', '320k']
         elif fmt == 'webm' and not codecs.issubset({'vp8', 'vp9', 'av1', 'opus', 'vorbis'}):
@@ -76,6 +79,17 @@ class MediaTools:
             ]
         else:
             args += ['-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy']
+        if subtitles:
+            # Fetched .vtt files become text tracks the container understands.
+            for number, path in enumerate(subtitles, 1):
+                language = path.suffixes[-2].lstrip('.') if len(path.suffixes) >= 2 else 'und'
+                args += [
+                    '-map',
+                    f'{number}:0',
+                    f'-metadata:s:s:{number - 1}',
+                    f'language={language}',
+                ]
+            args += ['-c:s', {'mp4': 'mov_text', 'mkv': 'srt', 'webm': 'webvtt'}[fmt]]
         if tag:
             args += ['-metadata', 'comment=' + tag]
         work = work or target

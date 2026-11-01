@@ -1,6 +1,7 @@
 """Common resumable transfer, verified conversion and atomic sidecar publishing."""
 
 import copy
+import glob
 import os
 import shutil
 import time
@@ -38,6 +39,34 @@ class _QuietLogger:
 
     def error(self, message):
         pass
+
+
+def subtitle_languages(choice, info):
+    """yt-dlp language patterns for a subtitle choice; None lets yt-dlp pick one track."""
+    if not choice:
+        return []
+    if choice in {'ru', 'en'}:
+        return [f'{choice}(-.*)?']  # also «en-US», «ru-RU»
+    original = _original_language(info)
+    return [f'{original}(-.*)?'] if original else None
+
+
+def _original_language(info):
+    audio = [
+        f
+        for f in info.get('formats') or ()
+        if isinstance(f, dict)
+        and f.get('vcodec') == 'none'
+        and isinstance(f.get('language'), str)
+        and f['language']
+    ]
+    if audio:
+        best = max(audio, key=lambda f: f.get('language_preference') or -1)
+        return best['language'].split('-')[0]
+    for key in info.get('automatic_captions') or ():
+        if isinstance(key, str) and key.endswith('-orig'):
+            return key[: -len('-orig')]
+    return None
 
 
 class MediaPipeline:
@@ -128,6 +157,7 @@ class MediaPipeline:
         if not info.get('url') and not info.get('formats'):
             raise MediaFailure('invalid_media')
         result = ydl.process_ie_result(info, download=True)
+        subtitles = self._fetch_subtitles(item, request, context, plan.work)
         # Now the chosen format is known: its height and frame rate replace the guess.
         final = details_from_info(result, item.kind, request.link.service, request.options)
         if final is not None:
@@ -136,13 +166,47 @@ class MediaPipeline:
         context.cancel.raise_if_cancelled()
         context.emit(StageChanged(JobState.PROCESSING))
         tools = self._tools
-        target = tools.convert(source, plan.target, request, context, plan.work, plan.tag)
+        try:
+            target = tools.convert(
+                source, plan.target, request, context, plan.work, plan.tag, subtitles=subtitles
+            )
+        finally:
+            for path in subtitles:
+                path.unlink(missing_ok=True)
         tools.verify(target, item, request, context)
         if plan.tag and target.stem != planned:
             context.emit(TitleChanged(target.stem))  # a name collision added " (n)"
         source.unlink(missing_ok=True)
         Path(str(source) + '.ytdl').unlink(missing_ok=True)
         return target
+
+    def _fetch_subtitles(self, item, request, context, target, opener=open_downloader):
+        """Best effort: subtitles beside the source, or none; a failure never fails the video."""
+        choice = context.preferences.subtitles
+        if not choice or request.link.service != Service.YOUTUBE or request.options.format == 'mp3':
+            return ()
+        options = self._options(item, request, context, target)
+        options.update(
+            skip_download=True,
+            writesubtitles=True,
+            writeautomaticsub=False,
+            subtitlesformat='vtt/best',
+            progress_hooks=[],
+        )
+        languages = subtitle_languages(choice, item.info)
+        if languages:
+            options['subtitleslangs'] = languages
+        info = copy.deepcopy(dict(item.info))
+        info.update(id=item.id, title=item.title)
+        info.pop('requested_formats', None)
+        info.pop('requested_downloads', None)
+        try:
+            with opener(options, context=context) as ydl:
+                ydl.process_ie_result(info, download=True)
+        except Exception:  # noqa: BLE001  # субтитры — по возможности: сбой (429 и т. п.) не роняет видео
+            return ()
+        pattern = glob.escape(target.stem) + '.source.*.vtt'
+        return tuple(sorted(target.parent.glob(pattern)))
 
     @staticmethod
     def _captions(item, request, target):
@@ -185,25 +249,9 @@ class MediaPipeline:
         preferences = context.preferences
         if preferences.rate_limit:
             options['ratelimit'] = preferences.rate_limit
-        if (
-            preferences.subtitles
-            and request.link.service == Service.YOUTUBE
-            and request.options.format != 'mp3'
-        ):
-            language = (
-                item.info.get('language')
-                if preferences.subtitles == 'original'
-                else preferences.subtitles
-            )
-            options.update(
-                writesubtitles=True,
-                writeautomaticsub=False,
-                # Without a known language take any subtitles but live chat.
-                subtitleslangs=[language]
-                if isinstance(language, str) and language
-                else ['all', '-live_chat'],
-                postprocessors=[*options['postprocessors'], {'key': 'FFmpegEmbedSubtitle'}],
-            )
+        if preferences.rate_limit:
+            # yt-dlp limits each fragment request; parallel fragments would multiply the speed.
+            options['concurrent_fragment_downloads'] = 1
         return options
 
     @staticmethod

@@ -758,3 +758,45 @@ def test_downloaded_format_reports_its_own_details(tmp_path, context, media_serv
     MediaPipeline().save(media, req, ctx)
     found = [e.details for e in events if isinstance(e, DetailsFound)]
     assert found[-1].height == 64
+
+
+@pytest.mark.parametrize(('fmt', 'codec'), [('mp4', 'mov_text'), ('mkv', 'subrip')])
+def test_convert_embeds_fetched_subtitles(tmp_path, context, tools, fmt, codec):
+    from clipflow.providers.conversion import MediaTools
+
+    ctx, _ = context
+    ffmpeg, ffprobe = tools
+    source = tmp_path / 'clip.source.mkv'
+    subprocess.run(
+        [
+            ffmpeg,
+            '-v',
+            'error',
+            '-f',
+            'lavfi',
+            '-i',
+            'color=c=red:s=64x48:r=10',
+            '-f',
+            'lavfi',
+            '-i',
+            'sine=frequency=440',
+            '-t',
+            '1',
+            '-c:v',
+            'libx264',
+            '-c:a',
+            'aac',
+            str(source),
+        ],
+        check=True,
+    )
+    subtitles = tmp_path / 'clip.source.ru.vtt'
+    subtitles.write_text('WEBVTT\n\n00:00.000 --> 00:00.900\nПривет\n', encoding='utf-8')
+    req = DownloadRequest(
+        parse_url('https://youtu.be/BaW_jenozKc'), DownloadOptions(tmp_path, format=fmt)
+    )
+    target = MediaTools(ffmpeg, ffprobe).convert(
+        source, tmp_path / f'clip.{fmt}', req, ctx, subtitles=(subtitles,)
+    )
+    streams = probe(target, tools)['streams']
+    assert [s['codec_name'] for s in streams if s['codec_type'] == 'subtitle'] == [codec]

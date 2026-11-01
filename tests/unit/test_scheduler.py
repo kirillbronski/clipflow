@@ -716,7 +716,14 @@ def _track(folder, video, index=1, fmt='mp4', height=None):
 
 def _discover(tmp_path, done_request, skip, discovered, delete=False):
     repo = MemoryJobRepository()
-    repo.add(Job('parent', request('parent')))
+    repo.add(
+        Job(
+            'parent',
+            DownloadRequest(
+                parse_url('https://www.youtube.com/playlist?list=PLnew'), DownloadOptions(tmp_path)
+            ),
+        )
+    )
     saved = tmp_path / 'old' / 'saved.mp4'
     saved.parent.mkdir(exist_ok=True)
     saved.write_bytes(b'kept')
@@ -756,3 +763,24 @@ def test_skip_off_keeps_old_behaviour(tmp_path):
     single = DownloadRequest(parse_url('https://youtu.be/vid_A'), DownloadOptions(tmp_path / 'old'))
     repo, _ = _discover(tmp_path, single, False, (_track(tmp_path, 'vid_A'),))
     assert [j for j in repo.list() if j.parent_id == 'parent']
+
+
+def test_skip_rule_leaves_getcourse_lesson_videos_alone(tmp_path):
+    lesson = 'https://school.getcourse.ru/pl/teach/control/lesson/view?id=123'
+    first = DownloadRequest(parse_url(lesson), DownloadOptions(tmp_path), selection=('video1',))
+    repo = MemoryJobRepository()
+    repo.add(Job('parent', DownloadRequest(parse_url(lesson), DownloadOptions(tmp_path))))
+    saved = tmp_path / 'one.mp4'
+    saved.write_bytes(b'x')
+    repo.add(Job('done', first, state=JobState.COMPLETED, result_files=(saved,)))
+    worker = ControlledExecutor()
+    scheduler = Scheduler(repo, worker)
+    scheduler.skip_downloaded = True
+    scheduler.start('parent')
+    others = tuple(
+        DownloadRequest(parse_url(lesson), DownloadOptions(tmp_path), selection=(video,))
+        for video in ('video2', 'video3')
+    )
+    worker.emit(RequestsDiscovered(others))
+    added = [j.request.selection for j in repo.list() if j.parent_id == 'parent']
+    assert added == [('video2',), ('video3',)]

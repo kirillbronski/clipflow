@@ -506,7 +506,12 @@ class WorkbenchPresenter(QObject):
     def _on_event(self, event):
         job = self.repository.get(event.job_id)
         self.model.update_job(job, event.payload)
-        if isinstance(event.payload, WorkFinished) and job.state == JobState.COMPLETED:
+        # A playlist's or profile's listing finishes without files: it is not a download.
+        if (
+            isinstance(event.payload, WorkFinished)
+            and job.state == JobState.COMPLETED
+            and job.result_files
+        ):
             self._run[0] += 1
         elif isinstance(event.payload, WorkFailed) and job.state == JobState.FAILED:
             self._run[1] += 1
