@@ -136,7 +136,7 @@ class QueueToolbar(QWidget):
             button.setText(self.tr.text(_KIND_KEYS[kind]))
         for status, action in self.status_actions.items():
             action.setText(f'{self.tr.text(_STATUS_KEYS[status])}  {self._counts[status]}')
-        self.status_button.setText(self.status_actions[self.status].text() + ' ▾')
+        self.status_button.setText(self.status_actions[self.status].text())
         for key, action in self.sort_actions.items():
             action.setText(self.tr.text(_SORT_KEYS[key]))
         self.descending_action.setText(self.tr.text('sort.descending'))

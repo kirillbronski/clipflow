@@ -2,6 +2,11 @@
 
 Обновлено 1 ноября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Вкладки типа, поиск и сортировка (подпроект «как в 4K» №3) — 1 ноября
+
+Спецификация `docs/superpowers/specs/2026-11-01-tabs-search-design.md`, план `docs/superpowers/plans/2026-11-01-tabs-search.md`, выполнение inline. Правила без Qt — `application/queue_view.py` (`job_kind`, `normalize` — casefold и «ё»→«е», `natural_key`, `plural`). `QueueFilter` — тип (`show_kind`), поиск (`show_query`; название, автор, ссылка; группа — по себе или любому треку) и сортировка (`sort_by`; `lessThan`: неизвестные в конце в обе стороны, равные — порядок очереди; группа — суммы). Панель `ui/queue_toolbar.py` (`QueueToolbar`, в окне — `window.filter_bar`; `window.queue_toolbar` — прежняя строка со счётчиком и кнопками). ⌘F/Ctrl+F — `window.find_action`. Выбор помнится на время запуска.
+Урок: `QTest.keyClicks` с кириллицей роняет процесс — в тестах текст вставлять `insert`/`setText`. Тесты, читающие исходники с диска (`test_texts`), ломаются, если править файлы во время прогона.
+
 ## Богатые строки и меню строки (подпроект «как в 4K» №2) — 1 ноября
 
 Спецификация `docs/superpowers/specs/2026-11-01-rich-rows-design.md`, план `docs/superpowers/plans/2026-11-01-rich-rows.md`, выполнение inline. `MediaDetails` (`domain/models.py`, сам проверяет значения; флаг `photo`) разбирает `providers/details.py` с учётом параметров задания (MP3 — размер по CBR 320k без высоты/fps; ограничение высоты убирает то, что ограничение меняет; после скачивания — сведения реально скачанного формата); событие `DetailsFound`; `Job.details` в JSON очереди (старые записи — `None`). Автор Instagram — ник (`@handle`), не отображаемое имя. Обложки: `ThumbnailLoader` (`ui/presenter_thumbnails.py`, daemon-поток, https, ≤2 МБ, 160×90) и `ThumbnailStore` (`<данные>/thumbnails/<id>.jpg`); адреса обложек Instagram (подписанные CDN) в очередь не пишутся — обложка берётся из события в том же запуске. Меню «⋮»/правый щелчок — `WindowDialogs.row_menu`.

@@ -39,10 +39,10 @@ def test_status_menu_shows_counts_and_emits(toolbar):
     toolbar.status_changed.connect(seen.append)
     toolbar.set_counts({'all': 12, 'active': 3, 'completed': 8, 'failed': 1})
     assert toolbar.status_actions['active'].text() == 'В работе  3'
-    assert toolbar.status_button.text() == 'Все  12 ▾'
+    assert toolbar.status_button.text() == 'Все  12'  # Qt draws the menu arrow itself
     toolbar.status_actions['failed'].trigger()
     assert seen == ['failed']
-    assert toolbar.status_button.text() == 'Ошибки  1 ▾'
+    assert toolbar.status_button.text() == 'Ошибки  1'
     assert toolbar.status_actions['failed'].isChecked()
     assert not toolbar.status_actions['all'].isChecked()
 
@@ -126,5 +126,5 @@ def test_texts_follow_language(qtbot):
     translator.set_language('en')
     assert bar.kind_buttons['photo'].text() == 'Photos'
     assert bar.items_label.text() == '2 items'
-    assert bar.status_button.text() == 'All  2 ▾'
+    assert bar.status_button.text() == 'All  2'
     assert bar.sort_actions['duration'].text() == 'Duration'
