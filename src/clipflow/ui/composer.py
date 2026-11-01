@@ -127,7 +127,7 @@ class Composer(QFrame):
         # A narrow card puts the quick bar on a line of its own instead of squashing it.
         self._bar_row = QHBoxLayout()
         layout.addLayout(self._bar_row)
-        self.quick_bar_wrapped = False
+        self.quick_bar_place = 'top'
 
     def _build_profile_row(self, layout):
         self.profile_row = QWidget()
@@ -173,6 +173,7 @@ class Composer(QFrame):
 
     def _build_parameters(self, layout, auto_start):
         disclosure = QHBoxLayout()
+        self._disclosure = disclosure
         self.parameters_button = QToolButton()
         self.parameters_button.setText(self.tr.text('download_options'))
         self.parameters_button.setCheckable(True)
@@ -319,15 +320,31 @@ class Composer(QFrame):
             + spacing * 3
             + 16
         )
-        wrapped = needed > available
-        if wrapped == self.quick_bar_wrapped:
+        # Top line when it fits; else beside «Другие параметры», where the old summary stood;
+        # a line of its own only when even that row is too narrow.
+        bottom = (
+            margins.left()
+            + margins.right()
+            + self.parameters_button.sizeHint().width()
+            + bar.layout().sizeHint().width()
+            + 24
+        )
+        place = 'top' if needed <= available else 'bottom' if bottom <= available else 'own'
+        if place == self.quick_bar_place:
             return
-        self.quick_bar_wrapped = wrapped
-        (self._top_row if wrapped else self._bar_row).removeWidget(bar)
-        if wrapped:
-            self._bar_row.addWidget(bar)
-        else:
+        rows = {'top': self._top_row, 'bottom': self._disclosure, 'own': self._bar_row}
+        rows[self.quick_bar_place].removeWidget(bar)
+        self.quick_bar_place = place
+        if place == 'top':
             self._top_row.insertWidget(1, bar, 1)
+        elif place == 'bottom':
+            self._disclosure.insertWidget(1, bar, 1)
+        else:
+            self._bar_row.addWidget(bar)
+
+    @property
+    def quick_bar_wrapped(self):
+        return self.quick_bar_place != 'top'
 
     def _arrange_entry(self):
         parent = self.parentWidget()

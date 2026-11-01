@@ -166,14 +166,19 @@ def test_quality_chip_says_best_briefly(make_window):
     assert window.tr.text('best_available') in chip_items(bar.quality_chip)
 
 
-def test_wide_fonts_keep_instagram_on_one_line_at_1240(make_window, qtbot):
+def test_wide_fonts_keep_the_card_short_and_chips_readable(make_window, qtbot):
     window, _ = make_window()
-    # Windows fonts are wider than macOS ones: imitate them for the whole card.
-    window.composer.setStyleSheet('QPushButton, QLabel, QToolButton { font-size: 15px; }')
+    # Windows fonts are wider than macOS ones: imitate them generously for the whole card.
+    window.composer.setStyleSheet('QPushButton, QLabel, QToolButton { font-size: 17px; }')
     window._navigate('instagram', False, 'Instagram')
     window.resize(1240, 792)
     qtbot.wait(80)
-    assert not window.composer.quick_bar_wrapped
+    composer = window.composer
+    assert composer.quick_bar_place in {'top', 'bottom'}  # no extra line at this width
+    bar = composer.quick_bar
+    for widget in (bar.kind_chip, bar.quality_chip, bar.folder_chip):
+        if widget.isVisible():
+            assert widget.width() >= widget.sizeHint().width()
 
 
 def test_smart_switch_is_a_bulb_with_a_named_toggle(make_window):
