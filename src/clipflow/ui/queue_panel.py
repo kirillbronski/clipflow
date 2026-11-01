@@ -18,9 +18,9 @@ from clipflow.domain.models import JobState
 from clipflow.ui.job_status import group_details
 from clipflow.ui.queue_delegate import QueueDelegate
 from clipflow.ui.queue_model import JobListModel, QueueFilter
+from clipflow.ui.queue_toolbar import STATUSES, QueueToolbar
 
 _HISTORY_STATES = {JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED}
-STATUSES = ('all', 'active', 'completed', 'failed')
 
 
 class QueueView(QListView):
@@ -66,7 +66,7 @@ class QueuePanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(20)
         layout.addWidget(self._toolbar())
-        layout.addWidget(self._status_tabs())
+        layout.addWidget(self._filter_bar())
         layout.addWidget(self._group_bar())
         layout.addWidget(self._queue_view(theme), 1)
         self.group_id = None
@@ -104,22 +104,17 @@ class QueuePanel(QWidget):
         self.actions_layout.addWidget(button)
         return button
 
-    def _status_tabs(self):
-        self.status_tabs = QWidget()
-        tab_layout = QHBoxLayout(self.status_tabs)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-        tab_layout.setSpacing(16)
-        self.status_buttons = {}
-        for status in STATUSES:
-            button = QPushButton()
-            button.setObjectName('statusTab')
-            button.setCheckable(True)
-            button.setChecked(status == 'all')
-            button.clicked.connect(lambda checked=False, s=status: self.filter_status(s))
-            tab_layout.addWidget(button)
-            self.status_buttons[status] = button
-        tab_layout.addStretch()
-        return self.status_tabs
+    def _filter_bar(self):
+        self.filter_bar = bar = QueueToolbar(self.tr)
+        bar.kind_changed.connect(lambda kind: self._refilter(self.proxy.show_kind, kind))
+        bar.status_changed.connect(self.filter_status)
+        bar.query_changed.connect(lambda text: self._refilter(self.proxy.show_query, text))
+        bar.sort_changed.connect(lambda key, down: self._refilter(self.proxy.sort_by, key, down))
+        return bar
+
+    def _refilter(self, change, *args):
+        change(*args)
+        self.status_changed.emit(self.proxy.status)
 
     def _group_bar(self):
         self.group_bar = QWidget()
@@ -217,8 +212,9 @@ class QueuePanel(QWidget):
 
     def filter_status(self, status):
         self.proxy.show_status(status)
-        for name, button in self.status_buttons.items():
-            button.setChecked(name == status)
+        if self.filter_bar.status != status:
+            self.filter_bar.status_actions[status].trigger()
+            return
         self.status_changed.emit(status)
 
     def arrange(self, available):
@@ -261,6 +257,9 @@ class QueuePanel(QWidget):
         self.start_button.setVisible(downloads and not self.proxy.history)
         self.cancel_queue_button.setVisible(downloads and not self.proxy.history)
         self.clear_all_button.setVisible(downloads)
+        # An empty list under a search or a tab says why, not «the queue is empty».
+        filtered = bool(self.proxy.query) or self.proxy.kind != 'all'
+        self.empty.setText(self.tr.text('nothing_found' if filtered else 'empty'))
         self.empty.setVisible(downloads and count == 0)
-        for status, button in self.status_buttons.items():
-            button.setText(self.tr.text('filter_' + status) + '  ' + str(self.proxy.count(status)))
+        self.filter_bar.set_counts({status: self.proxy.count(status) for status in STATUSES})
+        self.filter_bar.set_visible_count(count)

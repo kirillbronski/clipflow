@@ -41,18 +41,18 @@ def test_status_tabs_filter_actual_jobs_and_survive_service_change(make_window, 
     window.presenter.repository.add(replace(original, id='done', state=JobState.COMPLETED))
     window.presenter.repository.add(replace(original, id='failed', state=JobState.FAILED))
     window.presenter._reload_jobs()
-    window.status_buttons['completed'].click()
+    window.filter_bar.status_actions['completed'].trigger()
     assert window.proxy.rowCount() == 1
     assert window.proxy.index(0, 0).data(window.presenter.model.StateRole) == 'completed'
-    window.status_buttons['active'].click()
+    window.filter_bar.status_actions['active'].trigger()
     assert window.proxy.rowCount() == 1
-    window.status_buttons['failed'].click()
+    window.filter_bar.status_actions['failed'].trigger()
     assert window.proxy.rowCount() == 1
     window._navigate('instagram', False, 'Instagram')
     assert window.proxy.rowCount() == 0
     window._navigate('youtube', False, 'YouTube')
     assert window.proxy.rowCount() == 1
-    window.status_buttons['all'].click()
+    window.filter_bar.status_actions['all'].trigger()
     assert window.proxy.rowCount() == 3
 
 

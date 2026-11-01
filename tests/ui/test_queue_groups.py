@@ -242,10 +242,10 @@ def test_counts_follow_the_screen(make_window, qtbot):
     window = window_with_playlist(make_window, singles=1)
     panel = window.queue_panel
     qtbot.waitUntil(lambda: ' 2 ' in panel.count_label.text() + ' ')
-    assert panel.status_buttons['all'].text().endswith(' 2')
+    assert panel.filter_bar.status_actions['all'].text().endswith(' 2')
     panel.open_group('p')
     qtbot.waitUntil(lambda: '76' in panel.count_label.text())
-    assert panel.status_buttons['all'].text().endswith(' 76')
+    assert panel.filter_bar.status_actions['all'].text().endswith(' 76')
     assert panel.group_title.text() == window.presenter.model.index(0).data(JobListModel.TitleRole)
     assert panel.group_details.text() == '76 видео'
 

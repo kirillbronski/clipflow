@@ -1,6 +1,6 @@
 """The window's menu bar, built once; texts are bound to the translator."""
 
-from PySide6.QtGui import QActionGroup, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import QApplication
 
 
@@ -47,6 +47,11 @@ def build_menus(window):
         window.addAction(action)
         action.triggered.connect(lambda checked=False, m=method: _edit(window, m))
     edit.aboutToShow.connect(lambda: _edit_enabled(window, edit))
+    # Find is not an edit action on a focused field: it opens the queue search.
+    action = window.find_action = QAction(window)
+    action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Find))
+    action.triggered.connect(window.filter_bar.open_search)
+    window.addAction(action)
     view = bar.addMenu('')
     window.tr.bind(view, 'menu_view', setter='setTitle')
     themes = view.addMenu('')

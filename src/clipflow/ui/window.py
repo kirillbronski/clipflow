@@ -119,8 +119,7 @@ class MainWindow(QMainWindow):
         self.start_button = panel.start_button
         self.cancel_queue_button = panel.cancel_queue_button
         self.clear_all_button = panel.clear_all_button
-        self.status_tabs = panel.status_tabs
-        self.status_buttons = panel.status_buttons
+        self.filter_bar = panel.filter_bar
         self.queue_view = panel.queue_view
         self.proxy = panel.proxy
         self.empty = panel.empty
@@ -138,7 +137,7 @@ class MainWindow(QMainWindow):
             self.start_button,
             self.cancel_queue_button,
             self.clear_all_button,
-            self.status_tabs,
+            self.filter_bar,
             self.queue_view,
             self.empty,
             subtitle,

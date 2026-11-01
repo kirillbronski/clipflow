@@ -123,8 +123,8 @@ def test_large_queue_uses_model_not_child_widgets(make_window, tmp_path):
         )
     window, _ = make_window(repository=repo)
     assert window.presenter.model.rowCount() == 1000
-    # Fixed chrome only (incl. «← Back» and the settings section list).
-    assert len(window.findChildren(QPushButton)) < 33
+    # Fixed chrome only (incl. «← Back», the settings section list and the filter bar).
+    assert len(window.findChildren(QPushButton)) < 37
     assert window.queue_view.indexWidget(window.queue_view.model().index(0, 0)) is None
 
 
@@ -509,7 +509,7 @@ def test_window_exposes_the_widgets_of_its_parts(make_window):
     assert window.clear_all_button is panel.clear_all_button
     assert window.queue_view is panel.queue_view
     assert window.proxy is panel.proxy
-    assert window.status_buttons is panel.status_buttons
+    assert window.filter_bar is panel.filter_bar
     assert window.nav_buttons is sidebar.nav_buttons
     assert window.settings_button is sidebar.settings_button
 
