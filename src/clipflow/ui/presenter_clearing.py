@@ -83,13 +83,14 @@ class ClearingController:
         self._repository.remove(tuple(targets))
         self.presenter._reload_jobs()
 
-    def delete_files(self, job_ids):
+    def delete_files(self, job_ids, also=()):
+        """`also`: files that belong with these (a playlist's list), removed only with them."""
         if not self._idle:
             raise HistoryError('job_busy')
         jobs = tuple(self._repository.get(identity) for identity in job_ids)
         paths = deletion_paths(jobs, self._repository.list())
         try:
-            self._unlink(paths)
+            self._unlink((*also, *paths))
             prune_empty_folders(jobs)
         finally:
             self.presenter._reload_jobs()

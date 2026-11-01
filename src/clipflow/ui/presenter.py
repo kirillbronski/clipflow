@@ -20,6 +20,7 @@ from clipflow.domain.events import (
     SelectionRequired,
     WorkFailed,
     WorkFinished,
+    WorkStopped,
 )
 from clipflow.domain.models import (
     TERMINAL_STATES,
@@ -344,7 +345,11 @@ class WorkbenchPresenter(QObject):
         if link.service != Service.YOUTUBE or link.kind != ContentKind.PLAYLIST:
             return None
         members = self.model.members(group_id)
-        done = [m for m in members if m.state == JobState.COMPLETED and m.result_files]
+        done = [
+            m
+            for m in members
+            if m.state == JobState.COMPLETED and m.result_files and m.result_files[0].is_file()
+        ]
         location = m3u_location(
             self.model.title(parent),
             [m.result_files[0] for m in done],
@@ -381,14 +386,23 @@ class WorkbenchPresenter(QObject):
 
         def action():
             plan = self._m3u_plan(group_id)
-            if plan is not None and plan[0] is not None:
-                plan[0].unlink(missing_ok=True)  # before the files, so empty folders go too
-            self._clearing.delete_files(self._group_ids(group_id))
+            # Goes with the files (before them, so empty folders go too), never without them.
+            extra = (plan[0],) if plan is not None and plan[0] is not None else ()
+            self._clearing.delete_files(self._group_ids(group_id), also=extra)
 
         return self._command(action)
 
     def remove_jobs(self, identities):
-        return self._command(lambda: self._clearing.remove_jobs(identities))
+        return self._command(lambda: self._refreshing_m3u(identities, self._clearing.remove_jobs))
+
+    def _refreshing_m3u(self, identities, action):
+        """A playlist's list follows its tracks: a removed or deleted one leaves it."""
+        groups = {self.model.group_of(identity) for identity in identities} - {None}
+        action(identities)
+        if self.settings.playlist_m3u:
+            present = {job.id for job in self.model.jobs}
+            for group_id in groups & present:
+                self._write_m3u(group_id)
 
     def clear_history(self):
         return self._command(self._clearing.clear_history)
@@ -409,7 +423,7 @@ class WorkbenchPresenter(QObject):
     def delete_files(self, job_ids, confirmed=False):
         if confirmed is not True:
             return None
-        return self._command(lambda: self._clearing.delete_files(job_ids))
+        return self._command(lambda: self._refreshing_m3u(job_ids, self._clearing.delete_files))
 
     def update_folder(self, service, path):
         def action():
@@ -457,7 +471,16 @@ class WorkbenchPresenter(QObject):
         )
 
     def update_preferences(self, **values):
-        return self._command(lambda: self._save_settings(replace(self.settings, **values)))
+        def action():
+            enabling = values.get('playlist_m3u') and not self.settings.playlist_m3u
+            saved = self._save_settings(replace(self.settings, **values))
+            if enabling:  # playlists finished before the setting get their lists now
+                for job in self.model.jobs:
+                    if job.parent_id is None:
+                        self._write_m3u(job.id)
+            return saved
+
+        return self._command(action)
 
     @property
     def auth_gateway(self):
@@ -517,7 +540,9 @@ class WorkbenchPresenter(QObject):
         elif isinstance(event.payload, WorkFailed) and job.state == JobState.FAILED:
             self._run[1] += 1
         group_id = self.model.group_of(job.id)
-        if group_id is not None and self.settings.playlist_m3u:
+        # Only an ended track changes the list: progress must not rebuild it.
+        ended = isinstance(event.payload, (WorkFinished, WorkFailed, WorkStopped))
+        if ended and group_id is not None and self.settings.playlist_m3u:
             self._write_m3u(group_id)
         if isinstance(event.payload, DetailsFound) and self.thumbnails is not None:
             # The event still carries the cover address the queue does not keep.
