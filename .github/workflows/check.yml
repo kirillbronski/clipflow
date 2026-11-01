@@ -39,7 +39,8 @@ jobs:
           pathlib.Path('work/offline-check.log').write_text(result.stdout, encoding='utf-8')
           print(result.stdout)
           if result.returncode:
-              tail=result.stdout[-12000:].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              # GitHub keeps 4096 characters of an annotation: the end, where failures are listed.
+              tail=result.stdout[-3800:].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
               print('::error title=Offline check output::'+tail)
           sys.exit(result.returncode)
         env:
