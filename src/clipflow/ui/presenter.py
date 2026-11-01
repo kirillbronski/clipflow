@@ -1,7 +1,7 @@
 """Owner-thread commands bridge submission/scheduler/storage to Qt views."""
 
 import os
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, QUrl, Signal, Slot
@@ -22,6 +22,13 @@ from clipflow.ui.presenter_titles import TitleNamer
 from clipflow.ui.queue_model import JobListModel
 
 _UNSET = object()
+
+
+@dataclass(frozen=True)
+class SmartResult:
+    added: int
+    existing: int
+    invalid: tuple[str, ...]
 
 
 class WorkbenchPresenter(QObject):
@@ -100,11 +107,11 @@ class WorkbenchPresenter(QObject):
 
         return self._command(action)
 
-    def _add_preview(self, preview):
+    def _add_preview(self, preview, start=True):
         result = self.submission.submit(preview)
         self.model.set_jobs(self.repository.list())
         self.jobs_changed.emit()
-        if result.added and self.settings.auto_start:
+        if start and result.added and self.settings.auto_start:
             self._start()
         return result
 
@@ -348,6 +355,31 @@ class WorkbenchPresenter(QObject):
                     recent_folders=(folder, *self.settings.recent_folders),
                 )
             )
+
+        return self._command(action)
+
+    def set_smart_mode(self, enabled):
+        return self._command(
+            lambda: self._save_settings(replace(self.settings, smart_mode=enabled))
+        )
+
+    def smart_submit(self, text):
+        """Smart mode: queue every link in the pasted text and start at once."""
+
+        def action():
+            settings = self.settings
+            preview = self.submission.preview(
+                text, settings.presets, 'batch', settings.profile_limit
+            )
+            lines = text.splitlines()
+            invalid = tuple(lines[error.line - 1].strip() for error in preview.invalid)
+            added = existing = 0
+            if preview.requests:
+                result = self._add_preview(preview, start=False)
+                added, existing = len(result.added), len(result.existing)
+                if result.added:
+                    self._start()
+            return SmartResult(added, existing, invalid)
 
         return self._command(action)
 

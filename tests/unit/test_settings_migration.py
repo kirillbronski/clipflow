@@ -209,3 +209,17 @@ def test_normalized_legacy_backup_can_restore_preferences(tmp_path):
     second.mkdir()
     (second / 'settings.json').write_bytes(next(first.glob('settings-v1.*.bak')).read_bytes())
     assert SettingsStore(second).load() == expected
+
+
+def test_smart_mode_round_trip_and_default(tmp_path):
+    store = SettingsStore(tmp_path)
+    store.save(replace(AppSettings(), smart_mode=True))
+    assert store.load().smart_mode is True
+    path = tmp_path / 'settings-v2.json'
+    raw = json.loads(path.read_text(encoding='utf-8'))
+    raw.pop('smart_mode')
+    path.write_text(json.dumps(raw), encoding='utf-8')
+    assert store.load().smart_mode is False
+    raw['smart_mode'] = 'yes'
+    path.write_text(json.dumps(raw), encoding='utf-8')
+    assert store.load() == AppSettings()  # an invalid value restores defaults, like auto_start

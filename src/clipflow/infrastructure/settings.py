@@ -35,6 +35,7 @@ class AppSettings:
     presets: Mapping[Service, DownloadOptions] = field(default_factory=_presets)
     recent_folders: tuple[Path, ...] = ()
     profile_limit: int | None = 10
+    smart_mode: bool = False  # a pasted link is queued and downloaded at once
 
     def __post_init__(self):
         if type(self.schema_version) is not int or self.schema_version != 2:
@@ -43,6 +44,8 @@ class AppSettings:
             raise ValueError('invalid_preferences')
         if type(self.auto_start) is not bool:
             raise ValueError('invalid_auto_start')
+        if type(self.smart_mode) is not bool:
+            raise ValueError('invalid_smart_mode')
         if self.profile_limit is not None and (
             type(self.profile_limit) is not int or self.profile_limit not in (10, 50)
         ):
@@ -100,6 +103,7 @@ class SettingsStore:
             settings.presets,
             settings.recent_folders,
             settings.profile_limit,
+            settings.smart_mode,
         )
         self._write(
             self.path,
@@ -108,6 +112,7 @@ class SettingsStore:
                 'theme': settings.theme,
                 'language': settings.language,
                 'auto_start': settings.auto_start,
+                'smart_mode': settings.smart_mode,
                 'profile_limit': settings.profile_limit,
                 'recent_folders': [str(p) for p in settings.recent_folders],
                 'presets': {
@@ -134,6 +139,7 @@ class SettingsStore:
             {Service(key): decode_options(value) for key, value in raw['presets'].items()},
             tuple(path_value(p) for p in raw['recent_folders']),
             raw['profile_limit'],
+            raw.get('smart_mode', False),  # arrived with the quick bar
         )
 
     def load(self):

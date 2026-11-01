@@ -257,3 +257,31 @@ def test_account_store_attached_after_close_is_not_polled(presenter):
     presenter.set_auth_gateway(gateway)
     assert gateway.polls == 0
     assert errors == []
+
+
+SMART_TEXT = 'https://youtu.be/ABC\nhttps://www.youtube.com/playlist?list=PLsmart\nмусор'
+
+
+def test_smart_submit_adds_and_starts_without_auto_start(presenter, provider, repository, qtbot):
+    from clipflow.ui.presenter import SmartResult
+
+    assert presenter.settings.auto_start is False
+    result = presenter.smart_submit(SMART_TEXT)
+    assert result == SmartResult(2, 0, ('мусор',))
+    kinds = sorted(j.request.link.kind for j in repository.list())
+    assert kinds == sorted([ContentKind.VIDEO, ContentKind.PLAYLIST])
+    qtbot.waitUntil(provider.started.is_set, timeout=3000)
+
+
+def test_smart_submit_duplicates_do_not_start_twice(presenter, provider, repository, qtbot):
+    from clipflow.ui.presenter import SmartResult
+
+    presenter.smart_submit('https://youtu.be/ABC')
+    qtbot.waitUntil(provider.started.is_set, timeout=3000)
+    assert presenter.smart_submit('https://youtu.be/ABC') == SmartResult(0, 1, ())
+    assert len(repository.list()) == 1
+
+
+def test_set_smart_mode_saves(presenter):
+    presenter.set_smart_mode(True)
+    assert presenter.settings.smart_mode is True
