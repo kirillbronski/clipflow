@@ -520,7 +520,7 @@ def test_a_burst_of_job_events_recounts_the_queue_once(make_window, qtbot, monke
     window, _ = make_window()
     calls = []
     original = window.sidebar.set_counts
-    monkeypatch.setattr(window.sidebar, 'set_counts', lambda jobs: calls.append(original(jobs)))
+    monkeypatch.setattr(window.sidebar, 'set_counts', lambda *args: calls.append(original(*args)))
     for _ in range(50):
         window.presenter.jobs_changed.emit()
     qtbot.waitUntil(lambda: bool(calls))
