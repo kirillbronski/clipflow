@@ -121,10 +121,11 @@ def test_large_queue_uses_model_not_child_widgets(make_window, tmp_path):
                 DownloadRequest(parse_url(f'https://youtu.be/id{n}'), DownloadOptions(tmp_path)),
             )
         )
+    empty, _ = make_window()
     window, _ = make_window(repository=repo)
     assert window.presenter.model.rowCount() == 1000
-    # Fixed chrome only (incl. «← Back», the settings section list, the filter bar and chips).
-    assert len(window.findChildren(QPushButton)) < 40
+    # Rows are painted, not widgets: a long queue adds no buttons to the fixed chrome.
+    assert len(window.findChildren(QPushButton)) == len(empty.findChildren(QPushButton))
     assert window.queue_view.indexWidget(window.queue_view.model().index(0, 0)) is None
 
 
