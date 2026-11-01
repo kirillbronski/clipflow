@@ -90,7 +90,7 @@ def run():
             ],
             cwd=ROOT,
             env=dict(os.environ, CLIPFLOW_DATA_DIR=isolated),
-            timeout=600,
+            timeout=1500,  # the Windows CI runner needs about twice the time of a Mac
         )
     if result.returncode:
         return result.returncode
