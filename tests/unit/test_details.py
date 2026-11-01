@@ -89,3 +89,23 @@ def test_author_is_collapsed_and_trimmed():
 
 def test_empty_info_gives_none():
     assert details_from_info({}, 'video', Service.YOUTUBE) is None
+
+
+def test_merged_formats_sum_their_parts():
+    info = {
+        'filesize_approx': 8_535_091,  # yt-dlp copies the audio part's size to the top
+        'requested_formats': [
+            {'filesize_approx': 90_000_000},
+            {'filesize': 8_535_091},
+        ],
+    }
+    assert details_from_info(info, 'video', Service.YOUTUBE).size_bytes == 98_535_091
+
+
+def test_merged_formats_with_an_unknown_part_have_no_size():
+    info = {
+        'duration': 572.0,
+        'filesize_approx': 8_535_091,
+        'requested_formats': [{'format_id': '616'}, {'filesize': 8_535_091}],
+    }
+    assert details_from_info(info, 'video', Service.YOUTUBE).size_bytes is None

@@ -21,7 +21,7 @@ def details_from_info(
         fps=_number(info.get('fps')),
         author=_author(info, service),
         thumbnail=_cover(info, kind),
-        size_bytes=_count(info.get('filesize')) or _count(info.get('filesize_approx')),
+        size_bytes=_size(info),
     )
     return None if details == MediaDetails() else details
 
@@ -34,6 +34,21 @@ def _number(value):
 
 def _count(value):
     return value if type(value) is int and value > 0 else None
+
+
+def _size(info):
+    """Expected bytes; a merged download is the sum of its parts or unknown."""
+    parts = info.get('requested_formats')
+    if isinstance(parts, list) and parts:
+        # yt-dlp copies one part's size to the top level, which would understate a merge.
+        sizes = [
+            _count(p.get('filesize')) or _count(p.get('filesize_approx'))
+            if isinstance(p, Mapping)
+            else None
+            for p in parts
+        ]
+        return sum(sizes) if all(sizes) else None
+    return _count(info.get('filesize')) or _count(info.get('filesize_approx'))
 
 
 def _author(info, service):
