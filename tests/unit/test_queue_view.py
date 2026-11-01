@@ -33,3 +33,18 @@ def test_natural_key_orders_numbers():
     assert sorted(titles, key=natural_key) == ['Ёж', 'Урок 1', 'урок 2', 'Урок 10']  # ё as е
     assert natural_key('a2') < natural_key('a10')
     assert natural_key(None) == natural_key('')
+
+
+def test_plural_forms():
+    from clipflow.application.queue_view import plural
+
+    assert [plural(n, 'ru') for n in (1, 2, 5, 11, 21, 22, 112)] == [
+        'one',
+        'few',
+        'many',
+        'many',
+        'one',
+        'few',
+        'many',
+    ]
+    assert [plural(n, 'en') for n in (1, 2, 21)] == ['one', 'many', 'many']

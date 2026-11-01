@@ -28,3 +28,14 @@ def natural_key(text: str | None) -> tuple:
         for part in re.split(r'(\d+)', normalize(text))
         if part
     )
+
+
+def plural(count: int, language: str) -> str:
+    """'one', 'few' or 'many' for Russian; English has only 'one' and 'many'."""
+    if language != 'ru':
+        return 'one' if count == 1 else 'many'
+    if count % 10 == 1 and count % 100 != 11:
+        return 'one'
+    if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+        return 'few'
+    return 'many'

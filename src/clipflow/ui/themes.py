@@ -187,6 +187,7 @@ QPushButton#mode:checked {{ background: {background}; color: {text}; font-weight
 QPushButton#inlinePaste {{ background: transparent; border: none; color: {muted}; padding: 2px 7px; font-size: 11px; }}
 QPushButton#statusTab {{ background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: {muted}; font-size: 11px; padding: 9px 3px; }}
 QPushButton#statusTab:checked {{ color: {text}; border-bottom-color: {accent}; }}
+QPushButton#statusTab[active="true"] {{ color: {accent}; }}
 QToolButton {{ background: transparent; border: 1px solid transparent; color: {muted}; padding: 4px; }}
 QLineEdit,QComboBox,QPlainTextEdit,QTextEdit {{ background: {background}; border: 1px solid {border}; border-radius: 6px; padding: 10px; color: {text}; placeholder-text-color: {muted}; selection-background-color: {selection}; selection-color: {selection_text}; }}
 QComboBox QAbstractItemView,QListView,QListWidget,QTableView {{ background: {background}; color: {text}; alternate-background-color: {surface}; border: 1px solid {border}; selection-background-color: {selection}; selection-color: {selection_text}; outline: none; }}
