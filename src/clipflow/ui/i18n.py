@@ -314,6 +314,18 @@ MESSAGES.update(
     {
         'accounts': ('Аккаунты', 'Accounts'),
         'about': ('О программе', 'About'),
+        'settings_section.general': ('Основные', 'General'),
+        'settings_section.accounts': ('Авторизация', 'Sign-in'),
+        'settings_section.about': ('О программе', 'About'),
+        'auto_start_setting': (
+            'Скачивать сразу после добавления',
+            'Start downloading as soon as added',
+        ),
+        'auto_start_hint': (
+            'Загрузка начинается, как только ссылка попала в очередь. Если выключено, нажмите «Скачать всё».',
+            'Downloads begin as soon as a link joins the queue. When off, press “Download all”.',
+        ),
+        'menu_preferences': ('Настройки…', 'Settings…'),
         'accounts_note': (
             'Сессии защищены для этого пользователя компьютера. Вход открывается в отдельном окне ClipFlow.',
             'Sessions are protected for this computer user. Sign-in opens in a separate ClipFlow window.',

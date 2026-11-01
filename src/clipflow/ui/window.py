@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
             subtitle,
         )
         self.accounts_page = AccountsPage(presenter, self.tr, self)
-        self.settings_page = SettingsPage(presenter, self.tr, self)
+        self.settings_page = SettingsPage(presenter, self.tr, self, theme=self.theme)
         main.addWidget(self.accounts_page, 1)
         main.addWidget(self.settings_page, 1)
         self.accounts_page.hide()
