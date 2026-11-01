@@ -156,3 +156,11 @@ def test_default_window_keeps_chips_readable_on_instagram(make_window, qtbot):
     for widget in (bar.kind_chip, bar.quality_chip, bar.folder_chip, bar.smart_label):
         if widget.isVisible():
             assert widget.width() >= widget.sizeHint().width(), widget
+
+
+def test_quality_chip_says_best_briefly(make_window):
+    window, _ = make_window()
+    bar = window.composer.quick_bar
+    assert window.composer.quality_box.currentData() is None
+    assert bar.quality_chip.text() == 'Лучшее'
+    assert window.tr.text('best_available') in chip_items(bar.quality_chip)

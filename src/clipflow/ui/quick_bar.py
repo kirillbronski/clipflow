@@ -131,7 +131,11 @@ class QuickBar(QWidget):
             self.kind_chip.setEnabled(box.isEnabled())
         quality = composer.quality_box
         self.quality_chip.setVisible(quality.isEnabled() and quality.count() > 0)
-        self.quality_chip.setText(quality.currentText())
+        # «Лучшее» is enough on the chip; the menu keeps the full wording.
+        best = quality.currentData() is None
+        self.quality_chip.setText(
+            self.tr.text('quality_best_short') if best else quality.currentText()
+        )
         folder = composer.folder_input.text().strip()
         self.folder_chip.setToolTip(folder)
         name = Path(folder).name if folder else ''

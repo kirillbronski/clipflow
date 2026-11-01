@@ -314,6 +314,7 @@ MESSAGES.update(
         'about': ('О программе', 'About'),
         'settings_section.general': ('Основные', 'General'),
         'smart_mode': ('Умный режим', 'Smart mode'),
+        'quality_best_short': ('Лучшее', 'Best'),
         'smart_mode_hint': (
             'Вставленная ссылка сразу добавляется в очередь и скачивается с текущими настройками.',
             'A pasted link joins the queue and downloads at once with these settings.',
