@@ -345,11 +345,8 @@ def test_real_row_pause_resume_cancel_controls(make_window, qtbot, activation_ke
     )
     qtbot.keyClick(window.queue_view, activation_key, modifier)
     qtbot.waitUntil(lambda: window.presenter.repository.get(identity).state == JobState.DOWNLOADING)
-    qtbot.mouseClick(
-        window.queue_view.viewport(),
-        Qt.MouseButton.LeftButton,
-        pos=QPoint(rect.right() - 27, rect.top() + 41),
-    )
+    # Cancelling moved into the row menu («⋮»); test_row_menu covers it.
+    window.presenter.cancel_job(identity)
     qtbot.waitUntil(lambda: window.presenter.executor.is_idle)
     assert window.presenter.repository.get(identity).state == JobState.CANCELLED
 

@@ -161,3 +161,14 @@ def test_presenter_without_store_has_no_loader(make_window):
     window, _ = make_window()
     assert window.presenter.thumbnails is None
     assert isinstance(ThumbnailLoader, type)
+
+
+def test_ready_cover_reaches_the_row(make_window, qtbot, tmp_path):
+    from clipflow.ui.queue_model import JobListModel
+
+    fetch = Fetch(picture())
+    window, loader, _, _ = window_with(make_window, tmp_path, fetch, 'video_A')
+    model = window.presenter.model
+    assert model.index(0).data(JobListModel.CoverRole) is None
+    loader.refresh()
+    qtbot.waitUntil(lambda: model.index(0).data(JobListModel.CoverRole) is not None, timeout=3000)

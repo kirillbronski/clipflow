@@ -77,7 +77,8 @@ def test_primary_and_progress_use_the_selected_service_accent(make_window, qtbot
     expected = QColor(window.theme.tokens()[service.value])
     image = window.queue_view.viewport().grab().toImage()
     dpr = image.devicePixelRatio()
-    assert image.pixelColor(int(64 * dpr), int(72 * dpr)) == expected
+    # The bar starts under the title, right of the 80 px cover column.
+    assert image.pixelColor(int(96 * dpr), int(72 * dpr)) == expected
     button = window.add_button.grab().toImage()
     actual = button.pixelColor(
         int((window.add_button.width() - 8) * button.devicePixelRatio()),

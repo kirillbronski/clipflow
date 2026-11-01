@@ -1,15 +1,18 @@
 """Painted compact rows and hit targets; no per-row QPushButtons."""
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPen
+from PySide6.QtCore import QEvent, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPainterPath, QPen
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
 from clipflow.application.history import result_status
-from clipflow.domain.models import TERMINAL_STATES, JobState
+from clipflow.domain.models import JobState
 from clipflow.ui.i18n import Translator
-from clipflow.ui.job_status import error_text, group_text, meta_text
+from clipflow.ui.job_status import details_text, error_text, group_text, meta_text
 from clipflow.ui.queue_model import JobListModel
 from clipflow.ui.themes import PALETTES
+
+COVER = (80, 45)
+LEFT = COVER[0] + 12  # titles start after the cover column
 
 
 class QueueDelegate(QStyledItemDelegate):
@@ -20,11 +23,11 @@ class QueueDelegate(QStyledItemDelegate):
         self.theme = theme
         self.tr = translator or Translator(parent=self)
 
-    def second_line(self, job):
-        """The failure reason for a failed job, otherwise its source and quality."""
+    def second_line(self, job, size=0):
+        """The failure reason, otherwise the file's details, or its source and quality."""
         if job.state == JobState.FAILED:
             return error_text(job.error, job.request.link.service, self.tr)
-        return meta_text(job, self.tr)
+        return details_text(job, size, self.tr) or meta_text(job, self.tr)
 
     def sizeHint(self, option, index):
         return QSize(400, 96)
@@ -68,9 +71,9 @@ class QueueDelegate(QStyledItemDelegate):
         painter.setPen(QColor(t['border']))
         painter.drawLine(rect.bottomLeft(), rect.bottomRight())
         font = QFont(option.font)
-        self._paint_badge(painter, font, rect, job, t)
-        left = rect.left() + 60
-        available = max(50, rect.width() - 230)
+        self._paint_cover(painter, font, rect, job, t, index.data(JobListModel.CoverRole))
+        left = rect.left() + LEFT
+        available = max(50, rect.width() - 262)
         font.setPixelSize(13)
         font.setBold(True)
         painter.setFont(font)
@@ -92,7 +95,9 @@ class QueueDelegate(QStyledItemDelegate):
             QRect(left, rect.top() + 39, available, 19),
             Qt.AlignmentFlag.AlignVCenter,
             painter.fontMetrics().elidedText(
-                self.second_line(job), Qt.TextElideMode.ElideRight, available
+                self.second_line(job, index.data(JobListModel.SizeRole)),
+                Qt.TextElideMode.ElideRight,
+                available,
             ),
         )
         progress = index.data(JobListModel.ProgressRole)
@@ -126,9 +131,9 @@ class QueueDelegate(QStyledItemDelegate):
         painter.setPen(QColor(t['border']))
         painter.drawLine(rect.bottomLeft(), rect.bottomRight())
         font = QFont(option.font)
-        self._paint_badge(painter, font, rect, job, t)
-        left = rect.left() + 60
-        available = max(50, rect.width() - 190)
+        self._paint_cover(painter, font, rect, job, t, index.data(JobListModel.CoverRole))
+        left = rect.left() + LEFT
+        available = max(50, rect.width() - 222)
         font.setPixelSize(13)
         font.setBold(True)
         painter.setFont(font)
@@ -162,8 +167,27 @@ class QueueDelegate(QStyledItemDelegate):
         painter.restore()
 
     @staticmethod
-    def _paint_badge(painter, font, rect, job, t):
-        badge = QRect(rect.left(), rect.top() + 21, 47, 54)
+    def _paint_cover(painter, font, rect, job, t, cover):
+        """The cover as in 4K, with a play mark on videos; without one, the service badge."""
+        badge = QRect(rect.left(), rect.top() + (rect.height() - COVER[1]) // 2, *COVER)
+        if cover is not None:
+            painter.save()
+            clip = QPainterPath()
+            clip.addRoundedRect(QRectF(badge), 6, 6)
+            painter.setClipPath(clip)
+            painter.drawPixmap(badge, cover)
+            painter.restore()
+            if job.request.options.media_filter != 'photo':
+                mark = QRect(0, 0, 24, 24)
+                mark.moveCenter(badge.center())
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(0, 0, 0, 120))
+                painter.drawEllipse(mark)
+                painter.setPen(QColor('#ffffff'))
+                font.setPixelSize(11)
+                painter.setFont(font)
+                painter.drawText(mark, Qt.AlignmentFlag.AlignCenter, '▶')
+            return
         tint = QColor(t[job.request.link.service.value])
         tint.setAlpha(28)
         painter.setPen(Qt.PenStyle.NoPen)
@@ -202,8 +226,7 @@ class QueueDelegate(QStyledItemDelegate):
             else '▷'
         )
         painter.drawText(primary, Qt.AlignmentFlag.AlignCenter, glyph)
-        if job.state not in TERMINAL_STATES:
-            painter.drawText(secondary, Qt.AlignmentFlag.AlignCenter, '×')
+        painter.drawText(secondary, Qt.AlignmentFlag.AlignCenter, '⋮')
 
     def status_text(self, job, progress):
         """The short state at the right of a row: waiting reasons, percent and speed."""
@@ -251,11 +274,8 @@ class QueueDelegate(QStyledItemDelegate):
             if primary.contains(event.position().toPoint()):
                 self.action_requested.emit(index.data(JobListModel.JobIdRole), 'toggle')
                 return True
-            if (
-                secondary.contains(event.position().toPoint())
-                and index.data(JobListModel.JobRole).state not in TERMINAL_STATES
-            ):
-                self.action_requested.emit(index.data(JobListModel.JobIdRole), 'cancel')
+            if secondary.contains(event.position().toPoint()):
+                self.action_requested.emit(index.data(JobListModel.JobIdRole), 'row_menu')
                 return True
         return super().editorEvent(event, model, option, index)
 

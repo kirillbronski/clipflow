@@ -70,6 +70,9 @@ class WorkbenchPresenter(QObject):
         self._titles = TitleNamer(self)
         # Covers are optional: without a store the rows keep the service badge.
         self.thumbnails = ThumbnailLoader(self, thumbnails) if thumbnails is not None else None
+        if self.thumbnails is not None:
+            self.model.covers = self.thumbnails.pixmap
+            self.thumbnails.thumbnail_ready.connect(self.model.cover_changed)
 
     def _command(self, action):
         if self._closing:

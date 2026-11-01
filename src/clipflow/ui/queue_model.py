@@ -18,6 +18,8 @@ class JobListModel(QAbstractListModel):
     SourceRole = JobIdRole + 5
     JobRole = JobIdRole + 6
     GroupRole = JobIdRole + 7
+    CoverRole = JobIdRole + 8
+    SizeRole = JobIdRole + 9
 
     def __init__(self, jobs=(), parent=None):
         super().__init__(parent)
@@ -27,6 +29,8 @@ class JobListModel(QAbstractListModel):
         self._titles = {}
         self._progress = {}
         self._sizes = {}  # job id -> (result files, bytes); read from disk once per file set
+        self.covers = None  # job id -> QPixmap | None, set when covers are available
+        self._covers = {}  # asked once per job; cover_changed forgets an answer
         self._index()
 
     def rowCount(self, parent=QModelIndex()):
@@ -35,6 +39,8 @@ class JobListModel(QAbstractListModel):
     def roleNames(self):
         return {
             self.JobIdRole: b'job_id',
+            self.CoverRole: b'cover',
+            self.SizeRole: b'size',
             self.TitleRole: b'title',
             self.StateRole: b'state',
             self.ProgressRole: b'progress',
@@ -71,6 +77,8 @@ class JobListModel(QAbstractListModel):
             self.SourceRole: job.request.link.service.value,
             self.JobRole: job,
             self.GroupRole: self._summary(job) if role == self.GroupRole else None,
+            self.CoverRole: self._cover(job) if role == self.CoverRole else None,
+            self.SizeRole: self._size(job) if role == self.SizeRole else None,
             int(Qt.ItemDataRole.ToolTipRole): (
                 self.translator.text(
                     'show_posts' if job.request.link.service.value == 'instagram' else 'show_tracks'
@@ -100,6 +108,28 @@ class JobListModel(QAbstractListModel):
 
     def is_group_row(self, row):
         return self.jobs[row].id in self._groups
+
+    def _own_cover(self, job_id):
+        if job_id not in self._covers:
+            self._covers[job_id] = self.covers(job_id) if self.covers else None
+        return self._covers[job_id]
+
+    def _cover(self, job):
+        """The job's cover; a group without its own shows its first member's."""
+        own = self._own_cover(job.id)
+        if own is not None or job.id not in self._groups:
+            return own
+        return next(
+            (c for i in self._members.get(job.id, ()) if (c := self._own_cover(i)) is not None),
+            None,
+        )
+
+    def cover_changed(self, job_id):
+        self._covers.pop(job_id, None)
+        for identity in (job_id, self._top.get(job_id)):
+            row = self._rows.get(identity)
+            if row is not None:
+                self.dataChanged.emit(self.index(row), self.index(row))
 
     def _size(self, job):
         cached = self._sizes.get(job.id)
