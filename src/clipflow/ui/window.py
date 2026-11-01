@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
         self.smart_message = self.composer.smart_message
         self._smart_timer = QTimer(self)
         self._smart_timer.setSingleShot(True)
-        self._smart_timer.timeout.connect(self.smart_message.hide)
+        self._smart_timer.timeout.connect(self._hide_smart_message)
         self.composer_host = QScrollArea()
         self.composer_host.setWidgetResizable(True)
         self.composer_host.setFrameShape(QFrame.Shape.NoFrame)
@@ -329,11 +329,15 @@ class MainWindow(QMainWindow):
         toggle.blockSignals(False)
 
     def _smart_paste(self, text):
+        # The same folder check as «Добавить»: a bad folder is not silently replaced.
+        if not self._commit_options():
+            return
         result = self.presenter.smart_submit(text)
         if result is None:
             return
-        self.composer.url_input.setText('\n'.join(result.invalid))
         if result.invalid:
+            # Unrecognised lines come back for fixing; a typed link stays untouched otherwise.
+            self.composer.url_input.setText('\n'.join(result.invalid))
             self._show_error('invalid_link')
         else:
             self.error_label.hide()
@@ -342,7 +346,12 @@ class MainWindow(QMainWindow):
             message += ', ' + self.tr.text('smart_existing', count=result.existing)
         self.smart_message.setText(message)
         self.smart_message.show()
+        self.composer.layout_changed.emit()  # the card grows by the message's line
         self._smart_timer.start(SMART_MESSAGE_MS)
+
+    def _hide_smart_message(self):
+        self.smart_message.hide()
+        self.composer.layout_changed.emit()
 
     def _set_auto_start(self, enabled):
         if not self.presenter.set_auto_start(enabled):

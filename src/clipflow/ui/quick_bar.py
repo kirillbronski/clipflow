@@ -13,6 +13,7 @@ from clipflow.domain.models import Service
 from clipflow.ui.toggle import ToggleSwitch
 
 SPACING = 8
+STANDARD_HEIGHTS = (2160, 1440, 1080, 720, 480, 360)
 FOLDER_WIDTH = 180  # the folder chip's text is elided beyond this
 
 
@@ -91,10 +92,20 @@ class QuickBar(QWidget):
             box.setCurrentIndex(index)
 
     def _quality_items(self):
-        return self._box_items(self.composer.quality_box)
+        """Probed heights when a link was checked, else the usual limits to choose from."""
+        composer = self.composer
+        current = composer.quality_box.currentData()
+        heights = composer._heights or STANDARD_HEIGHTS
+        items = [(self.tr.text('best_available'), None, current is None)]
+        for height in heights:
+            text = (
+                f'{height}p' if composer._heights else self.tr.text('quality_limit', height=height)
+            )
+            items.append((text, height, current == height))
+        return items
 
-    def _quality_pick(self, index):
-        self.composer.quality_box.setCurrentIndex(index)
+    def _quality_pick(self, height):
+        self.composer.choose_quality(height)
 
     def _folder_items(self):
         box = self.composer.recent_box
@@ -130,3 +141,4 @@ class QuickBar(QWidget):
             metrics.elidedText(label, Qt.TextElideMode.ElideLeft, FOLDER_WIDTH)
         )
         self.smart_label.setText('💡 ' + self.tr.text('smart_mode'))
+        self.composer._arrange_quick_bar()

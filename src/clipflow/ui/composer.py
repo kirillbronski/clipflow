@@ -303,12 +303,23 @@ class Composer(QFrame):
         self._arrange_quick_bar()
 
     def _arrange_quick_bar(self):
-        bar = self.quick_bar
-        modes = sum(
-            b.sizeHint().width() + 4 for b in self.mode_buttons.values() if not b.isHidden()
+        bar = getattr(self, 'quick_bar', None)
+        if bar is None:
+            return
+        parent = self.parentWidget()
+        available = min(self.width(), parent.width() if parent is not None else self.width())
+        margins = self.layout().contentsMargins()
+        spacing = max(0, self._top_row.spacing())
+        needed = (
+            margins.left()
+            + margins.right()
+            + self.download_label.sizeHint().width()
+            + bar.layout().sizeHint().width()
+            + self._modes_layout.minimumSize().width()
+            + spacing * 3
+            + 16
         )
-        needed = self.download_label.sizeHint().width() + bar.sizeHint().width() + modes + 40
-        wrapped = needed > self.width()
+        wrapped = needed > available
         if wrapped == self.quick_bar_wrapped:
             return
         self.quick_bar_wrapped = wrapped
@@ -674,6 +685,11 @@ class Composer(QFrame):
                 height,
             )
         self.quality_box.setCurrentIndex(max(0, self.quality_box.findData(cap)))
+
+    def choose_quality(self, cap):
+        """A quality limit from the quick bar, also when no link has been checked yet."""
+        self._quality(self._heights, cap)
+        self._options_changed()
 
     def _submit(self):
         self.submit_requested.emit(self.url_input.text(), self.mode, self.limit_box.currentData())

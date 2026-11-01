@@ -112,3 +112,35 @@ def test_smart_message_disappears(make_window, qtbot, clipboard, monkeypatch):
     window.composer.url_input.paste()
     assert window.smart_message.isVisible()
     qtbot.waitUntil(lambda: not window.smart_message.isVisible(), timeout=2000)
+
+
+def test_smart_paste_keeps_a_typed_link(make_window, clipboard):
+    window, _ = smart_window(make_window)
+    window.composer.url_input.setText('https://youtu.be/typed')
+    clipboard.setText(VIDEO)
+    window.composer.url_input.paste()
+    assert window.composer.url_input.text() == 'https://youtu.be/typed'
+
+
+def test_smart_paste_checks_the_folder(make_window, clipboard):
+    window, _ = smart_window(make_window)
+    window.composer.folder_input.setText('   ')
+    clipboard.setText(VIDEO)
+    window.composer.url_input.paste()
+    assert jobs(window) == []
+    assert window.error_label.isVisible()
+
+
+def test_smart_message_resizes_the_card(make_window, clipboard, qtbot, monkeypatch):
+    import clipflow.ui.window as window_module
+
+    monkeypatch.setattr(window_module, 'SMART_MESSAGE_MS', 50)
+    window, _ = smart_window(make_window)
+    changes = []
+    window.composer.layout_changed.connect(lambda: changes.append(1))
+    clipboard.setText(VIDEO)
+    window.composer.url_input.paste()
+    assert len(changes) >= 1
+    shown = len(changes)
+    qtbot.waitUntil(lambda: not window.smart_message.isVisible(), timeout=2000)
+    assert len(changes) > shown

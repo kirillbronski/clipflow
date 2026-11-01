@@ -6,6 +6,7 @@ from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QApplication
 
 from clipflow.domain.models import Service
+from clipflow.ui.quick_bar import FOLDER_WIDTH
 
 
 def chip_items(chip):
@@ -84,14 +85,18 @@ def test_folder_chip_menu_and_tooltip(make_window, tmp_path, monkeypatch):
 def test_folder_chip_long_path(make_window, tmp_path):
     window, _ = make_window()
     composer = window.composer
-    deep = tmp_path.joinpath(*[f'уровень_{n}' for n in range(14)], 'Итоговая папка')
+    deep = tmp_path.joinpath(
+        *[f'уровень_{n}' for n in range(14)],
+        ('Очень длинное имя итоговой папки для загрузок ' * 3).strip(),
+    )
     deep.mkdir(parents=True)
     composer.folder_input.setText(str(deep))
     composer.folder_input.editingFinished.emit()
     bar = composer.quick_bar
     assert bar.folder_chip.toolTip() == str(deep)
     assert bar.folder_chip.text().startswith('…')
-    assert bar.folder_chip.width() <= bar.width()
+    assert not bar.folder_chip.text().startswith('…/Очень')  # the long name itself is elided
+    assert bar.folder_chip.sizeHint().width() <= FOLDER_WIDTH + 60
 
 
 def test_more_parameters_title(make_window):
@@ -127,3 +132,27 @@ def test_narrow_card_moves_chips_to_their_own_line(make_window, qtbot):
     assert bar.smart_label.width() >= bar.smart_label.sizeHint().width()
     window.resize(1400, 760)
     qtbot.waitUntil(lambda: not composer.quick_bar_wrapped)
+
+
+def test_quality_chip_offers_limits_without_a_probe(make_window):
+    window, _ = make_window()
+    composer = window.composer
+    composer.set_service(Service.YOUTUBE)
+    bar = composer.quick_bar
+    assert composer.url_input.text() == ''
+    items = chip_items(bar.quality_chip)
+    limit = window.tr.text('quality_limit', height=720)
+    assert limit in items
+    pick(bar.quality_chip, limit)
+    assert window.presenter.settings.presets[Service.YOUTUBE].max_height == 720
+
+
+def test_default_window_keeps_chips_readable_on_instagram(make_window, qtbot):
+    window, _ = make_window()
+    window.resize(1180, 760)
+    window.nav_buttons[3].click()  # Instagram
+    qtbot.wait(50)
+    bar = window.composer.quick_bar
+    for widget in (bar.kind_chip, bar.quality_chip, bar.folder_chip, bar.smart_label):
+        if widget.isVisible():
+            assert widget.width() >= widget.sizeHint().width(), widget
