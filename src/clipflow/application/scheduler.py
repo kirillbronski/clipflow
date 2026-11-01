@@ -1,4 +1,6 @@
-"""Single-worker queue. All commands/events run on the owning application thread.
+"""Download queue with a slot lane per site. All commands/events run on the owning thread.
+
+YouTube runs up to `limits[YOUTUBE]` jobs at once; Instagram and GetCourse one each, beside it.
 
 Executors must marshal callbacks to that thread (Qt queued signals in T10).
 WorkFinished/WorkFailed/WorkStopped are terminal *worker* acknowledgements: the
@@ -7,8 +9,9 @@ request alone never frees the worker slot. Subscribers receive accepted JobEvent
 command state changes use StageChanged after the repository has been updated.
 """
 
+from collections import Counter
 from collections.abc import Callable, Iterable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
@@ -57,6 +60,16 @@ def _same_media(request) -> tuple:
     return link.service, link.canonical_id, options.format, options.max_height
 
 
+@dataclass
+class _Attempt:
+    """One running attempt: its slot is held until the worker acknowledges the end."""
+
+    attempt_id: str
+    launched: bool = False
+    discovered: bool = False
+    stopping: bool = False
+
+
 def _storable(job: Job, details: MediaDetails) -> MediaDetails:
     """Instagram cover addresses are signed CDN links: kept in memory, never on disk."""
     if job.request.link.service is Service.INSTAGRAM and details.thumbnail:
@@ -76,10 +89,8 @@ class Scheduler:
         self._drained = False
         self._closed = False
         self._pumping = False
-        self._active: tuple[str, str] | None = None
-        self._launched = False
-        self._discovered = False
-        self._stopping = False
+        self._active: dict[str, _Attempt] = {}
+        self.limits = dict.fromkeys(Service, 1)
         self._subscribers: list[Callable[[JobEvent], None]] = []
 
     def subscribe(self, callback: Callable[[JobEvent], None]) -> Callable[[], None]:
@@ -90,6 +101,17 @@ class Scheduler:
                 self._subscribers.remove(callback)
 
         return unsubscribe
+
+    @property
+    def active_ids(self) -> tuple[str, ...]:
+        return tuple(self._active)
+
+    def set_youtube_parallel(self, count: int) -> None:
+        """Lowering the limit never stops running jobs: new ones wait for a free slot."""
+        if type(count) is not int or not 1 <= count <= 4:
+            raise ValueError('YouTube parallel downloads must be 1-4')
+        self.limits[Service.YOUTUBE] = count
+        self._pump()
 
     def _publish(self, event: JobEvent) -> None:
         for callback in tuple(self._subscribers):
@@ -117,23 +139,27 @@ class Scheduler:
             return
         self._pumping = True
         try:
-            while self._running and not self._drained and self._active is None:
+            while self._running and not self._drained:
                 self._defer_waiting_instagram()
                 jobs = self.repository.list()
                 queued = [j for j in jobs if j.state == JobState.QUEUED and not j.source_required]
                 if not queued:
-                    self._drained = not any(
-                        j.state == JobState.PAUSED
-                        and j.automatic_retry
-                        and j.pause_reason in {'rate_limit', 'rate_spacing'}
-                        and j.next_allowed_at is not None
-                        for j in jobs
-                    )
+                    # A running playlist may still add tracks: drained only when nothing runs.
+                    if not self._active:
+                        self._drained = not any(
+                            j.state == JobState.PAUSED
+                            and j.automatic_retry
+                            and j.pause_reason in {'rate_limit', 'rate_spacing'}
+                            and j.next_allowed_at is not None
+                            for j in jobs
+                        )
                     break
-                if not getattr(self.executor, 'is_idle', True):
+                # A quality check and downloads never overlap.
+                if getattr(self.executor, 'probing', False):
                     break
-                job = next((j for j in queued if j.id == self._preferred_job), queued[0])
-                self._preferred_job = None
+                job = self._next(jobs, queued)
+                if job is None:
+                    break
                 job = replace(
                     job,
                     state=JobState.PROBING,
@@ -143,15 +169,13 @@ class Scheduler:
                     next_allowed_at=None,
                     automatic_retry=False,
                 )
-                self._active = (job.id, job.attempt_id)
-                self._launched = False
-                self._discovered = False
-                self._stopping = False
+                attempt = _Attempt(job.attempt_id)
+                self._active[job.id] = attempt
                 self._save(job)
                 # A subscriber can pause/cancel/shut down while seeing PROBING.
-                if self._active != (job.id, job.attempt_id):
+                if self._active.get(job.id) is not attempt:
                     continue
-                self._launched = True
+                attempt.launched = True
                 try:
                     self.executor.start(job, self.handle)
                 except Exception:  # noqa: BLE001  # адаптер исполнителя: наружу только безопасный код, без секретов
@@ -160,12 +184,30 @@ class Scheduler:
         finally:
             self._pumping = False
 
+    def _next(self, jobs: list[Job], queued: list[Job]) -> Job | None:
+        """The first waiting job whose lane has a free slot; a chosen job is first in its lane."""
+        busy = Counter(j.request.link.service for j in jobs if j.id in self._active)
+        preferred = next((j for j in queued if j.id == self._preferred_job), None)
+        if preferred is None:
+            self._preferred_job = None
+        for job in ([preferred] if preferred else []) + queued:
+            lane = job.request.link.service
+            if busy[lane] >= self.limits[lane]:
+                continue
+            if preferred and job is not preferred and lane == preferred.request.link.service:
+                continue
+            if job is preferred:
+                self._preferred_job = None
+            return job
+        return None
+
     def _stop(self, job_id: str, reason: StopReason) -> None:
-        if self._active and self._active[0] == job_id and not self._stopping:
-            if not self._launched:
-                self._active = None
+        attempt = self._active.get(job_id)
+        if attempt is not None and not attempt.stopping:
+            if not attempt.launched:
+                del self._active[job_id]
                 return
-            self._stopping = True
+            attempt.stopping = True
             # If stop raises, keep the slot occupied: worker teardown is unproven.
             self.executor.stop(job_id, reason)
 
@@ -246,8 +288,9 @@ class Scheduler:
                 self._save(
                     replace(job, state=JobState.CANCELLED, pause_reason=None, next_allowed_at=None)
                 )
-        if self._active and self._active[0] in targets:
-            self._stop(self._active[0], 'cancel')
+        for job_id in tuple(self._active):
+            if job_id in targets:
+                self._stop(job_id, 'cancel')
 
     def retry(self, job_id: str) -> None:
         job = self.repository.get(job_id)
@@ -274,8 +317,8 @@ class Scheduler:
                 replace(job, state=JobState.PAUSED, pause_reason='user', automatic_retry=False)
             )
             changed.append(job.id)
-        if self._active and self._active[0] in changed:
-            self._stop(self._active[0], 'pause')
+        for job_id in changed:
+            self._stop(job_id, 'pause')
         return tuple(changed)
 
     def resume_many(self, job_ids: Iterable[str]) -> tuple[str, ...]:
@@ -395,8 +438,8 @@ class Scheduler:
     def shutdown(self) -> None:
         self._closed = True
         self._running = False  # Must precede stop(): synchronous ack cannot start next.
-        if self._active:
-            job = self.repository.get(self._active[0])
+        for job_id in tuple(self._active):
+            job = self.repository.get(job_id)
             if job.state not in TERMINAL_STATES:
                 self._save(replace(job, state=JobState.PAUSED, pause_reason='shutdown'))
             self._stop(job.id, 'shutdown')
@@ -410,14 +453,14 @@ class Scheduler:
         return identities
 
     def handle(self, event: JobEvent) -> None:
-        if (event.job_id, event.attempt_id) != self._active:
+        attempt = self._active.get(event.job_id)
+        if attempt is None or attempt.attempt_id != event.attempt_id:
             return
         job = self.repository.get(event.job_id)
         payload = event.payload
-        if self._stopping:
+        if attempt.stopping:
             if isinstance(payload, _ACKS):
-                self._active = None
-                self._stopping = False
+                del self._active[event.job_id]
                 self._pump()
             return
         handler = next(
@@ -442,7 +485,8 @@ class Scheduler:
         )
 
     def _on_discovered(self, job: Job, payload: RequestsDiscovered) -> None:
-        self._discovered = self._discovered or bool(payload.requests)
+        attempt = self._active[job.id]
+        attempt.discovered = attempt.discovered or bool(payload.requests)
         # Historical cancelled/failed jobs must not suppress a new explicit
         # collection retry. Completed children deduplicate only while their
         # published outputs still exist; deleted media can be restored.
@@ -505,10 +549,10 @@ class Scheduler:
         pass  # published as is; the job record does not change
 
     def _on_finished(self, job: Job, payload: WorkFinished) -> None:
-        self._active = None
+        attempt = self._active.pop(job.id)
         has_output = (
             bool(job.result_files)
-            or self._discovered
+            or attempt.discovered
             or any(j.parent_id == job.id for j in self.repository.list())
         )
         self._save(
@@ -520,11 +564,11 @@ class Scheduler:
         )
 
     def _on_failed(self, job: Job, payload: WorkFailed) -> None:
-        self._active = None
+        self._active.pop(job.id, None)
         self._save(replace(job, state=JobState.FAILED, error=payload.error))
 
     def _on_stopped(self, job: Job, payload: WorkStopped) -> None:
-        self._active = None
+        self._active.pop(job.id, None)
         self._save(replace(job, state=JobState.PAUSED, pause_reason='worker_stopped'))
 
 

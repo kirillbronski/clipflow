@@ -5,7 +5,7 @@ from pathlib import Path
 from clipflow.domain.events import (
     JobEvent,
 )
-from clipflow.domain.models import DownloadOptions, DownloadRequest
+from clipflow.domain.models import DownloadOptions, DownloadRequest, Service
 from clipflow.domain.urls import parse_url
 
 
@@ -27,7 +27,15 @@ class ControlledExecutor:
         callback(JobEvent(job.id, job.attempt_id, payload))
 
 
-def request(name='first'):
+_ADDRESSES = {
+    Service.YOUTUBE: 'https://youtu.be/{}',
+    Service.INSTAGRAM: 'https://www.instagram.com/p/{}/',
+    Service.GETCOURSE: 'https://school.getcourse.ru/pl/teach/control/lesson/view?id={}',
+}
+
+
+def request(name='first', service=Service.YOUTUBE):
+    """A GetCourse lesson needs a numeric name."""
     return DownloadRequest(
-        parse_url(f'https://youtu.be/{name}'), DownloadOptions(Path('/downloads'))
+        parse_url(_ADDRESSES[service].format(name)), DownloadOptions(Path('/downloads'))
     )
