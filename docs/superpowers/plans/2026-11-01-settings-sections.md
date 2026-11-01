@@ -85,35 +85,49 @@ def test_toggle_reads_theme_on_each_paint(qtbot):
 
 ```python
 def test_sections_switch_pages(make_window):
-    window, _ = make_window(); window.settings_button.click(); page = window.settings_page
+    window, _ = make_window()
+    window.settings_button.click()
+    page = window.settings_page
     assert page.current_section == 'general' and page.section_title.text() == 'Основные'
     page.section_buttons['about'].click()
     assert page.current_section == 'about' and page.about_label.isVisible()
     assert not page.language_box.isVisible()
 
+
 def test_auto_start_toggle_and_composer_stay_in_sync(make_window):
-    window, _ = make_window(); window.settings_button.click(); page = window.settings_page
+    window, _ = make_window()
+    window.settings_button.click()
+    page = window.settings_page
     page.auto_start_toggle.click()
     assert window.presenter.settings.auto_start and window.composer.auto_start.isChecked()
     window.composer.auto_start.click()
     assert not window.presenter.settings.auto_start and not page.auto_start_toggle.isChecked()
 
+
 def test_auto_start_toggle_reverts_when_save_fails(make_window, monkeypatch):
-    window, _ = make_window(); window.settings_button.click(); page = window.settings_page
+    window, _ = make_window()
+    window.settings_button.click()
+    page = window.settings_page
     monkeypatch.setattr(window.presenter, 'set_auto_start', lambda enabled: False)
     page.auto_start_toggle.click()
     assert not page.auto_start_toggle.isChecked()
 
+
 def test_settings_follow_language_switch(make_window):
-    window, _ = make_window(); window.settings_button.click(); page = window.settings_page
+    window, _ = make_window()
+    window.settings_button.click()
+    page = window.settings_page
     page.language_box.setCurrentIndex(page.language_box.findData('en'))
     assert page.section_buttons['general'].text().endswith('General')
     assert page.section_title.text() == 'General'
     # the hint label under the toggle reads the English hint
 
+
 def test_hidden_sections_are_absent(make_window):
     window, _ = make_window()
-    assert set(window.settings_page.section_buttons) == {'general', 'accounts', 'about'} - {'accounts'}
+    assert set(window.settings_page.section_buttons) == {'general', 'accounts', 'about'} - {
+        'accounts'
+    }
     # в этой задаче accounts ещё не передан; Task 3 меняет ожидание на все три
 ```
 
@@ -143,14 +157,19 @@ def test_accounts_live_in_settings(make_window):
     assert window.accounts_page.isVisible()
     assert set(window.settings_page.section_buttons) == {'general', 'accounts', 'about'}
 
+
 def test_settings_remember_last_section(make_window):
-    window, _ = make_window(); window.open_settings('about')
-    window.nav_buttons[0].click(); window.settings_button.click()
+    window, _ = make_window()
+    window.open_settings('about')
+    window.nav_buttons[0].click()
+    window.settings_button.click()
     assert window.settings_page.current_section == 'about'
     assert window.heading.text() == 'Настройки'
 
+
 def test_settings_fit_narrow_window(make_window, qtbot):
-    window, _ = make_window(); window.resize(window.minimumWidth(), 600)
+    window, _ = make_window()
+    window.resize(window.minimumWidth(), 600)
     window.open_settings('general')
     area = window.settings_page.findChildren(QScrollArea)[0]
     assert area.horizontalScrollBar().maximum() == 0
@@ -177,7 +196,8 @@ def test_settings_fit_narrow_window(make_window, qtbot):
 
 ```python
 def test_preferences_action_opens_settings(make_window):
-    window, _ = make_window(); action = window.preferences_action
+    window, _ = make_window()
+    action = window.preferences_action
     assert action.menuRole() == QAction.MenuRole.PreferencesRole
     assert action.shortcuts()
     action.trigger()
