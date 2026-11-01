@@ -66,7 +66,7 @@ def test_every_referenced_key_exists():
 def test_every_key_family_is_complete():
     prefix = re.compile(r"\b(?:tr|translator)\.text\(\s*'([\w.]+)'\s*\+")
     used = {key for text in sources().values() for key in prefix.findall(text)}
-    assert used == {'error.', 'job_error.', 'state_', 'filter_'}
+    assert used == {'error.', 'job_error.', 'state_'}  # status names now come from a table
     families = {
         'filter_': ('all', 'active', 'completed', 'failed'),
         'state_': tuple(state.value for state in JobState),
