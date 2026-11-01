@@ -167,9 +167,8 @@ def test_quality_chip_says_best_briefly(make_window):
 
 
 def test_wide_fonts_keep_the_card_short_and_chips_readable(make_window, qtbot):
+    # Real platform fonts: on the Windows runner they are much wider than on macOS.
     window, _ = make_window()
-    # Windows fonts are wider than macOS ones: imitate them generously for the whole card.
-    window.composer.setStyleSheet('QPushButton, QLabel, QToolButton { font-size: 17px; }')
     window._navigate('instagram', False, 'Instagram')
     window.resize(1240, 792)
     qtbot.wait(80)
