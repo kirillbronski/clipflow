@@ -1,5 +1,6 @@
 """Owner-thread commands bridge submission/scheduler/storage to Qt views."""
 
+import contextlib
 import os
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -11,9 +12,16 @@ from clipflow.application.history import (
     HistoryError,
     result_status,
 )
+from clipflow.application.playlists import M3uEntry, m3u_location, m3u_text, write_m3u
 from clipflow.application.probe_cache import ProbeCache
 from clipflow.domain.events import DetailsFound, RequestsDiscovered, SelectionRequired
-from clipflow.domain.models import DownloadPreferences, JobState
+from clipflow.domain.models import (
+    TERMINAL_STATES,
+    ContentKind,
+    DownloadPreferences,
+    JobState,
+    Service,
+)
 from clipflow.domain.urls import parse_url
 from clipflow.ui.presenter_accounts import AccountsController
 from clipflow.ui.presenter_clearing import ClearingController
@@ -312,13 +320,55 @@ class WorkbenchPresenter(QObject):
 
         return self._command(action)
 
+    def _m3u_plan(self, group_id):
+        """Where a YouTube playlist's list goes and what it holds, or None."""
+        parent = self.repository.get(group_id)
+        link = parent.request.link
+        if link.service != Service.YOUTUBE or link.kind != ContentKind.PLAYLIST:
+            return None
+        members = self.model.members(group_id)
+        done = [m for m in members if m.state == JobState.COMPLETED and m.result_files]
+        location = m3u_location(
+            self.model.title(parent),
+            [m.result_files[0] for m in done],
+            parent.request.options.folder,
+        )
+        entries = [
+            M3uEntry(
+                m.result_files[0],
+                self.model.title(m),
+                m.details.duration if m.details else None,
+                m.request.playlist.index if m.request.playlist else 0,
+            )
+            for m in done
+        ]
+        return location, entries, members
+
+    def _write_m3u(self, group_id):
+        plan = self._m3u_plan(group_id)
+        if plan is None:
+            return
+        location, entries, members = plan
+        # Written once nothing is left to download; a later retry rewrites it fuller.
+        if location is None or any(m.state not in TERMINAL_STATES for m in members):
+            return
+        with contextlib.suppress(OSError):  # a list for players is a convenience, not a failure
+            write_m3u(location, m3u_text(entries, location.parent))
+
     def remove_group(self, group_id):
         return self._command(lambda: self._clearing.remove_group(self._group_ids(group_id)))
 
     def delete_group_files(self, group_id, confirmed=False):
         if confirmed is not True:
             return None
-        return self._command(lambda: self._clearing.delete_files(self._group_ids(group_id)))
+
+        def action():
+            plan = self._m3u_plan(group_id)
+            if plan is not None and plan[0] is not None:
+                plan[0].unlink(missing_ok=True)  # before the files, so empty folders go too
+            self._clearing.delete_files(self._group_ids(group_id))
+
+        return self._command(action)
 
     def remove_jobs(self, identities):
         return self._command(lambda: self._clearing.remove_jobs(identities))
@@ -439,6 +489,9 @@ class WorkbenchPresenter(QObject):
     def _on_event(self, event):
         job = self.repository.get(event.job_id)
         self.model.update_job(job, event.payload)
+        group_id = self.model.group_of(job.id)
+        if group_id is not None and self.settings.playlist_m3u:
+            self._write_m3u(group_id)
         if isinstance(event.payload, DetailsFound) and self.thumbnails is not None:
             # The event still carries the cover address the queue does not keep.
             cover = event.payload.details.thumbnail

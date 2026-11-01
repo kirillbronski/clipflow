@@ -1,0 +1,101 @@
+"""The .m3u8 list is written when a playlist finishes and goes with its files."""
+
+from dataclasses import replace
+
+from clipflow.domain.events import JobEvent, WorkFinished
+from clipflow.domain.models import (
+    DownloadOptions,
+    DownloadRequest,
+    Job,
+    JobState,
+    MediaDetails,
+    PlaylistPosition,
+)
+from clipflow.domain.urls import parse_url
+from clipflow.infrastructure.repository import SqliteJobRepository
+
+PLAYLIST = 'https://www.youtube.com/playlist?list=PLm3u'
+
+
+def playlist(make_window, tmp_path, states=(JobState.COMPLETED, JobState.COMPLETED), m3u=True):
+    root = tmp_path / 'downloads'
+    folder = root / 'Мой плейлист'
+    folder.mkdir(parents=True)
+    repo = SqliteJobRepository(tmp_path / 'm3u.sqlite3')
+    parent = Job(
+        'list',
+        DownloadRequest(parse_url(PLAYLIST), DownloadOptions(root)),
+        state=JobState.COMPLETED,
+        title='Мой плейлист',
+    )
+    repo.add(parent)
+    for n, state in enumerate(states, 1):
+        media = folder / f'{n:02d} Трек {n}.mp4'
+        files = ()
+        if state == JobState.COMPLETED:
+            media.write_bytes(b'x')
+            files = (media,)
+        request = DownloadRequest(
+            parse_url(f'https://www.youtube.com/watch?v=track{n}'),
+            DownloadOptions(root),
+            playlist=PlaylistPosition('PLm3u', n, 'Мой плейлист'),
+        )
+        repo.add(
+            Job(
+                f't{n}',
+                request,
+                state=state,
+                parent_id='list',
+                result_files=files,
+                details=MediaDetails(duration=60.0 * n),
+            )
+        )
+    window, _ = make_window(repository=repo)
+    window.presenter.update_preferences(playlist_m3u=m3u)
+    return window, repo, folder / 'Мой плейлист.m3u8'
+
+
+def finish(window, identity):
+    window.presenter._on_event(JobEvent(identity, '', WorkFinished()))
+
+
+def test_m3u_written_when_playlist_finishes(make_window, tmp_path):
+    window, _, m3u = playlist(make_window, tmp_path)
+    finish(window, 't2')
+    assert m3u.read_text(encoding='utf-8') == (
+        '#EXTM3U\n#EXTINF:60,01 Трек 1\n01 Трек 1.mp4\n#EXTINF:120,02 Трек 2\n02 Трек 2.mp4\n'
+    )
+
+
+def test_no_m3u_while_tracks_are_left(make_window, tmp_path):
+    window, _, m3u = playlist(make_window, tmp_path, (JobState.COMPLETED, JobState.QUEUED))
+    finish(window, 't1')
+    assert not m3u.exists()
+
+
+def test_m3u_rewritten_after_retry(make_window, tmp_path):
+    window, repo, m3u = playlist(make_window, tmp_path, (JobState.COMPLETED, JobState.FAILED))
+    finish(window, 't1')
+    assert '02 Трек 2' not in m3u.read_text(encoding='utf-8')
+    media = m3u.parent / '02 Трек 2.mp4'
+    media.write_bytes(b'x')
+    repo.update(replace(repo.get('t2'), state=JobState.COMPLETED, result_files=(media,)))
+    finish(window, 't2')
+    text = m3u.read_text(encoding='utf-8')
+    assert text.count('02 Трек 2.mp4') == 1
+    assert text.count('01 Трек 1.mp4') == 1
+
+
+def test_no_m3u_when_off(make_window, tmp_path):
+    window, _, m3u = playlist(make_window, tmp_path, m3u=False)
+    finish(window, 't2')
+    assert not m3u.exists()
+
+
+def test_deleting_group_files_removes_m3u(make_window, tmp_path, qtbot):
+    window, _, m3u = playlist(make_window, tmp_path)
+    finish(window, 't2')
+    assert m3u.exists()
+    window.presenter.delete_group_files('list', confirmed=True)
+    qtbot.waitUntil(lambda: not m3u.exists(), timeout=3000)
+    assert not m3u.parent.exists()
