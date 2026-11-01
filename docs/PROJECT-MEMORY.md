@@ -2,6 +2,10 @@
 
 Обновлено 1 ноября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Быстрые настройки и умный режим (подпроект «как в 4K» №4) — 1 ноября
+
+Спецификация `docs/superpowers/specs/2026-11-01-quick-bar-design.md`, план `docs/superpowers/plans/2026-11-01-quick-bar.md`, выполнение inline. `ui/quick_bar.py` — чипы-зеркала полей composer (меню из пунктов `QComboBox` при показе, выбор ставит индекс поля; одна правда), тумблер умного режима; узкая карточка переносит строку на свою линию (`composer.quick_bar_wrapped`). `AppSettings.smart_mode` (по умолчанию False; неверное значение → настройки по умолчанию, как auto_start). Умная вставка: поле `LinkInput` (переопределены `paste()` и перехват `QKeySequence.Paste` в `keyPressEvent` — Qt сам обрабатывает ⌘V в QLineEdit) → `Composer.paste_text` → сигнал `smart_paste` → `presenter.smart_submit` (`preview(mode='batch')`, `submit`, старт очереди). Тумблер ещё и в «Настройки → Основные» (первая настройка, добавленная по ходу подпроектов).
+
 ## Вкладки типа, поиск и сортировка (подпроект «как в 4K» №3) — 1 ноября
 
 Спецификация `docs/superpowers/specs/2026-11-01-tabs-search-design.md`, план `docs/superpowers/plans/2026-11-01-tabs-search.md`, выполнение inline. Правила без Qt — `application/queue_view.py` (`job_kind`, `normalize` — casefold и «ё»→«е», `natural_key`, `plural`). `QueueFilter` — тип (`show_kind`), поиск (`show_query`; название, автор, ссылка; группа — по себе или любому треку) и сортировка (`sort_by`; `lessThan`: неизвестные в конце в обе стороны, равные — порядок очереди; группа — суммы). Панель `ui/queue_toolbar.py` (`QueueToolbar`, в окне — `window.filter_bar`; `window.queue_toolbar` — прежняя строка со счётчиком и кнопками). ⌘F/Ctrl+F — `window.find_action`. Выбор помнится на время запуска.
