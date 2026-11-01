@@ -235,9 +235,16 @@ def test_search_fits_minimum_width_in_russian(make_window, tmp_path):
         assert not bar.items_label.isVisible()
         bar.close_search()
         QApplication.processEvents()
-        assert bar.items_label.isVisible()
         edge = bar.sort_button.mapTo(window, QPoint(bar.sort_button.width(), 0)).x()
         assert edge <= window.width()
+    # With room to spare the count comes back once the search closes; at the minimum width
+    # it may stay hidden (Windows fonts are wider), which is the intended give-way order.
+    window.resize(1400, 700)
+    QApplication.processEvents()
+    bar.open_search()
+    bar.close_search()
+    QApplication.processEvents()
+    assert bar.items_label.isVisible()
 
 
 def test_enter_after_filter_does_not_toggle_a_neighbour(make_window, qtbot, tmp_path, monkeypatch):
