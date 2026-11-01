@@ -2,6 +2,11 @@
 
 Обновлено 1 ноября 2026 года. Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Настройки как в 4K, часть 5а — 2 ноября
+
+Спецификация `docs/superpowers/specs/2026-11-02-youtube-settings-a-design.md`, план `docs/superpowers/plans/2026-11-02-youtube-settings-a.md`, выполнение inline. Поля `AppSettings` (по умолчанию выключено): `skip_downloaded` (флаг `Scheduler.skip_downloaded`, сравнение «ролик + формат + высота» с завершёнными заданиями с файлами на месте), `playlist_m3u` (`application/playlists.py`; пишет презентер, когда у плейлиста YouTube не осталось незавершённых треков; удаляется с файлами группы), `subtitles` и `rate_limit` (`DownloadPreferences` в `domain/models`, исполнитель берёт при старте работы → `MediaPipeline._options`), `keep_awake` (`infrastructure/keep_awake.py`, внедряется в презентер из bootstrap; проверка на тике 500 мс), `hide_completed` (`QueueFilter.show_hide_completed`, счётчики боковой панели), `notify_done` (`presenter.queue_finished`, `window.notifier` — `QSystemTrayIcon`). Разделы «Дополнительные», «Соединение», «Уведомления». Тест «большая очередь без виджетов на строку» теперь сравнивает с пустым окном вместо порога. Осталась часть 5б — одновременные загрузки; затем версия и сборки.
+Процесс (владелец, 2 ноября): CI не ждать после каждого пуша — пушить в конце подпроекта, результат смотреть по готовности; падения Windows воспроизводить в Parallels.
+
 ## Быстрые настройки и умный режим (подпроект «как в 4K» №4) — 1 ноября
 
 Спецификация `docs/superpowers/specs/2026-11-01-quick-bar-design.md`, план `docs/superpowers/plans/2026-11-01-quick-bar.md`, выполнение inline. `ui/quick_bar.py` — чипы-зеркала полей composer (меню из пунктов `QComboBox` при показе, выбор ставит индекс поля; одна правда), тумблер умного режима; узкая карточка переносит строку на свою линию (`composer.quick_bar_wrapped`). `AppSettings.smart_mode` (по умолчанию False; неверное значение → настройки по умолчанию, как auto_start). Умная вставка: поле `LinkInput` (переопределены `paste()` и перехват `QKeySequence.Paste` в `keyPressEvent` — Qt сам обрабатывает ⌘V в QLineEdit) → `Composer.paste_text` → сигнал `smart_paste` → `presenter.smart_submit` (`preview(mode='batch')`, `submit`, старт очереди). Тумблер ещё и в «Настройки → Основные» (первая настройка, добавленная по ходу подпроектов).
