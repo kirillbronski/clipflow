@@ -328,3 +328,72 @@ def test_presenter_keeps_skip_rule_in_the_scheduler(presenter):
     assert presenter.scheduler.skip_downloaded is False
     presenter.update_preferences(skip_downloaded=True)
     assert presenter.scheduler.skip_downloaded is True
+
+
+class Guard:
+    def __init__(self):
+        self.calls = []
+
+    def hold(self):
+        self.calls.append('hold')
+
+    def release(self):
+        self.calls.append('release')
+
+
+def keep_awake_presenter(qtbot, tmp_path, repository, provider, enabled=True):
+    from dataclasses import replace
+
+    presets = {s: DownloadOptions(tmp_path / 'downloads') for s in Service}
+    executor = ThreadExecutor({(Service.YOUTUBE, ContentKind.VIDEO): provider}, Auth())
+    guard = Guard()
+    presenter = WorkbenchPresenter(
+        SubmissionService(repository),
+        Scheduler(repository, executor),
+        replace(AppSettings(presets=presets), keep_awake=enabled),
+        repository,
+        keep_awake=guard,
+    )
+    return presenter, guard
+
+
+def test_presenter_holds_while_working(qtbot, tmp_path, repository):
+    provider = HeldProvider()
+    presenter, guard = keep_awake_presenter(qtbot, tmp_path, repository, provider)
+    try:
+        presenter.submit('https://youtu.be/awake')
+        presenter.start_queue()
+        qtbot.waitUntil(lambda: 'hold' in guard.calls, timeout=3000)
+        provider.released.set()
+        qtbot.waitUntil(lambda: guard.calls[-1] == 'release', timeout=3000)
+    finally:
+        provider.released.set()
+        presenter.shutdown()
+        qtbot.waitUntil(lambda: presenter.is_closed, timeout=5000)
+
+
+def test_keep_awake_released_on_shutdown(qtbot, tmp_path, repository):
+    provider = HeldProvider()
+    presenter, guard = keep_awake_presenter(qtbot, tmp_path, repository, provider)
+    presenter.submit('https://youtu.be/awake')
+    presenter.start_queue()
+    qtbot.waitUntil(lambda: 'hold' in guard.calls, timeout=3000)
+    presenter.shutdown()
+    assert guard.calls[-1] == 'release'
+    provider.released.set()
+    qtbot.waitUntil(lambda: presenter.is_closed, timeout=5000)
+
+
+def test_keep_awake_off_never_holds(qtbot, tmp_path, repository):
+    provider = HeldProvider()
+    presenter, guard = keep_awake_presenter(qtbot, tmp_path, repository, provider, enabled=False)
+    try:
+        presenter.submit('https://youtu.be/awake')
+        presenter.start_queue()
+        qtbot.waitUntil(provider.started.is_set, timeout=3000)
+        qtbot.wait(600)
+        assert 'hold' not in guard.calls
+    finally:
+        provider.released.set()
+        presenter.shutdown()
+        qtbot.waitUntil(lambda: presenter.is_closed, timeout=5000)

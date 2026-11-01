@@ -13,6 +13,7 @@ from clipflow.application.submission import SubmissionService
 from clipflow.domain.models import ContentKind, Service
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.infrastructure.executor import ThreadExecutor
+from clipflow.infrastructure.keep_awake import KeepAwake
 from clipflow.infrastructure.platform import data_directory
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
 from clipflow.infrastructure.repository import RepositoryError, SqliteJobRepository
@@ -100,6 +101,7 @@ def create_application(argv: list[str], data_dir: Path | None = None):
             repository,
             settings_store=settings_store,
             thumbnails=ThumbnailStore(directory / 'thumbnails'),
+            keep_awake=KeepAwake(),
         )
         presenter.set_auth_gateway(auth)
         window = MainWindow(presenter)

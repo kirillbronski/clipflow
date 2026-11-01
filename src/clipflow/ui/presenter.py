@@ -51,7 +51,15 @@ class WorkbenchPresenter(QObject):
     auth_changed = Signal()
 
     def __init__(
-        self, submission, scheduler, settings, repository, *, settings_store=None, thumbnails=None
+        self,
+        submission,
+        scheduler,
+        settings,
+        repository,
+        *,
+        settings_store=None,
+        thumbnails=None,
+        keep_awake=None,
     ):
         super().__init__()
         self.submission = submission
@@ -83,6 +91,7 @@ class WorkbenchPresenter(QObject):
         # Background naming: one metadata lookup at a time, paced to stay polite to the site.
         self.title_interval_ms = 1000
         self._titles = TitleNamer(self)
+        self._keep_awake = keep_awake  # hold()/release(); None where sleep is not managed
         self._apply_runtime_settings()
         # Covers are optional: without a store the rows keep the service badge.
         self.thumbnails = ThumbnailLoader(self, thumbnails) if thumbnails is not None else None
@@ -510,6 +519,17 @@ class WorkbenchPresenter(QObject):
             self._command(self._flush_clear)
             self._command(self.scheduler.tick)
             self._titles.schedule()
+        self._guard_sleep()
+
+    def _guard_sleep(self):
+        """Hold the computer awake while a download or processing runs, if asked to."""
+        if self._keep_awake is None:
+            return
+        working = not self._closing and not self.executor.is_idle
+        if working and self.settings.keep_awake:
+            self._keep_awake.hold()
+        else:
+            self._keep_awake.release()
 
     @Slot(str)
     def _executor_error(self, code):
@@ -522,6 +542,7 @@ class WorkbenchPresenter(QObject):
             return
         self._closing = True
         self._timer.stop()
+        self._guard_sleep()
         self._accounts.stop()
         self._titles.stop()
         if self.auth_gateway is not None:
