@@ -3,7 +3,13 @@
 import re
 from dataclasses import replace
 
-from clipflow.domain.events import RequestsDiscovered, StageChanged, TitleChanged, WorkCancelled
+from clipflow.domain.events import (
+    DetailsFound,
+    RequestsDiscovered,
+    StageChanged,
+    TitleChanged,
+    WorkCancelled,
+)
 from clipflow.domain.models import ContentKind, DownloadRequest, JobState, PlaylistPosition, Service
 from clipflow.domain.paths import UnsafePath, output_path
 from clipflow.domain.urls import parse_url
@@ -15,6 +21,7 @@ from clipflow.providers.base import (
     MediaItem,
     ProbeResult,
 )
+from clipflow.providers.details import details_from_info
 from clipflow.providers.media import MediaPipeline, _QuietLogger
 
 
@@ -56,7 +63,12 @@ class YouTubeProvider:
             raise MediaFailure('unavailable_media')
         title = info.get('title')
         title = ' '.join(title.split())[:500] if isinstance(title, str) and title.strip() else None
-        return ProbeResult(tuple(items), (), collection_title=title)
+        return ProbeResult(
+            tuple(items),
+            (),
+            collection_title=title,
+            collection_details=details_from_info(info, 'collection', Service.YOUTUBE),
+        )
 
     def _video(self, request, info) -> ProbeResult:
         identity = info.get('id') or request.link.canonical_id
@@ -78,6 +90,9 @@ class YouTubeProvider:
         if request.link.kind != ContentKind.VIDEO:
             raise MediaFailure('invalid_request')
         item = self.probe(request, context).items[0]
+        details = details_from_info(item.info, 'video', request.link.service)
+        if details is not None:
+            context.emit(DetailsFound(details))
         try:
             return output_path(request, item, None, None).stem
         except UnsafePath:
@@ -89,6 +104,8 @@ class YouTubeProvider:
             return DownloadResult(self.pipeline.save(result.items[0], request, context))
         if result.collection_title:
             context.emit(TitleChanged(result.collection_title))
+        if result.collection_details:
+            context.emit(DetailsFound(result.collection_details))
         pending = []
         count = 0
         for item in result.items:

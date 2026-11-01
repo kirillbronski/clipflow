@@ -4,6 +4,7 @@ from PySide6.QtCore import QCoreApplication, QObject, Qt, QThread, Signal, Slot
 
 from clipflow.domain.events import (
     CancellationToken,
+    DetailsFound,
     JobEvent,
     WorkFailed,
 )
@@ -42,10 +43,16 @@ class _TitleWorker(QThread):
         self.auth = auth
         self.cancel = CancellationToken()
         self.title = None
+        self.details = None
 
     def run(self):
-        context = ExecutionContext(self.cancel, lambda event: None, self.auth)
+        context = ExecutionContext(self.cancel, self._keep_details, self.auth)
         self.title = run_title(self.job.request, self.provider, context)
+
+    def _keep_details(self, event):
+        # A name lookup reads the same metadata the row's details come from.
+        if isinstance(event, DetailsFound):
+            self.details = event.details
 
 
 class _Worker(QThread):
@@ -181,7 +188,7 @@ class ThreadExecutor(QObject):
         worker.wait()
         if not self._closing:
             try:
-                callback(worker.job.id, worker.title)
+                callback(worker.job.id, worker.title, worker.details)
             except Exception:  # noqa: BLE001  # колбэк Qt: исключение в слоте не должно ронять цикл событий
                 self.error.emit('queue_update_failed')
         worker.deleteLater()

@@ -93,3 +93,30 @@ def test_providers_without_lookup_are_skipped(make_window, qtbot, tmp_path):
     qtbot.wait(300)
     assert title(window, 'a') == 'Ролик'
     assert repo.get('a').title is None
+
+
+class Detailing(Naming):
+    def planned_title(self, request, context):
+        from clipflow.domain.events import DetailsFound
+        from clipflow.domain.models import MediaDetails
+
+        context.emit(DetailsFound(MediaDetails(duration=61.0, author='Автор')))
+        return super().planned_title(request, context)
+
+
+def test_background_naming_stores_details(make_window, qtbot, tmp_path):
+    repo = SqliteJobRepository(tmp_path / 'details.sqlite3')
+    repo.add(
+        Job(
+            'a',
+            DownloadRequest(
+                parse_url('https://music.youtube.com/watch?v=track_A'), DownloadOptions(tmp_path)
+            ),
+        )
+    )
+    provider = Detailing({'track_A': 'Пропаганда - Мелом'})
+    window, _ = make_window(provider, repo)
+    window.presenter.title_interval_ms = 50
+    qtbot.waitUntil(lambda: repo.get('a').details is not None, timeout=5000)
+    assert repo.get('a').details.author == 'Автор'
+    assert repo.get('a').title == 'Пропаганда - Мелом'

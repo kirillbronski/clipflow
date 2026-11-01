@@ -700,3 +700,21 @@ def test_matching_result_and_any_photo_pass_verification(tmp_path, context):
     tools.verify(result, item('x'), request(tmp_path), context[0])
     tools.probe = None
     tools.verify(result, item('x', kind='photo'), request(tmp_path), context[0])
+
+
+def test_save_reports_details_after_the_title(tmp_path, context, media_server):
+    from clipflow.domain.events import DetailsFound, TitleChanged
+
+    ctx, events = context
+    base, _, _ = media_server
+    MediaPipeline().save(
+        item(base + '/photo.png', 'photo', 'png', width=1080, height=1350, uploader_id='alice'),
+        request(tmp_path),
+        ctx,
+    )
+    found = [e for e in events if isinstance(e, DetailsFound)]
+    assert len(found) == 1
+    assert (found[0].details.width, found[0].details.author) == (1080, '@alice')
+    assert found[0].details.thumbnail is None  # the local test server is http, not https
+    titles = [i for i, e in enumerate(events) if isinstance(e, TitleChanged)]
+    assert events.index(found[0]) == titles[0] + 1

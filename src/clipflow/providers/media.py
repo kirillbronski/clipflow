@@ -11,6 +11,7 @@ from yt_dlp.networking import Request
 from yt_dlp.networking.exceptions import HTTPError
 
 from clipflow.domain.events import (
+    DetailsFound,
     FilesSaved,
     ProgressChanged,
     StageChanged,
@@ -22,6 +23,7 @@ from clipflow.domain.paths import UnsafePath
 from clipflow.providers.access import open_downloader
 from clipflow.providers.base import ExecutionContext, MediaFailure, MediaItem
 from clipflow.providers.conversion import MediaTools
+from clipflow.providers.details import details_from_info
 from clipflow.providers.media_plan import plan_media
 from clipflow.providers.processes import run_process
 from clipflow.providers.publishing import find_tagged, write_caption
@@ -84,6 +86,9 @@ class MediaPipeline:
         # YouTube rows show the file name they will get; other services keep their media title.
         planned = (existing or plan.target).stem if plan.tag else item.title
         context.emit(TitleChanged(planned))
+        details = details_from_info(item.info, item.kind, request.link.service)
+        if details is not None:
+            context.emit(DetailsFound(details))
         if existing is not None:
             tools.verify(existing, item, request, context)
             target = existing

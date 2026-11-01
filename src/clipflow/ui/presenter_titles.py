@@ -47,10 +47,13 @@ class TitleNamer(QObject):
                 if executor.request_title(job, self._ready):
                     return
 
-    def _ready(self, identity, title):
+    def _ready(self, identity, title, details=None):
         presenter = self.presenter
         if title and not presenter._closing:
             with contextlib.suppress(KeyError):
                 presenter._command(lambda: presenter.scheduler.set_title(identity, title))
+        if details and not presenter._closing:
+            with contextlib.suppress(KeyError):
+                presenter._command(lambda: presenter.scheduler.set_details(identity, details))
         if not presenter._closing:
             self._start()

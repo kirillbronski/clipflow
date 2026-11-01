@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from clipflow.application.ports import AuthGateway
 from clipflow.domain.events import CancellationToken, ProviderEvent
-from clipflow.domain.models import DownloadRequest, MediaItem
+from clipflow.domain.models import DownloadRequest, MediaDetails, MediaItem
 
 if TYPE_CHECKING:
     from clipflow.application.instagram_rate_policy import InstagramRatePolicy
@@ -19,6 +19,7 @@ class ProbeResult:
     available_heights: tuple[int, ...]
     selection_required: bool = False
     collection_title: str | None = None
+    collection_details: MediaDetails | None = None
 
 
 @dataclass(frozen=True)

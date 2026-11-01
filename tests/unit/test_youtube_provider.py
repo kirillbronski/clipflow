@@ -354,3 +354,37 @@ def test_planned_title_is_the_future_file_name(tmp_path, monkeypatch):
         playlist=PlaylistPosition('PL_music', 3, 'Sound City'),
     )
     assert provider.planned_title(numbered, ctx) == '003 - Пропаганда - Мелом'
+
+
+def test_planned_title_reports_details(tmp_path, monkeypatch):
+    from clipflow.domain.events import DetailsFound
+
+    extract_fixture(
+        monkeypatch,
+        dict(video(), duration=61, uploader='Автор', thumbnail='https://i.ytimg.com/x.jpg'),
+    )
+    ctx, events = context()
+    YouTubeProvider(MediaPipeline()).planned_title(request(tmp_path), ctx)
+    found = [e.details for e in events if isinstance(e, DetailsFound)]
+    assert found
+    assert (found[-1].duration, found[-1].author) == (61.0, 'Автор')
+
+
+def test_playlist_reports_collection_details(tmp_path, monkeypatch):
+    from clipflow.domain.events import DetailsFound, TitleChanged
+
+    extract_fixture(
+        monkeypatch,
+        dict(playlist(), uploader='Канал', thumbnails=[{'url': 'https://i.ytimg.com/pl.jpg'}]),
+    )
+    ctx, events = context()
+    YouTubeProvider(MediaPipeline()).execute(
+        DownloadRequest(
+            parse_url('https://youtube.com/playlist?list=PL_music'), DownloadOptions(tmp_path)
+        ),
+        ctx,
+    )
+    found = [e for e in events if isinstance(e, DetailsFound)]
+    assert found[0].details.author == 'Канал'
+    assert found[0].details.thumbnail == 'https://i.ytimg.com/pl.jpg'
+    assert events.index(found[0]) == events.index(TitleChanged('Музыка')) + 1
