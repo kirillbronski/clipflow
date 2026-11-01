@@ -25,6 +25,9 @@ from clipflow.version import APP_VERSION
 # Section key, its glyph and its title key; 'about' sits apart at the bottom of the list.
 SECTIONS = (
     ('general', '⚙', 'settings_section.general'),
+    ('advanced', '☰', 'settings_section.advanced'),
+    ('connection', '◎', 'settings_section.connection'),
+    ('notifications', '🔔', 'settings_section.notifications'),
     ('accounts', '◉', 'settings_section.accounts'),
     ('about', 'ⓘ', 'settings_section.about'),
 )
@@ -90,6 +93,9 @@ class SettingsPage(QWidget):
             lambda: self.presenter.settings.smart_mode,
             lambda value: self.presenter.set_smart_mode(value),
         )
+        self._build_advanced()
+        self._build_connection()
+        self._build_notifications()
         if accounts is not None:
             self._section('accounts').layout().addWidget(accounts)
         about = self._section('about')
@@ -111,6 +117,68 @@ class SettingsPage(QWidget):
         presenter.settings_changed.connect(self.refresh)
         self.tr.changed.connect(self.refresh)
         self.refresh()
+
+    def _preference(self, field):
+        return lambda: getattr(self.presenter.settings, field)
+
+    def _save_preference(self, field):
+        return lambda value: self.presenter.update_preferences(**{field: value})
+
+    def _build_advanced(self):
+        page = self._section('advanced')
+        toggle = self._toggle_row
+        self.skip_toggle = toggle(page, 'skip_downloaded', 'skip_downloaded_hint')
+        self.m3u_toggle = toggle(page, 'playlist_m3u', 'playlist_m3u_hint')
+        self.subtitles_toggle = self.add_toggle(
+            page,
+            'subtitles',
+            'subtitles_hint',
+            lambda: self.presenter.settings.subtitles is not None,
+            lambda on: self.presenter.update_preferences(subtitles='original' if on else None),
+        )
+        self.subtitles_language_box = self.add_choice(
+            page,
+            'subtitles_language',
+            [('subtitles.original', 'original'), ('subtitles.ru', 'ru'), ('subtitles.en', 'en')],
+            lambda: self.presenter.settings.subtitles or 'original',
+            self._save_preference('subtitles'),
+        )
+        # The language matters only while subtitles are on.
+        box = self.subtitles_language_box
+        self._subtitles_rows = (box, box.caption)
+        self._refreshers.append(self._subtitles_visibility)
+        self.add_divider(page)
+        self.keep_awake_toggle = toggle(page, 'keep_awake', 'keep_awake_hint')
+        self.hide_completed_toggle = toggle(page, 'hide_completed', 'hide_completed_hint')
+
+    def _subtitles_visibility(self):
+        enabled = self.presenter.settings.subtitles is not None
+        for widget in self._subtitles_rows:
+            widget.setVisible(enabled)
+
+    def _toggle_row(self, page, field, hint):
+        return self.add_toggle(
+            page, field, hint, self._preference(field), self._save_preference(field)
+        )
+
+    def _build_connection(self):
+        page = self._section('connection')
+        items = [('rate.none', None)] + [(f'rate.{mb}', mb * 1024 * 1024) for mb in (1, 2, 5, 10)]
+        self.rate_box = self.add_choice(
+            page,
+            'rate_limit',
+            items,
+            self._preference('rate_limit'),
+            self._save_preference('rate_limit'),
+        )
+        hint = self.tr.widget(QLabel, 'rate_limit_hint')
+        hint.setObjectName('muted')
+        hint.setWordWrap(True)
+        page.layout().addWidget(hint)
+
+    def _build_notifications(self):
+        page = self._section('notifications')
+        self.notify_toggle = self._toggle_row(page, 'notify_done', 'notify_done_hint')
 
     def _section(self, key):
         page = QWidget()
@@ -141,8 +209,10 @@ class SettingsPage(QWidget):
 
     def add_choice(self, page, label_key, items, getter, setter):
         """A labelled drop-down; item texts that are catalogue keys follow the language."""
-        page.layout().addWidget(self.tr.widget(QLabel, label_key))
+        caption = self.tr.widget(QLabel, label_key)
+        page.layout().addWidget(caption)
         box = QComboBox()
+        box.caption = caption
         box.setMinimumWidth(260)
         for _, value in items:
             box.addItem('', value)

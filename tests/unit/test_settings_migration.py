@@ -223,3 +223,42 @@ def test_smart_mode_round_trip_and_default(tmp_path):
     raw['smart_mode'] = 'yes'
     path.write_text(json.dumps(raw), encoding='utf-8')
     assert store.load() == AppSettings()  # an invalid value restores defaults, like auto_start
+
+
+NEW_FIELDS = {
+    'skip_downloaded': True,
+    'playlist_m3u': True,
+    'subtitles': 'ru',
+    'keep_awake': True,
+    'hide_completed': True,
+    'rate_limit': 2 * 1024 * 1024,
+    'notify_done': True,
+}
+
+
+def test_new_settings_round_trip_and_defaults(tmp_path):
+    store = SettingsStore(tmp_path)
+    defaults = AppSettings()
+    assert (
+        defaults.skip_downloaded,
+        defaults.playlist_m3u,
+        defaults.subtitles,
+        defaults.keep_awake,
+        defaults.hide_completed,
+        defaults.rate_limit,
+        defaults.notify_done,
+    ) == (False, False, None, False, False, None, False)
+    store.save(replace(defaults, **NEW_FIELDS))
+    loaded = store.load()
+    assert {key: getattr(loaded, key) for key in NEW_FIELDS} == NEW_FIELDS
+    path = tmp_path / 'settings-v2.json'
+    raw = json.loads(path.read_text(encoding='utf-8'))
+    for key in NEW_FIELDS:
+        raw.pop(key)
+    path.write_text(json.dumps(raw), encoding='utf-8')
+    assert store.load() == AppSettings()
+    for key, bad in (('rate_limit', 12345), ('subtitles', 'de'), ('keep_awake', 'yes')):
+        raw[key] = bad
+        path.write_text(json.dumps(raw), encoding='utf-8')
+        assert store.load() == AppSettings(), key
+        raw.pop(key)

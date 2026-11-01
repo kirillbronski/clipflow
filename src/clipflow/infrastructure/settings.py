@@ -22,6 +22,20 @@ class SettingsError(Exception):
         super().__init__(code)
 
 
+SUBTITLES = (None, 'original', 'ru', 'en')
+RATE_LIMITS = (None, *(mb * 1024 * 1024 for mb in (1, 2, 5, 10)))
+_EXTRAS = (
+    'smart_mode',
+    'skip_downloaded',
+    'playlist_m3u',
+    'subtitles',
+    'keep_awake',
+    'hide_completed',
+    'rate_limit',
+    'notify_done',
+)
+
+
 def _presets():
     return {service: DownloadOptions(Path.home() / 'Downloads' / 'ClipFlow') for service in Service}
 
@@ -36,6 +50,30 @@ class AppSettings:
     recent_folders: tuple[Path, ...] = ()
     profile_limit: int | None = 10
     smart_mode: bool = False  # a pasted link is queued and downloaded at once
+    # 4K-style options (all off by default): see docs/superpowers/specs/*-youtube-settings-a-*.
+    skip_downloaded: bool = False
+    playlist_m3u: bool = False
+    subtitles: str | None = None  # 'original', 'ru' or 'en' when subtitles are embedded
+    keep_awake: bool = False
+    hide_completed: bool = False
+    rate_limit: int | None = None  # bytes per second
+    notify_done: bool = False
+
+    def _check_options(self):
+        flags = (
+            self.smart_mode,
+            self.skip_downloaded,
+            self.playlist_m3u,
+            self.keep_awake,
+            self.hide_completed,
+            self.notify_done,
+        )
+        if any(type(flag) is not bool for flag in flags):
+            raise ValueError('invalid_flag')
+        if self.subtitles not in SUBTITLES:
+            raise ValueError('invalid_subtitles')
+        if type(self.rate_limit) not in (int, type(None)) or self.rate_limit not in RATE_LIMITS:
+            raise ValueError('invalid_rate_limit')
 
     def __post_init__(self):
         if type(self.schema_version) is not int or self.schema_version != 2:
@@ -44,8 +82,7 @@ class AppSettings:
             raise ValueError('invalid_preferences')
         if type(self.auto_start) is not bool:
             raise ValueError('invalid_auto_start')
-        if type(self.smart_mode) is not bool:
-            raise ValueError('invalid_smart_mode')
+        self._check_options()
         if self.profile_limit is not None and (
             type(self.profile_limit) is not int or self.profile_limit not in (10, 50)
         ):
@@ -95,16 +132,7 @@ class SettingsStore:
 
     def save(self, settings: AppSettings):
         # Revalidate the snapshot; credential values are never auth references.
-        settings = AppSettings(
-            settings.schema_version,
-            settings.theme,
-            settings.language,
-            settings.auto_start,
-            settings.presets,
-            settings.recent_folders,
-            settings.profile_limit,
-            settings.smart_mode,
-        )
+        settings = replace(settings)
         self._write(
             self.path,
             {
@@ -112,7 +140,7 @@ class SettingsStore:
                 'theme': settings.theme,
                 'language': settings.language,
                 'auto_start': settings.auto_start,
-                'smart_mode': settings.smart_mode,
+                **{key: getattr(settings, key) for key in _EXTRAS},
                 'profile_limit': settings.profile_limit,
                 'recent_folders': [str(p) for p in settings.recent_folders],
                 'presets': {
@@ -139,7 +167,8 @@ class SettingsStore:
             {Service(key): decode_options(value) for key, value in raw['presets'].items()},
             tuple(path_value(p) for p in raw['recent_folders']),
             raw['profile_limit'],
-            raw.get('smart_mode', False),  # arrived with the quick bar
+            # Fields added after 2.0.6: a file without them reads as defaults.
+            **{key: raw[key] for key in _EXTRAS if key in raw},
         )
 
     def load(self):

@@ -50,7 +50,14 @@ def test_settings_follow_language_switch(make_window):
 
 def test_all_sections_present(make_window):
     _, page = open_settings(make_window)
-    assert set(page.section_buttons) == {'general', 'accounts', 'about'}
+    assert set(page.section_buttons) == {
+        'general',
+        'advanced',
+        'connection',
+        'notifications',
+        'accounts',
+        'about',
+    }
 
 
 def test_accounts_live_in_settings(make_window):
@@ -108,3 +115,45 @@ def test_texts_point_to_the_sign_in_section():
         for key in ('error.auth_required', 'job_error.signin'):
             assert 'Accounts' not in CATALOG[language][key]
             assert 'Аккаунты' not in CATALOG[language][key]
+
+
+def test_sections_order(make_window):
+    window, _ = make_window()
+    assert list(window.settings_page.section_buttons) == [
+        'general',
+        'advanced',
+        'connection',
+        'notifications',
+        'accounts',
+        'about',
+    ]
+
+
+def test_each_new_row_saves(make_window):
+    window, page = open_settings(make_window)
+    settings = lambda: window.presenter.settings  # noqa: E731
+    for toggle, field in (
+        (page.skip_toggle, 'skip_downloaded'),
+        (page.m3u_toggle, 'playlist_m3u'),
+        (page.keep_awake_toggle, 'keep_awake'),
+        (page.hide_completed_toggle, 'hide_completed'),
+        (page.notify_toggle, 'notify_done'),
+    ):
+        toggle.click()
+        assert getattr(settings(), field) is True, field
+    page.rate_box.setCurrentIndex(page.rate_box.findData(5 * 1024 * 1024))
+    assert settings().rate_limit == 5 * 1024 * 1024
+    page.subtitles_toggle.click()
+    assert settings().subtitles == 'original'
+    page.subtitles_language_box.setCurrentIndex(page.subtitles_language_box.findData('en'))
+    assert settings().subtitles == 'en'
+    page.subtitles_toggle.click()
+    assert settings().subtitles is None
+
+
+def test_subtitle_language_only_when_enabled(make_window):
+    _, page = open_settings(make_window)
+    page.show_section('advanced')
+    assert not page.subtitles_language_box.isVisible()
+    page.subtitles_toggle.click()
+    assert page.subtitles_language_box.isVisible()
