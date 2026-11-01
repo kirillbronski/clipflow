@@ -283,6 +283,13 @@ def _add(totals, parts, sign):
         totals[3] += sign
 
 
+def _finished(job, members):
+    """Done and nothing left: a single finished job, or a group whose tracks all finished."""
+    if members:
+        return all(m.state == JobState.COMPLETED for m in members)
+    return job.state == JobState.COMPLETED
+
+
 KINDS = ('all', 'video', 'audio', 'photo', 'playlists')
 SORTS = ('added', 'title', 'size', 'duration')
 
@@ -297,6 +304,7 @@ class QueueFilter(QSortFilterProxyModel):
         self.query = ''
         self.sort_key = 'added'
         self.descending = False
+        self.hide_completed = False  # «Убирать скачанное из списка»; History shows everything
         self.group_id = None
         self.setSourceModel(model)
         # Sorting is only how rows are shown; the queue itself keeps its order.
@@ -343,6 +351,11 @@ class QueueFilter(QSortFilterProxyModel):
         self.kind = kind
         self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
 
+    def show_hide_completed(self, hide):
+        self.beginFilterChange()
+        self.hide_completed = bool(hide)
+        self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
+
     def show_query(self, text):
         self.beginFilterChange()
         self.query = normalize(text)
@@ -384,6 +397,8 @@ class QueueFilter(QSortFilterProxyModel):
             return False
         group = model.is_group_row(row)
         members = model.members(job.id) if group else ()
+        if self.hide_completed and not self.history and _finished(job, members):
+            return False
         if not members:
             kind_ok = self.kind in {'all', 'playlists'} if group else self._kind_matches(job)
             return kind_ok and self._matches(job, status) and self._found(job)

@@ -177,3 +177,40 @@ def test_new_jobs_respect_sort_and_search(qapp):
     proxy.show_query('а')
     model.set_jobs([*model.jobs, sized('a', 10, title='Альфа'), sized('z', 1, title='Зет')])
     assert shown(proxy) == ['a', 'b', 'c']
+
+
+def finished_queue():
+    return [
+        job('done', state=JobState.COMPLETED),
+        job('waiting'),
+        job('list', url=PLAYLIST, state=JobState.COMPLETED),
+        job('t1', state=JobState.COMPLETED, parent='list'),
+        job('t2', state=JobState.COMPLETED, parent='list'),
+        job('mixed', url=PLAYLIST + 'X', state=JobState.COMPLETED),
+        job('m1', state=JobState.COMPLETED, parent='mixed'),
+        job('m2', state=JobState.FAILED, parent='mixed'),
+    ]
+
+
+def test_hide_completed_single_and_group(qapp):
+    _, proxy = make(finished_queue())
+    proxy.show_hide_completed(True)
+    assert shown(proxy) == ['waiting', 'mixed']
+    proxy.show_hide_completed(False)
+    assert shown(proxy) == ['done', 'waiting', 'list', 'mixed']
+
+
+def test_partly_failed_group_stays_visible(qapp):
+    _, proxy = make(finished_queue())
+    proxy.show_hide_completed(True)
+    assert 'mixed' in shown(proxy)
+    proxy.show_group('mixed')
+    assert shown(proxy) == ['m1', 'm2']  # a group's own screen shows all its tracks
+
+
+def test_history_shows_everything(qapp):
+    _, proxy = make(finished_queue())
+    proxy.show_hide_completed(True)
+    proxy.show_source(None, history=True)
+    assert 'done' in shown(proxy)
+    assert 'list' in shown(proxy)

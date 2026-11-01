@@ -119,15 +119,21 @@ class Sidebar(QFrame):
             button.setChecked(button.property('nav_key') == nav_key)
         self.settings_button.setChecked(section == 'settings')
 
-    def set_counts(self, jobs):
+    def set_counts(self, jobs, hide_completed=False):
         for button in self.nav_buttons:
             key = button.property('nav_key')
+            # With «Убирать скачанное» the lists leave finished jobs to History.
+            shown = (
+                jobs
+                if key == 'history' or not hide_completed
+                else [j for j in jobs if j.state != JobState.COMPLETED]
+            )
             button.count = sum(
                 key == 'all_downloads'
                 or key == 'history'
                 and j.state in _HISTORY_STATES
                 or j.request.link.service.value == key.lower()
-                for j in jobs
+                for j in shown
             )
             button.update()
 

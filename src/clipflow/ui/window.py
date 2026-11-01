@@ -275,6 +275,9 @@ class MainWindow(QMainWindow):
 
     def _settings_changed(self):
         self._sync_smart_toggle()
+        if self.proxy.hide_completed != self.presenter.settings.hide_completed:
+            self.proxy.show_hide_completed(self.presenter.settings.hide_completed)
+            self._update_counts()
         self.composer.set_settings(self.presenter.settings)
         self.theme.set_mode(self.presenter.settings.theme)
         self.tr.set_language(self.presenter.settings.language)
@@ -387,7 +390,7 @@ class MainWindow(QMainWindow):
     def _update_counts(self, *args):
         self.queue_panel.update_counts(self._section == 'downloads')
         self._arrange_queue_controls()
-        self.sidebar.set_counts(self.presenter.model.jobs)
+        self.sidebar.set_counts(self.presenter.model.jobs, self.presenter.settings.hide_completed)
 
     def _row_action(self, identity, action):
         if action == 'row_menu':

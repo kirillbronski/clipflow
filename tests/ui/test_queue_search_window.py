@@ -290,3 +290,21 @@ def test_wide_fonts_never_widen_the_window(make_window, qtbot, tmp_path):
         assert last_tab.right() < bar.status_button.geometry().left()
         if searching:
             assert bar.search_field.geometry().right() < bar.search_button.geometry().left()
+
+
+def test_counts_follow_hidden(make_window, tmp_path):
+    from clipflow.domain.models import JobState
+
+    repo = SqliteJobRepository(tmp_path / 'hidden.sqlite3')
+    for identity, state in (('done', JobState.COMPLETED), ('waiting', JobState.QUEUED)):
+        request = DownloadRequest(
+            parse_url(f'https://youtu.be/{identity}'), DownloadOptions(tmp_path)
+        )
+        repo.add(Job(identity, request, state=state))
+    window, _ = make_window(repository=repo)
+    window.presenter.update_preferences(hide_completed=True)
+    assert visible(window) == ['waiting']
+    counts = {b.property('nav_key'): b.count for b in window.nav_buttons}
+    assert counts['all_downloads'] == 1
+    assert counts['history'] == 1
+    assert window.filter_bar.items_label.text() == '1 элемент'
