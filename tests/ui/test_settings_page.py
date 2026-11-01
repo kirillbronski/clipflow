@@ -96,8 +96,9 @@ def test_preferences_action_opens_settings(make_window):
 
 def test_section_title_is_larger_than_body_text(make_window):
     _, page = open_settings(make_window)
-    title = page.section_title.fontInfo().pixelSize()
-    assert title >= page.language_box.fontInfo().pixelSize() + 4
+    # The stylesheet's sizes, not the matched font: Windows matches fonts differently.
+    title = page.section_title.font().pixelSize()
+    assert title >= page.language_box.font().pixelSize() + 4
 
 
 def test_texts_point_to_the_sign_in_section():
