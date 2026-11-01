@@ -3,6 +3,7 @@
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt
 
 from clipflow.application.groups import descendants, group_summary, is_group
+from clipflow.application.queue_view import job_kind, normalize
 from clipflow.domain.events import ProgressChanged, TitleChanged
 from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.ui.i18n import Translator
@@ -54,19 +55,7 @@ class JobListModel(QAbstractListModel):
         if not index.isValid() or not 0 <= index.row() < len(self.jobs):
             return None
         job = self.jobs[index.row()]
-        profile = (
-            '@' + job.request.link.canonical_id
-            if job.request.link.kind.value == 'profile'
-            else None
-        )
-        title = (
-            self._titles.get(job.id)
-            or (job.result_files[0].stem if job.result_files else None)
-            or job.title
-            or job.request.label
-            or profile
-            or self.translator.text('new_download')
-        )
+        title = self.title(job)
         return {
             int(Qt.ItemDataRole.DisplayRole): title,
             self.TitleRole: title,
@@ -89,6 +78,22 @@ class JobListModel(QAbstractListModel):
                 else title
             ),
         }.get(role)
+
+    def title(self, job):
+        """The name a row shows: live title, saved file, label, or the profile's handle."""
+        profile = (
+            '@' + job.request.link.canonical_id
+            if job.request.link.kind.value == 'profile'
+            else None
+        )
+        return (
+            self._titles.get(job.id)
+            or (job.result_files[0].stem if job.result_files else None)
+            or job.title
+            or job.request.label
+            or profile
+            or self.translator.text('new_download')
+        )
 
     def _index(self):
         """Group membership by id, rebuilt in one pass whenever the list of jobs changes."""
@@ -205,12 +210,17 @@ class JobListModel(QAbstractListModel):
             self.dataChanged.emit(self.index(group), self.index(group))
 
 
+KINDS = ('all', 'video', 'audio', 'photo', 'playlists')
+
+
 class QueueFilter(QSortFilterProxyModel):
     def __init__(self, model, parent=None):
         super().__init__(parent)
         self.service = None
         self.history = False
         self.status = 'all'
+        self.kind = 'all'
+        self.query = ''
         self.group_id = None
         self.setSourceModel(model)
 
@@ -219,6 +229,18 @@ class QueueFilter(QSortFilterProxyModel):
             raise ValueError('invalid_status')
         self.beginFilterChange()
         self.status = status
+        self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
+
+    def show_kind(self, kind):
+        if kind not in KINDS:
+            raise ValueError('invalid_kind')
+        self.beginFilterChange()
+        self.kind = kind
+        self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
+
+    def show_query(self, text):
+        self.beginFilterChange()
+        self.query = normalize(text)
         self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
 
     def show_source(self, service=None, history=False):
@@ -237,21 +259,48 @@ class QueueFilter(QSortFilterProxyModel):
         return self._accepts(row, self.status)
 
     def count(self, status):
-        """Rows the current screen would show under a status tab."""
+        """Rows the current screen would show under a status, with the kind and search applied."""
         return sum(self._accepts(row, status) for row in range(self.sourceModel().rowCount()))
 
     def _accepts(self, row, status):
         model = self.sourceModel()
         job = model.jobs[row]
         if self.group_id is not None:
-            return model.group_of(job.id) == self.group_id and self._matches(job, status)
+            # «Плейлисты» inside a group means all its tracks.
+            kind = None if self.kind == 'playlists' else self.kind
+            return (
+                model.group_of(job.id) == self.group_id
+                and self._kind_matches(job, kind)
+                and self._matches(job, status)
+                and self._found(job)
+            )
         if job.parent_id is not None:
             return False
-        members = model.members(job.id) if model.is_group_row(row) else ()
+        group = model.is_group_row(row)
+        members = model.members(job.id) if group else ()
         if not members:
-            return self._matches(job, status)
-        # A group shows under a tab when any of its members would.
-        return self._service_matches(job) and any(self._matches(m, status) for m in members)
+            kind_ok = self.kind in {'all', 'playlists'} if group else self._kind_matches(job)
+            return kind_ok and self._matches(job, status) and self._found(job)
+        if not self._service_matches(job):
+            return False
+        # A group shows when any member would: by status, kind and search alike.
+        kind = None if self.kind == 'playlists' else self.kind
+        itself = self._found(job)
+        return any(
+            self._kind_matches(m, kind) and self._matches(m, status) and (itself or self._found(m))
+            for m in members
+        )
+
+    def _kind_matches(self, job, kind=False):
+        kind = self.kind if kind is False else kind
+        return kind in {None, 'all'} or (kind != 'playlists' and job_kind(job) == kind)
+
+    def _found(self, job):
+        if not self.query:
+            return True
+        author = job.details.author if job.details else None
+        texts = (self.sourceModel().title(job), author, job.request.link.canonical_url)
+        return any(self.query in normalize(text) for text in texts)
 
     def _service_matches(self, job):
         return self.service is None or job.request.link.service.value == self.service
