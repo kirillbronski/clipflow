@@ -146,6 +146,7 @@ class MediaDetails:
     author: str | None = None
     thumbnail: str | None = None  # https address of a cover picture
     size_bytes: int | None = None  # expected size before the download
+    photo: bool = False  # a still picture: no play mark, «Фото · W×H»
 
     def __post_init__(self):
         for value in (self.duration, self.fps):
@@ -161,6 +162,8 @@ class MediaDetails:
         ):
             raise ValueError('invalid_media_details')
         if self.thumbnail is not None and not is_https(self.thumbnail):
+            raise ValueError('invalid_media_details')
+        if type(self.photo) is not bool:
             raise ValueError('invalid_media_details')
 
 

@@ -1,5 +1,7 @@
 """Media details for rich rows: parsed from extractor info, junk dropped, never raising."""
 
+from pathlib import Path
+
 import pytest
 
 from clipflow.domain.models import MediaDetails, Service
@@ -109,3 +111,49 @@ def test_merged_formats_with_an_unknown_part_have_no_size():
         'requested_formats': [{'format_id': '616'}, {'filesize': 8_535_091}],
     }
     assert details_from_info(info, 'video', Service.YOUTUBE).size_bytes is None
+
+
+MERGED = {
+    'duration': 600,
+    'width': 3840,
+    'height': 2160,
+    'fps': 60,
+    'requested_formats': [{'filesize': 1_400_000_000}, {'filesize': 9_000_000}],
+}
+
+
+def test_mp3_details_have_audio_size_and_no_picture():
+    from clipflow.domain.models import DownloadOptions
+
+    options = DownloadOptions(Path('/d'), format='mp3')
+    details = details_from_info(MERGED, 'video', Service.YOUTUBE, options)
+    assert (details.width, details.height, details.fps) == (None, None, None)
+    assert details.size_bytes == 600 * 320_000 // 8  # CBR 320k
+
+
+def test_height_limit_drops_what_the_limit_changes():
+    from clipflow.domain.models import DownloadOptions
+
+    limited = DownloadOptions(Path('/d'), max_height=720)
+    details = details_from_info(MERGED, 'video', Service.YOUTUBE, limited)
+    assert (details.height, details.fps, details.size_bytes) == (None, None, None)
+    assert details.duration == 600.0
+    fits = details_from_info(dict(MERGED, height=720), 'video', Service.YOUTUBE, limited)
+    assert fits.height == 720
+
+
+def test_photo_flag_follows_the_item():
+    assert details_from_info({'width': 10}, 'photo', Service.INSTAGRAM).photo
+    assert not details_from_info({'width': 10}, 'video', Service.INSTAGRAM).photo
+
+
+def test_instagram_author_is_the_handle_not_the_display_name():
+    info = {'uploader': 'B E A U T Y', 'author': 'beauty_for_ashes', 'channel': 'x'}
+    assert details_from_info(info, 'video', Service.INSTAGRAM).author == '@beauty_for_ashes'
+    info = {'uploader': 'Display Name', 'uploader_id': '2815873'}
+    assert details_from_info(dict(info, duration=1), 'video', Service.INSTAGRAM).author is None
+
+
+def test_absurd_numbers_never_raise():
+    info = {'duration': 10**400, 'fps': 10**400, 'width': 10**400, 'thumbnail': 5}
+    assert details_from_info(info, 'video', Service.YOUTUBE) is None  # dropped, not raised

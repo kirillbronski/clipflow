@@ -99,7 +99,9 @@ def details_text(job: Job, size: int, translator: Translator) -> str | None:
     if details is None:
         return None
     options = job.request.options
-    photo = job.request.link.service is Service.INSTAGRAM and options.media_filter == 'photo'
+    photo = details.photo or (
+        job.request.link.service is Service.INSTAGRAM and options.media_filter == 'photo'
+    )
     parts = []
     if photo:
         parts.append(translator.text('details.photo'))

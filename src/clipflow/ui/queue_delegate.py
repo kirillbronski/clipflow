@@ -177,7 +177,8 @@ class QueueDelegate(QStyledItemDelegate):
             painter.setClipPath(clip)
             painter.drawPixmap(badge, cover)
             painter.restore()
-            if job.request.options.media_filter != 'photo':
+            photo = job.details is not None and job.details.photo
+            if not photo and job.request.options.media_filter != 'photo':
                 mark = QRect(0, 0, 24, 24)
                 mark.moveCenter(badge.center())
                 painter.setPen(Qt.PenStyle.NoPen)

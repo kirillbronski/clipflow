@@ -391,3 +391,17 @@ def test_missing_parts_are_skipped(ru):
         ['MP4', 'Автор']
     )
     assert details_text(detailed(), 0, ru) is None
+
+
+def test_photo_under_the_all_filter_reads_as_a_photo(ru):
+    from clipflow.ui.job_status import details_text
+
+    job = detailed(
+        url='https://www.instagram.com/p/ABC/',
+        width=1080,
+        height=1350,
+        author='@someone',
+        photo=True,
+    )
+    assert job.request.options.media_filter == 'all'
+    assert details_text(job, 0, ru) == SEPARATOR.join(['Фото', '1080×1350', '@someone'])

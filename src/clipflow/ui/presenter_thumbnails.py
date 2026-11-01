@@ -57,6 +57,8 @@ class ThumbnailLoader(QObject):
         self._failed = set()
         self._busy = None
         self._pixmaps = {}
+        self._have = set()  # ids whose cover file is known to exist
+        self._ids = None  # the ids at the last prune; pruning runs only when they change
         self._scheduled = False
         self._fetched.connect(self._done, Qt.ConnectionType.QueuedConnection)
         presenter.jobs_changed.connect(self.refresh)
@@ -72,11 +74,16 @@ class ThumbnailLoader(QObject):
         self._scheduled = False
         if self.presenter._closing:
             return
-        jobs = self.presenter.repository.list()
+        # The model already holds the list in memory; the queue file is not read again.
+        jobs = self.presenter.model.jobs
         ids = {job.id for job in jobs}
-        self.store.prune(ids)
-        for job_id in [i for i in self._pixmaps if i not in ids]:
-            del self._pixmaps[job_id]
+        if ids != self._ids:
+            self._ids = ids
+            self.store.prune(ids)
+            self._have &= ids
+            for cache in (self._pixmaps, self._pending):
+                for job_id in [i for i in cache if i not in ids]:
+                    del cache[job_id]
         for job in jobs:
             if job.details and job.details.thumbnail:
                 self.queue_cover(job.id, job.details.thumbnail)
@@ -86,9 +93,11 @@ class ThumbnailLoader(QObject):
             job_id in self._failed
             or job_id == self._busy
             or job_id in self._pending
-            or self._pixmaps.get(job_id) is not None
-            or self.store.exists(job_id)
+            or job_id in self._have
         ):
+            return
+        if self.store.exists(job_id):
+            self._have.add(job_id)
             return
         if not is_https(url):
             self._failed.add(job_id)
@@ -120,12 +129,13 @@ class ThumbnailLoader(QObject):
             return
         if data is None:
             self._failed.add(job_id)
-        elif any(job.id == job_id for job in self.presenter.repository.list()):
+        elif job_id in self.presenter.model._rows:
             try:
                 self.store.save(job_id, data)
             except OSError:
                 self._failed.add(job_id)
             else:
+                self._have.add(job_id)
                 self._pixmaps.pop(job_id, None)
                 self.thumbnail_ready.emit(job_id)
         self._next()

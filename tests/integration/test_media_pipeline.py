@@ -718,3 +718,43 @@ def test_save_reports_details_after_the_title(tmp_path, context, media_server):
     assert found[0].details.thumbnail is None  # the local test server is http, not https
     titles = [i for i, e in enumerate(events) if isinstance(e, TitleChanged)]
     assert events.index(found[0]) == titles[0] + 1
+
+
+def test_downloaded_format_reports_its_own_details(tmp_path, context, media_server, tools):
+    from clipflow.domain.events import DetailsFound
+
+    ctx, events = context
+    base, _, _ = media_server
+    media = MediaItem(
+        'adaptive',
+        1,
+        'video',
+        'Adaptive streams',
+        {
+            'duration': 5,
+            'formats': [
+                {
+                    'format_id': 'video',
+                    'url': base + '/video-only.mp4',
+                    'ext': 'mp4',
+                    'vcodec': 'h264',
+                    'acodec': 'none',
+                    'height': 64,
+                    'width': 96,
+                },
+                {
+                    'format_id': 'audio',
+                    'url': base + '/audio.m4a',
+                    'ext': 'm4a',
+                    'vcodec': 'none',
+                    'acodec': 'aac',
+                },
+            ],
+        },
+    )
+    req = DownloadRequest(
+        parse_url('https://youtu.be/BaW_jenozKc'), DownloadOptions(tmp_path, max_height=64)
+    )
+    MediaPipeline().save(media, req, ctx)
+    found = [e.details for e in events if isinstance(e, DetailsFound)]
+    assert found[-1].height == 64

@@ -683,3 +683,22 @@ def test_group_pause_takes_over_an_automatic_wait_and_skips_finished_jobs():
     assert not repo.get('auto').automatic_retry
     assert scheduler.resume_many(('done',)) == ()
     assert scheduler.retry_many(('mine',)) == ()
+
+
+def test_instagram_cover_address_is_not_stored(tmp_path):
+    from clipflow.domain.events import DetailsFound
+    from clipflow.domain.models import DownloadOptions, DownloadRequest, MediaDetails
+    from clipflow.domain.urls import parse_url
+
+    repo = MemoryJobRepository()
+    post = DownloadRequest(parse_url('https://www.instagram.com/p/ABC/'), DownloadOptions(tmp_path))
+    repo.add(Job('post', post))
+    repo.add(Job('later', post))
+    worker = ControlledExecutor()
+    scheduler = Scheduler(repo, worker)
+    scheduler.start('post')
+    signed = MediaDetails(width=1080, thumbnail='https://scontent.cdninstagram.com/a.jpg?oh=x')
+    worker.emit(DetailsFound(signed))
+    assert repo.get('post').details == MediaDetails(width=1080)
+    scheduler.set_details('later', signed)
+    assert repo.get('later').details == MediaDetails(width=1080)

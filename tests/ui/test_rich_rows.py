@@ -181,3 +181,13 @@ def test_row_buttons_match_group_buttons(qapp):
         sizes[row] = painter.sizes
     assert sizes[0]['⋮'] == sizes[1]['⋮'] == 17
     assert sizes[0]['↗'] == 17
+
+
+def test_photo_cover_has_no_play_mark(qapp):
+    photo = job('a', details=MediaDetails(width=1080, photo=True))
+    model = JobListModel([photo, job('b', details=MediaDetails(width=1080))])
+    model.covers = lambda job_id: cover()
+    _, drawn = render(model)
+    assert '▶' not in drawn
+    _, drawn = render(model, 1)
+    assert '▶' in drawn

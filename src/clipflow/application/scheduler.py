@@ -50,6 +50,13 @@ _STAGES = (JobState.PROBING, JobState.DOWNLOADING, JobState.PROCESSING)
 _ACKS = (WorkFinished, WorkFailed, WorkStopped)
 
 
+def _storable(job: Job, details: MediaDetails) -> MediaDetails:
+    """Instagram cover addresses are signed CDN links: kept in memory, never on disk."""
+    if job.request.link.service is Service.INSTAGRAM and details.thumbnail:
+        return replace(details, thumbnail=None)
+    return details
+
+
 class Scheduler:
     def __init__(self, repository: JobRepository, executor: Executor, *, clock=None):
         self.repository = repository
@@ -371,9 +378,10 @@ class Scheduler:
     def set_details(self, job_id: str, details: MediaDetails) -> None:
         """Details of a waiting job found ahead of its download; a running job reports its own."""
         job = self.repository.get(job_id)
-        if job.details == details or job.state not in {JobState.QUEUED, JobState.PAUSED}:
+        stored = _storable(job, details)
+        if job.details == stored or job.state not in {JobState.QUEUED, JobState.PAUSED}:
             return
-        self.repository.update(replace(job, details=details))
+        self.repository.update(replace(job, details=stored))
         self._publish(JobEvent(job.id, job.attempt_id or '', DetailsFound(details)))
 
     def shutdown(self) -> None:
@@ -449,7 +457,7 @@ class Scheduler:
         self.repository.update(replace(job, title=' '.join(payload.title.split())[:240] or None))
 
     def _on_details(self, job: Job, payload: DetailsFound) -> None:
-        self.repository.update(replace(job, details=payload.details))
+        self.repository.update(replace(job, details=_storable(job, payload.details)))
 
     def _on_selection(self, job: Job, payload: SelectionRequired) -> None:
         self._save(replace(job, state=JobState.PAUSED, pause_reason='selection_required'))

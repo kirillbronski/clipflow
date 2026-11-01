@@ -90,7 +90,7 @@ class YouTubeProvider:
         if request.link.kind != ContentKind.VIDEO:
             raise MediaFailure('invalid_request')
         item = self.probe(request, context).items[0]
-        details = details_from_info(item.info, 'video', request.link.service)
+        details = details_from_info(item.info, 'video', request.link.service, request.options)
         if details is not None:
             context.emit(DetailsFound(details))
         try:

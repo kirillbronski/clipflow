@@ -1,39 +1,74 @@
 """Media details from extractor info: only sane values survive, nothing here raises."""
 
 import math
+import re
 from collections.abc import Mapping
+from dataclasses import replace
 
-from clipflow.domain.models import MediaDetails, Service, is_https
+from clipflow.domain.models import DownloadOptions, MediaDetails, Service, is_https
 
 _AUTHOR_LIMIT = 200
 _COVER_WIDTH = 320
 _COVER_MIN_WIDTH = 160
+_MP3_BYTES_PER_SECOND = 320_000 // 8  # the MP3 encode is CBR 320k
+_HANDLE = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.]{0,29}')
 
 
 def details_from_info(
-    info: Mapping[str, object], kind: str, service: Service
+    info: Mapping[str, object],
+    kind: str,
+    service: Service,
+    options: DownloadOptions | None = None,
 ) -> MediaDetails | None:
-    """``kind`` is 'video', 'photo' or 'collection'; None when nothing useful is known."""
+    """``kind`` is 'video', 'photo' or 'collection'; None when nothing useful is known.
+
+    The info describes yt-dlp's default choice; what the job's own format or height
+    limit would change is left out rather than shown wrong.
+    """
+    try:
+        return _details(info, kind, service, options)
+    except (ValueError, TypeError, OverflowError):  # a cosmetic line never fails a download
+        return None
+
+
+def _details(info, kind, service, options):
+    duration = _number(info.get('duration'))
+    height = _count(info.get('height'))
+    fps = _number(info.get('fps'))
+    width = _count(info.get('width'))
+    size = _size(info)
+    if options is not None and options.format == 'mp3':
+        width = height = fps = None
+        size = int(duration * _MP3_BYTES_PER_SECOND) if duration else None
+    elif options is not None and options.max_height and height and height > options.max_height:
+        # A lower format will be picked: its height, frame rate and size are not known yet.
+        height = fps = size = None
     details = MediaDetails(
-        duration=_number(info.get('duration')),
-        width=_count(info.get('width')),
-        height=_count(info.get('height')),
-        fps=_number(info.get('fps')),
+        duration=duration,
+        width=width,
+        height=height,
+        fps=fps,
         author=_author(info, service),
         thumbnail=_cover(info, kind),
-        size_bytes=_size(info),
+        size_bytes=size,
+        photo=kind == 'photo',
     )
-    return None if details == MediaDetails() else details
+    # A photo flag alone tells nothing worth a row line.
+    return None if replace(details, photo=False) == MediaDetails() else details
 
 
 def _number(value):
-    if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
+    if type(value) not in (int, float):
         return None
-    return float(value)
+    try:
+        value = float(value)
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) and value > 0 else None
 
 
 def _count(value):
-    return value if type(value) is int and value > 0 else None
+    return value if type(value) is int and 0 < value < 2**53 else None
 
 
 def _size(info):
@@ -52,13 +87,17 @@ def _size(info):
 
 
 def _author(info, service):
+    if service is Service.INSTAGRAM:
+        # yt-dlp's uploader is the display name there; the handle is what people know.
+        for key in ('author', 'channel', 'uploader_id'):
+            value = info.get(key)
+            if isinstance(value, str) and _HANDLE.fullmatch(value) and not value.isdigit():
+                return '@' + value
+        return None
     for key in ('uploader', 'channel', 'uploader_id'):
         value = info.get(key)
         if isinstance(value, str) and value.split():
-            author = ' '.join(value.split())
-            if service is Service.INSTAGRAM and not author.startswith('@'):
-                author = '@' + author
-            return author[:_AUTHOR_LIMIT]
+            return ' '.join(value.split())[:_AUTHOR_LIMIT]
     return None
 
 

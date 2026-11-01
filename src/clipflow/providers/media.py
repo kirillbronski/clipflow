@@ -86,7 +86,7 @@ class MediaPipeline:
         # YouTube rows show the file name they will get; other services keep their media title.
         planned = (existing or plan.target).stem if plan.tag else item.title
         context.emit(TitleChanged(planned))
-        details = details_from_info(item.info, item.kind, request.link.service)
+        details = details_from_info(item.info, item.kind, request.link.service, request.options)
         if details is not None:
             context.emit(DetailsFound(details))
         if existing is not None:
@@ -128,6 +128,10 @@ class MediaPipeline:
         if not info.get('url') and not info.get('formats'):
             raise MediaFailure('invalid_media')
         result = ydl.process_ie_result(info, download=True)
+        # Now the chosen format is known: its height and frame rate replace the guess.
+        final = details_from_info(result, item.kind, request.link.service, request.options)
+        if final is not None:
+            context.emit(DetailsFound(final))
         source = self._source_file(result, ydl, plan.target.parent)
         context.cancel.raise_if_cancelled()
         context.emit(StageChanged(JobState.PROCESSING))

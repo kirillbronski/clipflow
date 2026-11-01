@@ -172,3 +172,56 @@ def test_ready_cover_reaches_the_row(make_window, qtbot, tmp_path):
     assert model.index(0).data(JobListModel.CoverRole) is None
     loader.refresh()
     qtbot.waitUntil(lambda: model.index(0).data(JobListModel.CoverRole) is not None, timeout=3000)
+
+
+def test_instagram_cover_comes_from_the_event_in_this_session(make_window, qtbot, tmp_path):
+    from clipflow.domain.events import DetailsFound, JobEvent
+
+    repo = SqliteJobRepository(tmp_path / 'ig.sqlite3')
+    post = DownloadRequest(parse_url('https://www.instagram.com/p/ABC/'), DownloadOptions(tmp_path))
+    repo.add(Job('post', post))
+    store = ThumbnailStore(tmp_path / 'thumbnails')
+    window, _ = make_window(repository=repo, thumbnails=store)
+    fetch = Fetch(picture())
+    window.presenter.thumbnails.fetch = fetch
+    signed = 'https://scontent.cdninstagram.com/a.jpg?oh=x'
+    window.presenter._on_event(
+        JobEvent('post', '', DetailsFound(MediaDetails(width=1080, thumbnail=signed)))
+    )
+    qtbot.waitUntil(lambda: store.exists('post'), timeout=3000)
+    assert fetch.calls == [signed]
+    assert repo.get('post').details is None or repo.get('post').details.thumbnail is None
+
+
+def test_pending_covers_of_removed_jobs_are_dropped(make_window, qtbot, tmp_path):
+    gate = threading.Event()
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        gate.wait(2)
+        return picture()
+
+    window, loader, _, repo = window_with(
+        make_window, tmp_path, fetch, 'video_A', 'video_B', 'video_C'
+    )
+    loader.refresh()
+    qtbot.waitUntil(lambda: bool(calls), timeout=3000)
+    repo.remove(tuple(i for i in ('video_A', 'video_B', 'video_C') if f'{i}.jpg' not in calls[0]))
+    window.presenter._reload_jobs()
+    qtbot.wait(50)
+    gate.set()
+    qtbot.wait(400)
+    assert len(calls) == 1
+
+
+def test_loader_reads_the_model_not_the_repository(make_window, qtbot, tmp_path, monkeypatch):
+    fetch = Fetch(picture())
+    _, loader, store, repo = window_with(make_window, tmp_path, fetch, 'video_A')
+    reads = []
+    original = repo.list
+    monkeypatch.setattr(repo, 'list', lambda *a, **k: reads.append(1) or original(*a, **k))
+    loader.refresh()
+    qtbot.waitUntil(lambda: store.exists('video_A'), timeout=3000)
+    qtbot.wait(50)
+    assert reads == []

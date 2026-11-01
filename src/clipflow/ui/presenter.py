@@ -12,7 +12,7 @@ from clipflow.application.history import (
     result_status,
 )
 from clipflow.application.probe_cache import ProbeCache
-from clipflow.domain.events import RequestsDiscovered, SelectionRequired
+from clipflow.domain.events import DetailsFound, RequestsDiscovered, SelectionRequired
 from clipflow.domain.models import JobState
 from clipflow.domain.urls import parse_url
 from clipflow.ui.presenter_accounts import AccountsController
@@ -399,6 +399,11 @@ class WorkbenchPresenter(QObject):
     def _on_event(self, event):
         job = self.repository.get(event.job_id)
         self.model.update_job(job, event.payload)
+        if isinstance(event.payload, DetailsFound) and self.thumbnails is not None:
+            # The event still carries the cover address the queue does not keep.
+            cover = event.payload.details.thumbnail
+            if cover:
+                self.thumbnails.queue_cover(job.id, cover)
         if isinstance(event.payload, RequestsDiscovered):
             self.model.set_jobs(self.repository.list())
         if isinstance(event.payload, SelectionRequired):
