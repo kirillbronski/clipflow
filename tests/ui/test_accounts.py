@@ -11,7 +11,7 @@ def test_accounts_use_saved_sessions_without_showing_sign_in(make_window, qtbot,
     gateway = NativeAuthGateway(tmp_path)
     seed(tmp_path, Service.YOUTUBE, gateway.platform.protect)
     window.presenter.set_auth_gateway(gateway)
-    window.accounts_button.click()
+    window.open_settings('accounts')
     page = window.accounts_page
     assert page.isVisible()
     assert not page.sign_in_buttons[Service.YOUTUBE].isVisible()
@@ -54,7 +54,7 @@ def test_accounts_getcourse_configuration_is_scoped_and_password_cleared(
     window, _ = make_window()
     gateway = NativeAuthGateway(tmp_path)
     window.presenter.set_auth_gateway(gateway)
-    window.accounts_button.click()
+    window.open_settings('accounts')
     window.accounts_page.sign_in_buttons[Service.GETCOURSE].click()
     dialog = next(d for d in window._dialogs if isinstance(d, GetCourseDialog))
     dialog.school.setText('https://school.getcourse.ru/pl/teach/control/lesson/view?id=123')
@@ -113,7 +113,7 @@ def test_getcourse_credentials_support_native_paste(make_window, qtbot, tmp_path
 
     window, _ = make_window()
     window.presenter.set_auth_gateway(NativeAuthGateway(tmp_path))
-    window.accounts_button.click()
+    window.open_settings('accounts')
     window.accounts_page.sign_in_buttons[Service.GETCOURSE].click()
     dialog = next(d for d in window._dialogs if isinstance(d, GetCourseDialog))
     clipboard.setText('user@example.test')

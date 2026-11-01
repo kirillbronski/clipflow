@@ -170,7 +170,7 @@ def test_import_button_tooltip(make_window, tmp_path):
 
     window, _ = make_window()
     window.presenter.set_auth_gateway(NativeAuthGateway(tmp_path))
-    window.accounts_button.click()
+    window.open_settings('accounts')
     window.accounts_page.sign_in_buttons[Service.GETCOURSE].click()
     dialog = next(d for d in window._dialogs if isinstance(d, GetCourseDialog))
     button = next(

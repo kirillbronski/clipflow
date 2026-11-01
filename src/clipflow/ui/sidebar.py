@@ -1,4 +1,4 @@
-"""Left column: brand, source navigation with live counts, accounts and settings."""
+"""Left column: brand, source navigation with live counts and settings."""
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
@@ -60,8 +60,6 @@ class Sidebar(QFrame):
             side.addWidget(self._nav_button(key, service, history))
         self.nav_buttons[0].setChecked(True)
         side.addStretch()
-        self.accounts_button = self._section_button('accounts', 'accounts')
-        side.addWidget(self.accounts_button)
         self.settings_button = self._section_button('menu_settings', 'settings')
         side.addWidget(self.settings_button)
         side.addSpacing(14)
@@ -119,7 +117,6 @@ class Sidebar(QFrame):
         """Check exactly the chosen navigation entry or section button."""
         for button in self.nav_buttons:
             button.setChecked(button.property('nav_key') == nav_key)
-        self.accounts_button.setChecked(section == 'accounts')
         self.settings_button.setChecked(section == 'settings')
 
     def set_counts(self, jobs):

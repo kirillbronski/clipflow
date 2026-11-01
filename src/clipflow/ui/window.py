@@ -60,7 +60,6 @@ class MainWindow(QMainWindow):
         layout.setSpacing(0)
         self.sidebar = Sidebar(self.tr)
         self.nav_buttons = self.sidebar.nav_buttons
-        self.accounts_button = self.sidebar.accounts_button
         self.settings_button = self.sidebar.settings_button
         self.sidebar.navigate.connect(self._navigate)
         self.sidebar.section.connect(self._show_section)
@@ -144,11 +143,11 @@ class MainWindow(QMainWindow):
             self.empty,
             subtitle,
         )
-        self.accounts_page = AccountsPage(presenter, self.tr, self)
-        self.settings_page = SettingsPage(presenter, self.tr, self, theme=self.theme)
-        main.addWidget(self.accounts_page, 1)
+        self.accounts_page = AccountsPage(presenter, self.tr)
+        self.settings_page = SettingsPage(
+            presenter, self.tr, self, theme=self.theme, accounts=self.accounts_page
+        )
         main.addWidget(self.settings_page, 1)
-        self.accounts_page.hide()
         self.settings_page.hide()
         self.composer.submit_requested.connect(self._submit)
         self.composer.probe_requested.connect(self._request_probe)
@@ -355,7 +354,6 @@ class MainWindow(QMainWindow):
     def _navigate(self, service, history, title):
         self.sidebar.select(nav_key=title)
         self._section = 'downloads'
-        self.accounts_page.hide()
         self.settings_page.hide()
         for widget in self._download_widgets:
             widget.show()
@@ -375,12 +373,17 @@ class MainWindow(QMainWindow):
         self.sidebar.select(section=section)
         for widget in self._download_widgets:
             widget.hide()
-        self.accounts_page.setVisible(section == 'accounts')
         self.settings_page.setVisible(section == 'settings')
-        self._nav_key = 'accounts' if section == 'accounts' else 'menu_settings'
+        self._nav_key = 'menu_settings'
         self.heading.setText(self.tr.text(self._nav_key))
         self.accounts_page.refresh()
         self.settings_page.refresh()
+
+    def open_settings(self, section=None):
+        """Show the settings page, on the given section or the last one opened."""
+        self._show_section('settings')
+        if section is not None:
+            self.settings_page.show_section(section)
 
     def _show_error(self, code):
         self._error_code = code

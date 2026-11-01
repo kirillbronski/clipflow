@@ -312,7 +312,6 @@ MESSAGES = {
 }
 MESSAGES.update(
     {
-        'accounts': ('Аккаунты', 'Accounts'),
         'about': ('О программе', 'About'),
         'settings_section.general': ('Основные', 'General'),
         'settings_section.accounts': ('Авторизация', 'Sign-in'),

@@ -27,12 +27,9 @@ def test_collapsed_composer_leaves_queue_space_and_discloses_folder(make_window,
     qtbot.waitUntil(lambda: window.composer.height() <= 220)
 
 
-def test_accounts_and_settings_stay_at_bottom_of_sidebar(make_window):
+def test_settings_stays_at_bottom_of_sidebar(make_window):
     window, _ = make_window()
-    assert window.accounts_button.y() > window.height() * 0.65
-    assert window.settings_button.y() > window.accounts_button.y()
-    window.accounts_button.click()
-    assert window.accounts_page.isVisible()
+    assert window.settings_button.y() > window.height() * 0.65
     window.settings_button.click()
     assert window.settings_page.isVisible()
 
@@ -143,10 +140,9 @@ def test_checked_mode_text_has_full_bold_content_width(make_window, qtbot, langu
             )
 
 
-@pytest.mark.parametrize('section', ['accounts', 'settings'])
-def test_batch_button_only_visible_in_download_sections(make_window, qtbot, section):
+def test_batch_button_only_visible_in_download_sections(make_window, qtbot):
     window, _ = make_window()
-    getattr(window, section + '_button').click()
+    window.settings_button.click()
     assert not window.batch_button.isVisible()
     window.nav_buttons[1].click()
     assert window.batch_button.isVisible()
