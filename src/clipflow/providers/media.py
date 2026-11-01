@@ -182,6 +182,28 @@ class MediaPipeline:
             options['ffmpeg_location'] = self.ffmpeg
         if self.node:
             options['js_runtimes'] = {'node': {'path': self.node}}
+        preferences = context.preferences
+        if preferences.rate_limit:
+            options['ratelimit'] = preferences.rate_limit
+        if (
+            preferences.subtitles
+            and request.link.service == Service.YOUTUBE
+            and request.options.format != 'mp3'
+        ):
+            language = (
+                item.info.get('language')
+                if preferences.subtitles == 'original'
+                else preferences.subtitles
+            )
+            options.update(
+                writesubtitles=True,
+                writeautomaticsub=False,
+                # Without a known language take any subtitles but live chat.
+                subtitleslangs=[language]
+                if isinstance(language, str) and language
+                else ['all', '-live_chat'],
+                postprocessors=[*options['postprocessors'], {'key': 'FFmpegEmbedSubtitle'}],
+            )
         return options
 
     @staticmethod

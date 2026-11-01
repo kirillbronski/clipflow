@@ -136,6 +136,14 @@ TERMINAL_STATES = frozenset({JobState.COMPLETED, JobState.CANCELLED, JobState.FA
 
 
 @dataclass(frozen=True)
+class DownloadPreferences:
+    """App-wide download choices taken when a job starts: speed and subtitles."""
+
+    rate_limit: int | None = None  # bytes per second
+    subtitles: str | None = None  # 'original', 'ru' or 'en'
+
+
+@dataclass(frozen=True)
 class MediaDetails:
     """What the queue row shows about the file itself; any part may be unknown."""
 

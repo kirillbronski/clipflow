@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from clipflow.application.ports import AuthGateway
 from clipflow.domain.events import CancellationToken, ProviderEvent
-from clipflow.domain.models import DownloadRequest, MediaDetails, MediaItem
+from clipflow.domain.models import DownloadPreferences, DownloadRequest, MediaDetails, MediaItem
 
 if TYPE_CHECKING:
     from clipflow.application.instagram_rate_policy import InstagramRatePolicy
@@ -34,6 +34,7 @@ class ExecutionContext:
     emit: Callable[[ProviderEvent], None] = field(repr=False)
     auth: AuthGateway = field(repr=False)
     instagram_rate: 'InstagramRatePolicy | None' = None
+    preferences: DownloadPreferences = field(default_factory=DownloadPreferences)
 
 
 class MediaFailure(Exception):

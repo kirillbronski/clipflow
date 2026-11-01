@@ -13,7 +13,7 @@ from clipflow.application.history import (
 )
 from clipflow.application.probe_cache import ProbeCache
 from clipflow.domain.events import DetailsFound, RequestsDiscovered, SelectionRequired
-from clipflow.domain.models import JobState
+from clipflow.domain.models import DownloadPreferences, JobState
 from clipflow.domain.urls import parse_url
 from clipflow.ui.presenter_accounts import AccountsController
 from clipflow.ui.presenter_clearing import ClearingController
@@ -75,6 +75,7 @@ class WorkbenchPresenter(QObject):
         # Background naming: one metadata lookup at a time, paced to stay polite to the site.
         self.title_interval_ms = 1000
         self._titles = TitleNamer(self)
+        self._apply_runtime_settings()
         # Covers are optional: without a store the rows keep the service badge.
         self.thumbnails = ThumbnailLoader(self, thumbnails) if thumbnails is not None else None
         if self.thumbnails is not None:
@@ -425,8 +426,14 @@ class WorkbenchPresenter(QObject):
         if self.settings_store:
             self.settings_store.save(settings)
         self.settings = settings
+        self._apply_runtime_settings()
         self.settings_changed.emit()
         return True
+
+    def _apply_runtime_settings(self):
+        """Settings the worker side reads: download preferences and the duplicate rule."""
+        settings = self.settings
+        self.executor.preferences = DownloadPreferences(settings.rate_limit, settings.subtitles)
 
     def _on_event(self, event):
         job = self.repository.get(event.job_id)

@@ -285,3 +285,40 @@ def test_smart_submit_duplicates_do_not_start_twice(presenter, provider, reposit
 def test_set_smart_mode_saves(presenter):
     presenter.set_smart_mode(True)
     assert presenter.settings.smart_mode is True
+
+
+class Remembering(HeldProvider):
+    def __init__(self):
+        super().__init__()
+        self.contexts = []
+
+    def execute(self, request, context):
+        self.contexts.append(context.preferences)
+        return super().execute(request, context)
+
+
+def test_rate_limit_applies_to_the_next_job(qtbot, tmp_path, repository):
+    from dataclasses import replace
+
+    from clipflow.providers.base import DownloadPreferences
+
+    provider = Remembering()
+    presets = {s: DownloadOptions(tmp_path / 'downloads') for s in Service}
+    executor = ThreadExecutor({(Service.YOUTUBE, ContentKind.VIDEO): provider}, Auth())
+    presenter = WorkbenchPresenter(
+        SubmissionService(repository),
+        Scheduler(repository, executor),
+        replace(AppSettings(presets=presets), rate_limit=1024 * 1024, subtitles='ru'),
+        repository,
+    )
+    try:
+        presenter.submit('https://youtu.be/first')
+        presenter.start_queue()
+        qtbot.waitUntil(provider.started.is_set, timeout=3000)
+        presenter.update_preferences(rate_limit=5 * 1024 * 1024)
+        assert provider.contexts == [DownloadPreferences(1024 * 1024, 'ru')]
+        assert presenter.executor.preferences == DownloadPreferences(5 * 1024 * 1024, 'ru')
+    finally:
+        provider.released.set()
+        presenter.shutdown()
+        qtbot.waitUntil(lambda: presenter.is_closed, timeout=5000)

@@ -8,6 +8,7 @@ from clipflow.domain.events import (
     JobEvent,
     WorkFailed,
 )
+from clipflow.domain.models import DownloadPreferences
 from clipflow.infrastructure.work import (
     ProgressThrottle,
     check_provider_event,
@@ -58,8 +59,9 @@ class _TitleWorker(QThread):
 class _Worker(QThread):
     event = Signal(object)
 
-    def __init__(self, job, provider, auth, policy, parent):
+    def __init__(self, job, provider, auth, policy, parent, preferences=None):
         super().__init__(parent)
+        self.preferences = preferences or DownloadPreferences()
         self.job = job
         self.provider = provider
         self.auth = auth
@@ -74,7 +76,9 @@ class _Worker(QThread):
             self.event.emit(JobEvent(self.job.id, self.job.attempt_id, payload))
 
     def run(self):
-        context = ExecutionContext(self.cancel, self._emit, self.auth, self.policy)
+        context = ExecutionContext(
+            self.cancel, self._emit, self.auth, self.policy, preferences=self.preferences
+        )
         self.terminal = run_download(self.job.request, self.provider, context)
         # QThread.finished is emitted only after run() returns and provider
         # context managers have closed their HTTP/process resources.
@@ -90,6 +94,7 @@ class ThreadExecutor(QObject):
         self.registry = provider_registry
         self.auth = auth_gateway
         self.instagram_rate = instagram_rate
+        self.preferences = DownloadPreferences()
         self._cleanup = cleanup or (lambda: None)
         self._workers = {}
         self._closing = False
@@ -110,7 +115,10 @@ class ThreadExecutor(QObject):
         if self._closing or not self.is_idle:
             raise ValueError('Executor unavailable')
         provider = self.registry[(job.request.link.service, job.request.link.kind)]
-        worker = _Worker(job, provider, self.auth, self.instagram_rate, self)
+        # The preferences are taken now: changing them later affects the next job only.
+        worker = _Worker(
+            job, provider, self.auth, self.instagram_rate, self, preferences=self.preferences
+        )
         self._workers[(job.id, job.attempt_id)] = (worker, on_event)
         worker.event.connect(self._deliver, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(self._finished, Qt.ConnectionType.QueuedConnection)
