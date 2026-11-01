@@ -17,6 +17,7 @@ from clipflow.domain.models import JobState
 from clipflow.domain.urls import parse_url
 from clipflow.ui.presenter_accounts import AccountsController
 from clipflow.ui.presenter_clearing import ClearingController
+from clipflow.ui.presenter_thumbnails import ThumbnailLoader
 from clipflow.ui.presenter_titles import TitleNamer
 from clipflow.ui.queue_model import JobListModel
 
@@ -34,7 +35,9 @@ class WorkbenchPresenter(QObject):
     probe_ready = Signal(str, object, str)
     auth_changed = Signal()
 
-    def __init__(self, submission, scheduler, settings, repository, *, settings_store=None):
+    def __init__(
+        self, submission, scheduler, settings, repository, *, settings_store=None, thumbnails=None
+    ):
         super().__init__()
         self.submission = submission
         self.scheduler = scheduler
@@ -65,6 +68,8 @@ class WorkbenchPresenter(QObject):
         # Background naming: one metadata lookup at a time, paced to stay polite to the site.
         self.title_interval_ms = 1000
         self._titles = TitleNamer(self)
+        # Covers are optional: without a store the rows keep the service badge.
+        self.thumbnails = ThumbnailLoader(self, thumbnails) if thumbnails is not None else None
 
     def _command(self, action):
         if self._closing:

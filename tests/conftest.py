@@ -41,7 +41,7 @@ def isolated_profile(tmp_path, monkeypatch):
 def make_window(qtbot, tmp_path):
     windows = []
 
-    def make(provider=None, repository=None, settings=None):
+    def make(provider=None, repository=None, settings=None, thumbnails=None):
         provider = provider or HeldProvider()
         repository = repository or SqliteJobRepository(tmp_path / f'queue-{len(windows)}.sqlite3')
         presets = {s: DownloadOptions(tmp_path / 'downloads') for s in Service}
@@ -49,7 +49,7 @@ def make_window(qtbot, tmp_path):
         executor = ThreadExecutor({(Service.YOUTUBE, ContentKind.VIDEO): provider}, Auth())
         scheduler = Scheduler(repository, executor)
         presenter = WorkbenchPresenter(
-            SubmissionService(repository), scheduler, settings, repository
+            SubmissionService(repository), scheduler, settings, repository, thumbnails=thumbnails
         )
         # This fixture owns teardown: pytest-qt deletes registered widgets even
         # when closeEvent correctly waits for an asynchronous worker.

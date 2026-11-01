@@ -17,6 +17,7 @@ from clipflow.infrastructure.platform import data_directory
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
 from clipflow.infrastructure.repository import RepositoryError, SqliteJobRepository
 from clipflow.infrastructure.settings import AppSettings, SettingsError, SettingsStore
+from clipflow.infrastructure.thumbnails import ThumbnailStore
 from clipflow.providers.getcourse import GetCourseProvider
 from clipflow.providers.instagram_post import InstagramPostProvider
 from clipflow.providers.instagram_profile import InstagramProfileProvider, InstaloaderPageSource
@@ -98,6 +99,7 @@ def create_application(argv: list[str], data_dir: Path | None = None):
             settings,
             repository,
             settings_store=settings_store,
+            thumbnails=ThumbnailStore(directory / 'thumbnails'),
         )
         presenter.set_auth_gateway(auth)
         window = MainWindow(presenter)
