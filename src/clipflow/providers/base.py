@@ -28,6 +28,20 @@ class DownloadResult:
     discovered_count: int = 0
 
 
+class Limiter(Protocol):
+    """The shared speed limit: a download reports its bytes and may be held back."""
+
+    def consume(self, count: int, cancel: CancellationToken) -> None: ...
+
+
+class _NoLimit:
+    def consume(self, count: int, cancel: CancellationToken) -> None:
+        pass
+
+
+NO_LIMIT = _NoLimit()
+
+
 @dataclass(frozen=True)
 class ExecutionContext:
     cancel: CancellationToken
@@ -35,6 +49,7 @@ class ExecutionContext:
     auth: AuthGateway = field(repr=False)
     instagram_rate: 'InstagramRatePolicy | None' = None
     preferences: DownloadPreferences = field(default_factory=DownloadPreferences)
+    limiter: Limiter = field(default=NO_LIMIT, repr=False)
 
 
 class MediaFailure(Exception):

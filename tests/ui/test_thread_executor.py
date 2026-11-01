@@ -22,6 +22,7 @@ class Provider:
                 context.cancel.raise_if_cancelled()
 
     def execute(self, request, context):
+        self.limiters = [*getattr(self, 'limiters', []), context.limiter]
         self._hold(context)
 
     def planned_title(self, request, context):
@@ -128,3 +129,18 @@ def test_drain_reaps_name_lookup_and_probe_without_delivering_them(executor, pro
     assert executor.is_closed
     assert names == []
     assert probes == []
+
+
+def test_preferences_set_limiter_rate(executor):
+    from clipflow.domain.models import DownloadPreferences
+
+    executor.preferences = DownloadPreferences(rate_limit=2 * 1024 * 1024)
+    assert executor.limiter.rate == 2 * 1024 * 1024
+    executor.preferences = DownloadPreferences()
+    assert executor.limiter.rate is None
+
+
+def test_download_uses_the_shared_limiter(executor, provider, qtbot):
+    executor.start(job(), lambda event: None)
+    qtbot.waitUntil(lambda: hasattr(provider, 'limiters'))
+    assert provider.limiters == [executor.limiter]

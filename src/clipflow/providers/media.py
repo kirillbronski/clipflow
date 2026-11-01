@@ -246,11 +246,8 @@ class MediaPipeline:
             options['ffmpeg_location'] = self.ffmpeg
         if self.node:
             options['js_runtimes'] = {'node': {'path': self.node}}
-        preferences = context.preferences
-        if preferences.rate_limit:
-            options['ratelimit'] = preferences.rate_limit
-        if preferences.rate_limit:
-            # yt-dlp limits each fragment request; parallel fragments would multiply the speed.
+        if context.preferences.rate_limit:
+            # The shared limiter holds back the progress hook: parallel fragments would burst.
             options['concurrent_fragment_downloads'] = 1
         return options
 
@@ -262,6 +259,7 @@ class MediaPipeline:
         observed = 0
         total = None
         stream = None
+        counted = {}  # bytes already reported to the shared limiter, per file
 
         def hook(data):
             nonlocal last, sample_time, sample_bytes, observed, total, stream
@@ -271,6 +269,11 @@ class MediaPipeline:
             if downloaded is None:
                 downloaded = observed if data.get('status') == 'finished' else 0
             identity = data.get('filename')
+            before = counted.get(identity, 0)
+            counted[identity] = downloaded
+            fresh = downloaded - before if downloaded >= before else downloaded
+            if fresh > 0:
+                context.limiter.consume(fresh, context.cancel)
             if (
                 sample_time is None
                 or downloaded < observed

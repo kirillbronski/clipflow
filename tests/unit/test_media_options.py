@@ -26,9 +26,10 @@ def options(url='https://youtu.be/abc', fmt='mp4', info=None, **preferences):
     return MediaPipeline()._options(item, request, context, Path('/d/Ролик.mp4'))
 
 
-def test_rate_limit_option():
+def test_rate_limit_is_not_a_ytdlp_option():
+    # yt-dlp limits each download alone; the shared limiter keeps the total instead.
     assert 'ratelimit' not in options()
-    assert options(rate_limit=2 * 1024 * 1024)['ratelimit'] == 2 * 1024 * 1024
+    assert 'ratelimit' not in options(rate_limit=2 * 1024 * 1024)
 
 
 def test_main_download_never_asks_for_subtitles():
@@ -77,3 +78,21 @@ def test_subtitle_fetch_failure_is_silent(tmp_path):
         preferences=DownloadPreferences(subtitles='ru'),
     )
     assert pipeline._fetch_subtitles(item, request, context, tmp_path / 'x.mp4', broken) == ()
+
+
+class Recorder:
+    def __init__(self):
+        self.counts = []
+
+    def consume(self, count, cancel):
+        self.counts.append(count)
+
+
+def test_hook_reports_downloaded_bytes_to_limiter():
+    recorder = Recorder()
+    context = ExecutionContext(CancellationToken(), lambda event: None, Auth(), limiter=recorder)
+    hook = MediaPipeline._telemetry(context)
+    for name, done in (('a', 100), ('a', 250), ('a', 250), ('a', 400), ('b', 50), ('a', 30)):
+        hook({'status': 'downloading', 'filename': name, 'downloaded_bytes': done})
+    # A repeated count adds nothing; a new file or a restarted one counts from zero.
+    assert recorder.counts == [100, 150, 150, 50, 30]
