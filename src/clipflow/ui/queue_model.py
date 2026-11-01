@@ -104,6 +104,29 @@ class JobListModel(QAbstractListModel):
         }
         self._top = {member: key for key, value in self._members.items() for member in value}
         self._sizes = {}  # files may have been deleted or replaced since the last list
+        # Search text, matching tracks and group totals: built once, kept up to date per event
+        # so a long playlist does not cost its whole length on every member change.
+        self._texts = {}
+        self._hits = {}
+        self._totals = {}
+        self._parts = {}
+
+    def search_text(self, job):
+        """Title, author and link, normalized for search; cached until the job changes."""
+        text = self._texts.get(job.id)
+        if text is None:
+            author = job.details.author if job.details else None
+            parts = (self.title(job), author, job.request.link.canonical_url)
+            text = self._texts[job.id] = '\n'.join(normalize(part) for part in parts)
+        return text
+
+    def matching_members(self, group_id, query):
+        """The group's tracks whose text contains ``query`` (already normalized)."""
+        cached = self._hits.get(group_id)
+        if cached is None or cached[0] != query:
+            found = tuple(m for m in self.members(group_id) if query in self.search_text(m))
+            cached = self._hits[group_id] = (query, found)
+        return cached[1]
 
     def members(self, group_id):
         return tuple(self.jobs[self._rows[i]] for i in self._members.get(group_id, ()))
@@ -162,7 +185,7 @@ class JobListModel(QAbstractListModel):
     def sort_size(self, job):
         """Bytes for sorting: the files, else the expected size; a group adds its tracks."""
         if job.id in self._groups:
-            return _total(self._own_size(m) for m in self.members(job.id))
+            return self._group_totals(job.id)[0]
         return self._own_size(job)
 
     def _own_size(self, job):
@@ -170,8 +193,21 @@ class JobListModel(QAbstractListModel):
 
     def sort_duration(self, job):
         if job.id in self._groups:
-            return _total(m.details.duration if m.details else None for m in self.members(job.id))
+            return self._group_totals(job.id)[1]
         return job.details.duration if job.details else None
+
+    def _sort_parts(self, job):
+        return self._own_size(job), job.details.duration if job.details else None
+
+    def _group_totals(self, group_id):
+        totals = self._totals.get(group_id)
+        if totals is None:
+            totals = [0, 0, 0.0, 0]  # size sum, sizes known, duration sum, durations known
+            for member in self.members(group_id):
+                parts = self._parts[member.id] = self._sort_parts(member)
+                _add(totals, parts, 1)
+            self._totals[group_id] = totals
+        return (totals[0] if totals[1] else None, totals[2] if totals[3] else None)
 
     def _summary(self, job):
         if job.id not in self._groups:
@@ -218,19 +254,37 @@ class JobListModel(QAbstractListModel):
         jobs = list(self.jobs)
         jobs[row] = job
         self.jobs = tuple(jobs)
+        self._refresh_caches(job)
         self.dataChanged.emit(self.index(row), self.index(row))
         group = self._rows.get(self._top.get(job.id))
         if group is not None:
             self.dataChanged.emit(self.index(group), self.index(group))
 
+    def _refresh_caches(self, job):
+        """Keep the search text, matches and totals true for one changed job."""
+        group_id = self._top.get(job.id)
+        old_text = self._texts.pop(job.id, None)
+        if old_text is not None and group_id in self._hits and self.search_text(job) != old_text:
+            del self._hits[group_id]
+        totals = self._totals.get(group_id)
+        if totals is not None and job.id in self._parts:
+            _add(totals, self._parts[job.id], -1)
+            parts = self._parts[job.id] = self._sort_parts(job)
+            _add(totals, parts, 1)
+
+
+def _add(totals, parts, sign):
+    size, duration = parts
+    if size:
+        totals[0] += sign * size
+        totals[1] += sign
+    if duration:
+        totals[2] += sign * duration
+        totals[3] += sign
+
 
 KINDS = ('all', 'video', 'audio', 'photo', 'playlists')
 SORTS = ('added', 'title', 'size', 'duration')
-
-
-def _total(values):
-    known = [v for v in values if v]
-    return sum(known) if known else None
 
 
 class QueueFilter(QSortFilterProxyModel):
@@ -317,13 +371,14 @@ class QueueFilter(QSortFilterProxyModel):
         model = self.sourceModel()
         job = model.jobs[row]
         if self.group_id is not None:
-            # «Плейлисты» inside a group means all its tracks.
+            # «Плейлисты» inside a group means all its tracks; a group found by its own name
+            # shows them all, as its row promised.
             kind = None if self.kind == 'playlists' else self.kind
             return (
                 model.group_of(job.id) == self.group_id
                 and self._kind_matches(job, kind)
                 and self._matches(job, status)
-                and self._found(job)
+                and (self._group_found() or self._found(job))
             )
         if job.parent_id is not None:
             return False
@@ -336,22 +391,21 @@ class QueueFilter(QSortFilterProxyModel):
             return False
         # A group shows when any member would: by status, kind and search alike.
         kind = None if self.kind == 'playlists' else self.kind
-        itself = self._found(job)
-        return any(
-            self._kind_matches(m, kind) and self._matches(m, status) and (itself or self._found(m))
-            for m in members
-        )
+        if not self._found(job):
+            members = model.matching_members(job.id, self.query)  # cached per query
+        return any(self._kind_matches(m, kind) and self._matches(m, status) for m in members)
 
     def _kind_matches(self, job, kind=False):
         kind = self.kind if kind is False else kind
         return kind in {None, 'all'} or (kind != 'playlists' and job_kind(job) == kind)
 
     def _found(self, job):
-        if not self.query:
-            return True
-        author = job.details.author if job.details else None
-        texts = (self.sourceModel().title(job), author, job.request.link.canonical_url)
-        return any(self.query in normalize(text) for text in texts)
+        return not self.query or self.query in self.sourceModel().search_text(job)
+
+    def _group_found(self):
+        model = self.sourceModel()
+        row = model._rows.get(self.group_id)
+        return row is not None and bool(self.query) and self._found(model.jobs[row])
 
     def _service_matches(self, job):
         return self.service is None or job.request.link.service.value == self.service

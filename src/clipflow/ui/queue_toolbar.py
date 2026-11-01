@@ -154,14 +154,18 @@ class QueueToolbar(QWidget):
         self.refresh()
 
     def open_search(self):
+        # The field takes the count's place, so a narrow window keeps its width.
+        self.items_label.hide()
         self.search_field.show()
         self.search_field.setFocus()
+        self.search_field.selectAll()
 
     def close_search(self, only_if_empty=False):
         if only_if_empty and self.search_field.text():
             return
         self.search_field.clear()
         self.search_field.hide()
+        self.items_label.show()
 
     def _escape(self):
         self.close_search()

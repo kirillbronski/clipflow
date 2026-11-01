@@ -167,3 +167,97 @@ def test_filters_are_fast_on_2000_jobs(make_window, tmp_path, monkeypatch):
         action()
         assert time.perf_counter() - start < 0.5
     assert reads == []
+
+
+def playlist_window(make_window, tmp_path, tracks=700, title='Лекции по физике'):
+    from tests.helpers import MemoryJobRepository
+
+    repo = MemoryJobRepository()
+    playlist = DownloadRequest(
+        parse_url('https://www.youtube.com/playlist?list=PLgroup'), DownloadOptions(tmp_path)
+    )
+    repo.add(Job('list', playlist, title=title))
+    for n in range(tracks):
+        request = DownloadRequest(
+            parse_url(f'https://youtu.be/t{n:05d}'), DownloadOptions(tmp_path)
+        )
+        details = MediaDetails(size_bytes=n + 1, duration=float(n + 1))
+        repo.add(Job(f't{n:05d}', request, parent_id='list', title=f'Трек {n}', details=details))
+    window, _ = make_window(repository=repo)
+    return window, repo
+
+
+def test_long_playlist_stop_all_stays_fast_with_search_and_sort(make_window, qtbot, tmp_path):
+    import time
+
+    from PySide6.QtWidgets import QApplication
+
+    from clipflow.domain.models import JobState
+
+    window, repo = playlist_window(make_window, tmp_path)
+    bar = window.filter_bar
+    bar.sort_actions['size'].trigger()
+    bar.open_search()
+    bar.search_field.insert('трек 699')  # only the last track matches
+    QApplication.processEvents()
+    start = time.perf_counter()
+    window.presenter.cancel_queue()
+    qtbot.waitUntil(lambda: all(j.state == JobState.CANCELLED for j in repo.list()), timeout=60000)
+    QApplication.processEvents()
+    assert time.perf_counter() - start < 0.4
+
+
+def test_playlist_found_by_name_shows_its_tracks(make_window, tmp_path):
+    window, _ = playlist_window(make_window, tmp_path, tracks=3)
+    bar = window.filter_bar
+    bar.open_search()
+    bar.search_field.insert('лекции')
+    assert visible(window) == ['list']
+    window.queue_panel.open_group('list')
+    assert visible(window) == ['t00000', 't00001', 't00002']
+    bar.search_field.clear()
+    bar.search_field.insert('трек 1')
+    assert visible(window) == ['t00001']
+
+
+def test_search_fits_minimum_width_in_russian(make_window, tmp_path):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QApplication
+
+    window = seeded(make_window, tmp_path, *SPECS)
+    window.resize(window.minimumWidth(), 700)
+    bar = window.filter_bar
+    for _ in range(2):
+        bar.open_search()
+        QApplication.processEvents()
+        edge = bar.sort_button.mapTo(window, QPoint(bar.sort_button.width(), 0)).x()
+        assert edge <= window.width()
+        assert not bar.items_label.isVisible()
+        bar.close_search()
+        QApplication.processEvents()
+        assert bar.items_label.isVisible()
+        edge = bar.sort_button.mapTo(window, QPoint(bar.sort_button.width(), 0)).x()
+        assert edge <= window.width()
+
+
+def test_enter_after_filter_does_not_toggle_a_neighbour(make_window, qtbot, tmp_path, monkeypatch):
+    from PySide6.QtCore import Qt
+
+    window = seeded(make_window, tmp_path, *SPECS)
+    toggled = []
+    monkeypatch.setattr(window.presenter, 'toggle_job', toggled.append)
+    window.queue_view.setCurrentIndex(window.proxy.index(0, 0))  # vid
+    window.filter_bar.kind_buttons['audio'].click()
+    window.queue_view.setFocus()
+    qtbot.keyClick(window.queue_view, Qt.Key.Key_Return)
+    assert toggled == []
+
+
+def test_empty_text_follows_status_and_empty_queue(make_window, tmp_path):
+    window = seeded(make_window, tmp_path, *SPECS)
+    window.filter_bar.status_actions['failed'].trigger()
+    assert window.empty.isVisible()
+    assert window.empty.text() == 'Ничего не найдено'
+    empty_window, _ = make_window()
+    empty_window.filter_bar.kind_buttons['video'].click()
+    assert empty_window.empty.text() == empty_window.tr.text('empty')

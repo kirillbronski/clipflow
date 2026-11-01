@@ -114,7 +114,16 @@ class QueuePanel(QWidget):
 
     def _refilter(self, change, *args):
         change(*args)
+        self._drop_hidden_current()
         self.status_changed.emit(self.proxy.status)
+
+    def _drop_hidden_current(self):
+        # When a filter hides the current row Qt moves «current» to a neighbour the user never
+        # chose; Enter or the menu must not act on it.
+        selection = self.queue_view.selectionModel()
+        current = selection.currentIndex()
+        if current.isValid() and not selection.isSelected(current):
+            selection.clearCurrentIndex()
 
     def _group_bar(self):
         self.group_bar = QWidget()
@@ -212,6 +221,7 @@ class QueuePanel(QWidget):
 
     def filter_status(self, status):
         self.proxy.show_status(status)
+        self._drop_hidden_current()
         if self.filter_bar.status != status:
             self.filter_bar.status_actions[status].trigger()
             return
@@ -258,8 +268,10 @@ class QueuePanel(QWidget):
         self.cancel_queue_button.setVisible(downloads and not self.proxy.history)
         self.clear_all_button.setVisible(downloads)
         # An empty list under a search or a tab says why, not «the queue is empty».
-        filtered = bool(self.proxy.query) or self.proxy.kind != 'all'
-        self.empty.setText(self.tr.text('nothing_found' if filtered else 'empty'))
+        proxy = self.proxy
+        filtered = bool(proxy.query) or proxy.kind != 'all' or proxy.status != 'all'
+        nothing = filtered and proxy.sourceModel().rowCount() > 0
+        self.empty.setText(self.tr.text('nothing_found' if nothing else 'empty'))
         self.empty.setVisible(downloads and count == 0)
         self.filter_bar.set_counts({status: self.proxy.count(status) for status in STATUSES})
         self.filter_bar.set_visible_count(count)
