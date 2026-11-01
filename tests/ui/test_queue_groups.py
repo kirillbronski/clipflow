@@ -458,3 +458,15 @@ def test_group_resume_and_retry_start_like_a_row(make_window, qtbot):
     window.presenter._reload_jobs()
     window.presenter.resume_group('p')
     qtbot.waitUntil(provider.started.is_set)
+
+
+def test_group_text_counts_other_running_tracks(qapp):
+    from clipflow.application.groups import group_summary
+
+    parent = job('p', url=PLAYLIST, state=JobState.COMPLETED)
+    members = [job(f'c{n}', 'p', JobState.DOWNLOADING) for n in range(3)]
+    members.append(job('c9', 'p', JobState.QUEUED))
+    summary_ = group_summary(parent, members, {})
+    assert summary_.working == 3
+    text = group_text(summary_, Translator('ru'), title='Урок 5', percent=35)
+    assert text == 'скачано 0 из 4  ·  сейчас: Урок 5 +2  ·  35%'

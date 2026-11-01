@@ -70,6 +70,7 @@ class GroupSummary:
     size_bytes: int
     current: Job | None
     parent: Job
+    working: int = 0  # tracks running now; several at once with parallel downloads
 
 
 def group_summary(parent: Job, members: Sequence[Job], sizes: Mapping[str, int]) -> GroupSummary:
@@ -83,4 +84,5 @@ def group_summary(parent: Job, members: Sequence[Job], sizes: Mapping[str, int])
         size_bytes=sum(sizes.get(job.id, 0) for job in completed),
         current=next((job for job in members if job.state in _WORKING), None),
         parent=parent,
+        working=sum(job.state in _WORKING for job in members),
     )

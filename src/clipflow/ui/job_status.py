@@ -163,7 +163,10 @@ def group_text(
     if summary.current is not None:
         parts = [translator.text('group_progress', done=summary.completed, total=summary.total)]
         if title:
-            parts.append(translator.text('group_now', title=title))
+            others = summary.working - 1
+            parts.append(
+                translator.text('group_now', title=f'{title} +{others}' if others > 0 else title)
+            )
         if percent is not None:
             parts.append(f'{percent}%')
         return SEPARATOR.join(parts)
