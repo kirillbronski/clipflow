@@ -82,6 +82,50 @@ def size_text(size: int, translator: Translator) -> str:
     raise AssertionError('unreachable')
 
 
+def duration_text(seconds: float) -> str:
+    """«1:57» under an hour, «2:00:18» from an hour."""
+    total = round(seconds)
+    hours, rest = divmod(total, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f'{hours}:{minutes:02}:{secs:02}' if hours else f'{minutes}:{secs:02}'
+
+
+def details_text(job: Job, size: int, translator: Translator) -> str | None:
+    """The file's own line as in 4K: duration · size · format · 1080p · 30fps · author.
+
+    ``size`` is what the finished files take; before that the expected size gets «≈ ».
+    """
+    details = job.details
+    if details is None:
+        return None
+    options = job.request.options
+    photo = job.request.link.service is Service.INSTAGRAM and options.media_filter == 'photo'
+    parts = []
+    if photo:
+        parts.append(translator.text('details.photo'))
+        if details.width and details.height:
+            parts.append(f'{details.width}×{details.height}')
+    else:
+        parts += _media_parts(job, size, translator)
+    if details.author:
+        parts.append(details.author)
+    return SEPARATOR.join(parts)
+
+
+def _media_parts(job, size, translator):
+    details, options = job.details, job.request.options
+    parts = [duration_text(details.duration)] if details.duration else []
+    if size:
+        parts.append(size_text(size, translator))
+    elif details.size_bytes and job.state != JobState.COMPLETED:
+        parts.append('≈ ' + size_text(details.size_bytes, translator))
+    parts.append(options.format.upper())
+    if options.format != 'mp3':
+        parts += [f'{details.height}p'] if details.height else []
+        parts += [f'{round(details.fps)}fps'] if details.fps else []
+    return parts
+
+
 def count_text(summary: GroupSummary, translator: Translator) -> str:
     """«76 видео» / «12 постов» for a group's members."""
     total = summary.total

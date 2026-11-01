@@ -1,6 +1,7 @@
 """Plain-language job error reasons and the metadata line of queue rows."""
 
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobSta
 from clipflow.domain.urls import parse_url
 from clipflow.infrastructure.repository import SqliteJobRepository
 from clipflow.ui.i18n import Translator
-from clipflow.ui.job_status import error_text, error_tooltip, meta_text
+from clipflow.ui.job_status import SEPARATOR, error_text, error_tooltip, meta_text
 from clipflow.ui.queue_model import JobListModel
 
 SOURCE = Path(__file__).resolve().parents[2] / 'src' / 'clipflow'
@@ -313,3 +314,80 @@ def test_long_reason_is_elided_in_narrow_window(make_window, tmp_path, qtbot):
     assert len(shown) == 1
     assert full.startswith(shown[0][:-1])
     assert shown[0] != full
+
+
+def detailed(state=JobState.COMPLETED, url='https://youtu.be/abc', fmt='mp4', **details):
+    from clipflow.domain.models import MediaDetails
+
+    request = DownloadRequest(parse_url(url), DownloadOptions(Path('/d'), format=fmt))
+    return Job('j', request, state=state, details=MediaDetails(**details) if details else None)
+
+
+VIDEO = {
+    'duration': 7218.4,
+    'width': 1920,
+    'height': 1080,
+    'fps': 29.97,
+    'author': 'Resonance Music Academy',
+    'size_bytes': 938_056_090,
+}
+
+
+def test_completed_video_details_line(ru, en):
+    from clipflow.ui.job_status import details_text
+
+    job = detailed(**VIDEO)
+    assert details_text(job, 938_580_378, ru) == SEPARATOR.join(
+        ['2:00:18', '895,1 МБ', 'MP4', '1080p', '30fps', 'Resonance Music Academy']
+    )
+    assert details_text(job, 938_580_378, en) == SEPARATOR.join(
+        ['2:00:18', '895.1 MB', 'MP4', '1080p', '30fps', 'Resonance Music Academy']
+    )
+
+
+def test_waiting_video_shows_expected_size(ru):
+    from clipflow.ui.job_status import details_text
+
+    job = detailed(JobState.QUEUED, **VIDEO)
+    assert details_text(job, 0, ru).startswith(SEPARATOR.join(['2:00:18', '≈ 894,6 МБ', 'MP4']))
+
+
+@pytest.mark.parametrize(
+    ('seconds', 'text'), [(117, '1:57'), (3600, '1:00:00'), (5.4, '0:05'), (59.6, '1:00')]
+)
+def test_duration_text(seconds, text):
+    from clipflow.ui.job_status import duration_text
+
+    assert duration_text(seconds) == text
+
+
+def test_mp3_line_has_no_picture_parts(ru):
+    from clipflow.ui.job_status import details_text
+
+    job = detailed(fmt='mp3', duration=221, height=1080, fps=30, author='Автор')
+    assert details_text(job, 8_808_038, ru) == SEPARATOR.join(['3:41', '8,4 МБ', 'MP3', 'Автор'])
+
+
+def test_instagram_photo_line(ru, en):
+    from clipflow.ui.job_status import details_text
+
+    job = detailed(
+        url='https://www.instagram.com/p/ABC/', width=1080, height=1350, author='@someone'
+    )
+    job = Job(
+        job.id,
+        replace(job.request, options=replace(job.request.options, media_filter='photo')),
+        state=job.state,
+        details=job.details,
+    )
+    assert details_text(job, 0, ru) == SEPARATOR.join(['Фото', '1080×1350', '@someone'])
+    assert details_text(job, 0, en) == SEPARATOR.join(['Photo', '1080×1350', '@someone'])
+
+
+def test_missing_parts_are_skipped(ru):
+    from clipflow.ui.job_status import details_text
+
+    assert details_text(detailed(JobState.QUEUED, author='Автор'), 0, ru) == SEPARATOR.join(
+        ['MP4', 'Автор']
+    )
+    assert details_text(detailed(), 0, ru) is None

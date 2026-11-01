@@ -183,6 +183,7 @@ MESSAGES = {
     'already_listed': ('Уже в списке', 'Already in queue'),
     'best_audio': ('Лучший доступный звук', 'Best available audio'),
     'photo': ('Фото', 'Photos'),
+    'details.photo': ('Фото', 'Photo'),
     'original_format': ('Исходный формат', 'Original format'),
     'description': ('Описание {format}', 'Description {format}'),
     'latest_count': ('Последние {count}', 'Latest {count}'),
