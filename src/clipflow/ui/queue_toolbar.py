@@ -1,13 +1,23 @@
 """The line above the queue, as in 4K: kind tabs, status menu, item count, search, sorting."""
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QPushButton,
+    QSizePolicy,
+    QWidget,
+)
 
 from clipflow.application.queue_view import plural
 from clipflow.ui.queue_model import KINDS, SORTS
 
 STATUSES = ('all', 'active', 'completed', 'failed')
+SPACING = 12
+SEARCH_WIDTH = (80, 240)  # the field shrinks to fit, but never below a usable width
 _KIND_KEYS = {
     'all': 'kind.all',
     'video': 'kind.video',
@@ -57,9 +67,12 @@ class QueueToolbar(QWidget):
         self.status = 'all'
         self._counts = dict.fromkeys(STATUSES, 0)
         self._visible = 0
+        self._searching = False
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(SPACING)
+        # The line never widens the window: what does not fit gives way (see _fit).
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.kind_buttons = {}
         for kind in KINDS:
             button = QPushButton()
@@ -90,7 +103,6 @@ class QueueToolbar(QWidget):
         layout.addWidget(self.items_label)
         self.search_field = _SearchField()
         self.search_field.setClearButtonEnabled(True)
-        self.search_field.setMinimumWidth(180)
         self.search_field.hide()
         self.search_field.textChanged.connect(self._query)
         self.search_field.escaped.connect(self._escape)
@@ -127,6 +139,27 @@ class QueueToolbar(QWidget):
         self.tr.changed.connect(self.refresh)
         self.refresh()
 
+    def _core(self):
+        """Width of what always stays: kind tabs, status, search and sort buttons."""
+        widgets = [*self.kind_buttons.values(), self.status_button, self.search_button]
+        widgets.append(self.sort_button)
+        return sum(w.sizeHint().width() for w in widgets) + SPACING * len(widgets)
+
+    def minimumSizeHint(self):
+        return QSize(self._core(), super().minimumSizeHint().height())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit()
+
+    def _fit(self):
+        """Search takes the count's place; the count hides first when space runs short."""
+        spare = self.width() - self._core()
+        if self._searching:
+            self.search_field.setFixedWidth(max(SEARCH_WIDTH[0], min(SEARCH_WIDTH[1], spare)))
+        label = self.items_label.sizeHint().width() + SPACING
+        self.items_label.setVisible(not self._searching and spare >= label)
+
     @property
     def sort_key(self):
         return next(key for key, action in self.sort_actions.items() if action.isChecked())
@@ -144,6 +177,7 @@ class QueueToolbar(QWidget):
         self.search_field.setPlaceholderText(self.tr.text('search_hint'))
         form = plural(self._visible, self.tr.language)
         self.items_label.setText(self.tr.text(_ITEM_KEYS[form], count=self._visible))
+        self._fit()
 
     def set_counts(self, counts):
         self._counts = {status: counts.get(status, 0) for status in STATUSES}
@@ -155,7 +189,8 @@ class QueueToolbar(QWidget):
 
     def open_search(self):
         # The field takes the count's place, so a narrow window keeps its width.
-        self.items_label.hide()
+        self._searching = True
+        self._fit()
         self.search_field.show()
         self.search_field.setFocus()
         self.search_field.selectAll()
@@ -165,7 +200,8 @@ class QueueToolbar(QWidget):
             return
         self.search_field.clear()
         self.search_field.hide()
-        self.items_label.show()
+        self._searching = False
+        self._fit()
 
     def _escape(self):
         self.close_search()
