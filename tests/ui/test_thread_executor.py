@@ -187,3 +187,15 @@ def test_download_uses_the_shared_limiter(executor, provider, qtbot):
     executor.start(job(), lambda event: None)
     qtbot.waitUntil(lambda: hasattr(provider, 'limiters'))
     assert provider.limiters == [executor.limiter]
+
+
+def test_only_a_new_speed_limit_touches_the_limiter(executor, monkeypatch):
+    from clipflow.domain.models import DownloadPreferences
+
+    rates = []
+    monkeypatch.setattr(executor.limiter, 'set_rate', rates.append)
+    executor.preferences = DownloadPreferences(rate_limit=2 * 1024 * 1024)
+    executor.preferences = DownloadPreferences(rate_limit=2 * 1024 * 1024, subtitles='ru')
+    executor.preferences = DownloadPreferences()
+    # Saving other settings must not forgive the shared bucket's debt.
+    assert rates == [2 * 1024 * 1024, None]

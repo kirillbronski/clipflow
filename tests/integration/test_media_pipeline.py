@@ -800,3 +800,25 @@ def test_convert_embeds_fetched_subtitles(tmp_path, context, tools, fmt, codec):
     )
     streams = probe(target, tools)['streams']
     assert [s['codec_name'] for s in streams if s['codec_type'] == 'subtitle'] == [codec]
+
+
+def test_cancel_removes_fetched_subtitles(tmp_path, context, media_server, monkeypatch):
+    ctx, _ = context
+    base, _, _ = media_server
+
+    def fetched(self, item, request, context, target, opener=None):
+        done = target.parent / f'{target.stem}.source.en.vtt'
+        done.write_text('WEBVTT', encoding='utf-8')
+        (target.parent / f'{target.stem}.source.ru.vtt.part').write_text('W', encoding='utf-8')
+        return (done,)
+
+    def pause(event):
+        if isinstance(event, StageChanged) and event.state == JobState.PROCESSING:
+            ctx.cancel.cancel('pause')
+
+    monkeypatch.setattr(MediaPipeline, '_fetch_subtitles', fetched)
+    with pytest.raises(WorkCancelled):
+        MediaPipeline().save(
+            item(base + '/sample.mp4'), request(tmp_path), replace(ctx, emit=pause)
+        )
+    assert not [p for p in tmp_path.rglob('*') if '.vtt' in p.name]

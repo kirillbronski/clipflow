@@ -64,3 +64,28 @@ def test_other_systems_do_nothing():
     guard = KeepAwake(run=None, system='linux')
     guard.hold()
     guard.release()
+
+
+def test_release_survives_a_stuck_caffeinate():
+    import subprocess
+
+    class Stuck(Process):
+        killed = False
+
+        def wait(self, timeout=None):
+            if not self.killed:
+                raise subprocess.TimeoutExpired('caffeinate', timeout)
+            return 0
+
+        def kill(self):
+            self.killed = True
+
+    started = []
+    guard = KeepAwake(
+        run=lambda args, **kwargs: started.append(Stuck(args)) or started[-1], system='darwin'
+    )
+    guard.hold()
+    guard.release()  # must not raise on the 500 ms tick
+    assert started[0].killed
+    guard.hold()
+    assert len(started) == 2  # released state is clean: the next hold starts anew

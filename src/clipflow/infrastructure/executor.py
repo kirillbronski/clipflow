@@ -118,8 +118,10 @@ class ThreadExecutor(QObject):
     @preferences.setter
     def preferences(self, value):
         # Subtitles apply from the next job; the speed limit applies to running ones too.
-        self._preferences = value
-        self.limiter.set_rate(value.rate_limit)
+        previous, self._preferences = self._preferences, value
+        # Any settings save lands here: only a new limit may reset the shared bucket.
+        if value.rate_limit != previous.rate_limit:
+            self.limiter.set_rate(value.rate_limit)
 
     @property
     def is_idle(self):

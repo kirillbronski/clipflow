@@ -70,6 +70,28 @@ def _original_language(info):
     return None
 
 
+def _charge(context):
+    """A progress hook's share of the speed limit: only bytes downloaded since the last report.
+
+    yt-dlp counts are cumulative, include resumed bytes and drop on a retried fragment.
+    """
+    counted = {}  # the last count per file, the baseline
+    lock = threading.Lock()  # fragment threads report through one hook
+
+    def charge(data):
+        reported = data.get('downloaded_bytes')
+        if reported is None:
+            return
+        identity = data.get('filename')
+        with lock:
+            before = counted.get(identity)
+            counted[identity] = reported
+        if before is not None and reported > before:
+            context.limiter.consume(reported - before, context.cancel)
+
+    return charge
+
+
 class MediaPipeline:
     def __init__(
         self, *, ffmpeg: str | None = None, ffprobe: str | None = None, node: str | None = None
@@ -158,21 +180,22 @@ class MediaPipeline:
         if not info.get('url') and not info.get('formats'):
             raise MediaFailure('invalid_media')
         result = ydl.process_ie_result(info, download=True)
-        subtitles = self._fetch_subtitles(item, request, context, plan.work)
-        # Now the chosen format is known: its height and frame rate replace the guess.
-        final = details_from_info(result, item.kind, request.link.service, request.options)
-        if final is not None:
-            context.emit(DetailsFound(final))
-        source = self._source_file(result, ydl, plan.target.parent)
-        context.cancel.raise_if_cancelled()
-        context.emit(StageChanged(JobState.PROCESSING))
         tools = self._tools
         try:
+            subtitles = self._fetch_subtitles(item, request, context, plan.work)
+            # Now the chosen format is known: its height and frame rate replace the guess.
+            final = details_from_info(result, item.kind, request.link.service, request.options)
+            if final is not None:
+                context.emit(DetailsFound(final))
+            source = self._source_file(result, ydl, plan.target.parent)
+            context.cancel.raise_if_cancelled()
+            context.emit(StageChanged(JobState.PROCESSING))
             target = tools.convert(
                 source, plan.target, request, context, plan.work, plan.tag, subtitles=subtitles
             )
         finally:
-            for path in subtitles:
+            # Done, failed or cancelled: no subtitle file, finished or partial, stays behind.
+            for path in plan.work.parent.glob(glob.escape(plan.work.stem) + '.source.*.vtt*'):
                 path.unlink(missing_ok=True)
         tools.verify(target, item, request, context)
         if plan.tag and target.stem != planned:
@@ -192,7 +215,7 @@ class MediaPipeline:
             writesubtitles=True,
             writeautomaticsub=False,
             subtitlesformat='vtt/best',
-            progress_hooks=[],
+            progress_hooks=[_charge(context)],  # within the speed limit, not shown as progress
         )
         languages = subtitle_languages(choice, item.info)
         if languages:
@@ -248,8 +271,9 @@ class MediaPipeline:
         if self.node:
             options['js_runtimes'] = {'node': {'path': self.node}}
         if context.preferences.rate_limit:
-            # The shared limiter holds back the progress hook: parallel fragments would burst.
-            options['concurrent_fragment_downloads'] = 1
+            # The shared limiter holds back the progress hook: parallel fragments or 4 MB
+            # blocks would burst at full speed and then stall.
+            options.update(concurrent_fragment_downloads=1, buffersize=65536, noresizebuffer=True)
         return options
 
     @staticmethod
@@ -260,8 +284,7 @@ class MediaPipeline:
         observed = 0
         total = None
         stream = None
-        counted = {}  # last cumulative count per file, the baseline for the shared limiter
-        counting = threading.Lock()  # fragment threads report through this one hook
+        charge = _charge(context)
 
         def hook(data):
             nonlocal last, sample_time, sample_bytes, observed, total, stream
@@ -271,15 +294,7 @@ class MediaPipeline:
             if downloaded is None:
                 downloaded = observed if data.get('status') == 'finished' else 0
             identity = data.get('filename')
-            reported = data.get('downloaded_bytes')
-            if reported is not None:
-                # Counts include resumed bytes and drop on a retried fragment: only growth
-                # since the previous report was downloaded now.
-                with counting:
-                    before = counted.get(identity)
-                    counted[identity] = reported
-                if before is not None and reported > before:
-                    context.limiter.consume(reported - before, context.cancel)
+            charge(data)
             if (
                 sample_time is None
                 or downloaded < observed

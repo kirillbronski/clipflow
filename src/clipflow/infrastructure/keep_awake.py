@@ -36,11 +36,15 @@ class KeepAwake:
         if not self._held:
             return
         self._held = False
-        with contextlib.suppress(OSError, AttributeError, ValueError):
+        with contextlib.suppress(OSError, AttributeError, ValueError, subprocess.SubprocessError):
             if self._process is not None:
-                self._process.terminate()
-                self._process.wait(timeout=2)
-                self._process = None
+                process, self._process = self._process, None
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:  # a stuck caffeinate must not keep the Mac up
+                    process.kill()
+                    process.wait(timeout=2)
             elif self._system == 'win32':
                 self._windows().SetThreadExecutionState(_CONTINUOUS)
 

@@ -106,3 +106,45 @@ def test_hook_reports_downloaded_bytes_to_limiter():
     for name, done in reports:
         hook({'status': 'downloading', 'filename': name, 'downloaded_bytes': done})
     assert recorder.counts == [150, 150, 50, 60]
+
+
+def test_small_blocks_under_a_rate_limit():
+    assert 'buffersize' not in options()
+    limited = options(rate_limit=1024 * 1024)
+    assert limited['buffersize'] == 65536
+    assert limited['noresizebuffer'] is True
+
+
+def test_subtitle_fetch_counts_against_the_shared_limit(tmp_path):
+    recorder = Recorder()
+    emitted = []
+    request = DownloadRequest(parse_url('https://youtu.be/abc'), DownloadOptions(tmp_path))
+    item = MediaItem('abc', 1, 'video', 'Ролик', {})
+    context = ExecutionContext(
+        CancellationToken(),
+        emitted.append,
+        Auth(),
+        preferences=DownloadPreferences(subtitles='ru'),
+        limiter=recorder,
+    )
+
+    class Downloader:
+        def __init__(self, options, **kwargs):
+            self.hooks = options['progress_hooks']
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def process_ie_result(self, info, download):
+            for done in (10, 400, 900):
+                for hook in self.hooks:
+                    hook(
+                        {'status': 'downloading', 'filename': 'x.ru.vtt', 'downloaded_bytes': done}
+                    )
+
+    MediaPipeline()._fetch_subtitles(item, request, context, tmp_path / 'x.mp4', Downloader)
+    assert recorder.counts == [390, 500]
+    assert emitted == []  # a subtitle file is not the video's progress
