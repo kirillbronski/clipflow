@@ -4,7 +4,7 @@ from dataclasses import replace
 from uuid import uuid4
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QFont, QFontMetrics
+from PySide6.QtGui import QFont, QFontMetrics, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -29,6 +29,25 @@ from clipflow.ui.quick_bar import QuickBar
 NAMES = {Service.YOUTUBE: 'YouTube', Service.INSTAGRAM: 'Instagram', Service.GETCOURSE: 'GetCourse'}
 
 
+class LinkInput(QLineEdit):
+    """The link field: a paste by shortcut, menu or Edit menu goes through the composer."""
+
+    def __init__(self, composer):
+        super().__init__()
+        self._composer = composer
+
+    def paste(self):
+        self._composer.paste_text(QApplication.clipboard().text())
+
+    def keyPressEvent(self, event):
+        # Qt handles the paste shortcut inside QLineEdit without calling paste() above.
+        if event.matches(QKeySequence.StandardKey.Paste):
+            self.paste()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
 class Composer(QFrame):
     submit_requested = Signal(str, str, object)
     probe_requested = Signal(str, str)
@@ -36,6 +55,7 @@ class Composer(QFrame):
     preset_changed = Signal(object, object, object)
     service_changed = Signal(object)
     layout_changed = Signal()
+    smart_paste = Signal(str)
 
     def __init__(self, settings, parent=None, *, translator=None):
         super().__init__(parent)
@@ -63,6 +83,11 @@ class Composer(QFrame):
         self._build_top(layout)
         self._build_profile_row(layout)
         self._build_entry(layout)
+        # «Добавлено: N» after a smart paste; the window shows it for a few seconds.
+        self.smart_message = QLabel()
+        self.smart_message.setObjectName('muted')
+        self.smart_message.hide()
+        layout.addWidget(self.smart_message)
         self._build_parameters(layout, settings.auto_start)
         self.quick_bar = QuickBar(self, self.tr)
         self._top_row.insertWidget(1, self.quick_bar, 1)
@@ -125,7 +150,7 @@ class Composer(QFrame):
         entry = QGridLayout()
         self._entry = entry
         self.paste_button = self.tr.widget(QPushButton, 'paste')
-        self.url_input = QLineEdit()
+        self.url_input = LinkInput(self)
         self.url_input.setAccessibleName(self.tr.text('link_accessible'))
         self.url_input.setMinimumWidth(180)
         self.add_button = self.tr.widget(QPushButton, 'add_primary')
@@ -261,7 +286,7 @@ class Composer(QFrame):
         self.url_input.returnPressed.connect(self._submit)
         self.add_button.clicked.connect(self._submit)
         self.paste_button.clicked.connect(
-            lambda: self.url_input.setText(QApplication.clipboard().text().strip())
+            lambda: self.paste_text(QApplication.clipboard().text(), replace=True)
         )
         self.choose_button.clicked.connect(self._choose_folder)
         self.folder_input.editingFinished.connect(self._options_changed)
@@ -662,6 +687,19 @@ class Composer(QFrame):
             self._drafts[service] = ''
             if service == self.service and self.url_input.text() == text:
                 self.url_input.clear()
+
+    @property
+    def smart(self):
+        return self.quick_bar.smart_toggle.isChecked()
+
+    def paste_text(self, text, replace=False):
+        """Every paste lands here: smart mode queues it, otherwise it goes into the field."""
+        if self.smart and text.strip():
+            self.smart_paste.emit(text)
+        elif replace:
+            self.url_input.setText(text.strip())
+        else:
+            QLineEdit.paste(self.url_input)
 
     def _choose_folder(self):
         folder = QFileDialog.getExistingDirectory(

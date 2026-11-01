@@ -83,6 +83,13 @@ class SettingsPage(QWidget):
             lambda: self.presenter.settings.auto_start,
             lambda value: self.presenter.set_auto_start(value),
         )
+        self.smart_mode_toggle = self.add_toggle(
+            general,
+            'smart_mode',
+            'smart_mode_hint',
+            lambda: self.presenter.settings.smart_mode,
+            lambda value: self.presenter.set_smart_mode(value),
+        )
         if accounts is not None:
             self._section('accounts').layout().addWidget(accounts)
         about = self._section('about')

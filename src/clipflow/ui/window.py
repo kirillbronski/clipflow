@@ -27,6 +27,8 @@ from clipflow.ui.window_dialogs import WindowDialogs
 from clipflow.ui.window_menus import build_menus
 from clipflow.version import APP_VERSION
 
+SMART_MESSAGE_MS = 3000  # how long «Добавлено: N» stays under the link field
+
 
 class MainWindow(QMainWindow):
     def __init__(self, presenter):
@@ -99,6 +101,13 @@ class MainWindow(QMainWindow):
         self.summary = self.composer.summary
         self.auto_start = self.composer.auto_start
         self.auto_start.toggled.connect(self._set_auto_start)
+        self.composer.quick_bar.smart_toggle.theme = self.theme
+        self.composer.quick_bar.smart_toggle.toggled.connect(self._set_smart_mode)
+        self.composer.smart_paste.connect(self._smart_paste)
+        self.smart_message = self.composer.smart_message
+        self._smart_timer = QTimer(self)
+        self._smart_timer.setSingleShot(True)
+        self._smart_timer.timeout.connect(self.smart_message.hide)
         self.composer_host = QScrollArea()
         self.composer_host.setWidgetResizable(True)
         self.composer_host.setFrameShape(QFrame.Shape.NoFrame)
@@ -261,6 +270,7 @@ class MainWindow(QMainWindow):
             self._show_error(self._error_code)
 
     def _settings_changed(self):
+        self._sync_smart_toggle()
         self.composer.set_settings(self.presenter.settings)
         self.theme.set_mode(self.presenter.settings.theme)
         self.tr.set_language(self.presenter.settings.language)
@@ -307,6 +317,32 @@ class MainWindow(QMainWindow):
     def _input_accepted(self, text):
         self.composer.accept_input(text)
         self.error_label.hide()
+
+    def _set_smart_mode(self, enabled):
+        if not self.presenter.set_smart_mode(enabled):
+            self._sync_smart_toggle()
+
+    def _sync_smart_toggle(self):
+        toggle = self.composer.quick_bar.smart_toggle
+        toggle.blockSignals(True)
+        toggle.setChecked(self.presenter.settings.smart_mode)
+        toggle.blockSignals(False)
+
+    def _smart_paste(self, text):
+        result = self.presenter.smart_submit(text)
+        if result is None:
+            return
+        self.composer.url_input.setText('\n'.join(result.invalid))
+        if result.invalid:
+            self._show_error('invalid_link')
+        else:
+            self.error_label.hide()
+        message = self.tr.text('smart_added', count=result.added)
+        if result.existing:
+            message += ', ' + self.tr.text('smart_existing', count=result.existing)
+        self.smart_message.setText(message)
+        self.smart_message.show()
+        self._smart_timer.start(SMART_MESSAGE_MS)
 
     def _set_auto_start(self, enabled):
         if not self.presenter.set_auto_start(enabled):
