@@ -16,6 +16,7 @@ from uuid import uuid4
 from clipflow.application.errors import JobRuleError
 from clipflow.application.ports import JobRepository
 from clipflow.domain.events import (
+    DetailsFound,
     FilesSaved,
     JobEvent,
     ProgressChanged,
@@ -29,7 +30,14 @@ from clipflow.domain.events import (
     WorkFinished,
     WorkStopped,
 )
-from clipflow.domain.models import TERMINAL_STATES, Job, JobState, ParsedLink, Service
+from clipflow.domain.models import (
+    TERMINAL_STATES,
+    Job,
+    JobState,
+    MediaDetails,
+    ParsedLink,
+    Service,
+)
 from clipflow.domain.urls import request_key, source_reference
 
 
@@ -360,6 +368,14 @@ class Scheduler:
         self.repository.update(replace(job, title=title))
         self._publish(JobEvent(job.id, job.attempt_id or '', TitleChanged(title)))
 
+    def set_details(self, job_id: str, details: MediaDetails) -> None:
+        """Details of a waiting job found ahead of its download; a running job reports its own."""
+        job = self.repository.get(job_id)
+        if job.details == details or job.state not in {JobState.QUEUED, JobState.PAUSED}:
+            return
+        self.repository.update(replace(job, details=details))
+        self._publish(JobEvent(job.id, job.attempt_id or '', DetailsFound(details)))
+
     def shutdown(self) -> None:
         self._closed = True
         self._running = False  # Must precede stop(): synchronous ack cannot start next.
@@ -432,6 +448,9 @@ class Scheduler:
     def _on_title(self, job: Job, payload: TitleChanged) -> None:
         self.repository.update(replace(job, title=' '.join(payload.title.split())[:240] or None))
 
+    def _on_details(self, job: Job, payload: DetailsFound) -> None:
+        self.repository.update(replace(job, details=payload.details))
+
     def _on_selection(self, job: Job, payload: SelectionRequired) -> None:
         self._save(replace(job, state=JobState.PAUSED, pause_reason='selection_required'))
         self._stop(job.id, 'pause')
@@ -482,6 +501,7 @@ _EVENT_HANDLERS = {
     FilesSaved: Scheduler._on_files,
     RequestsDiscovered: Scheduler._on_discovered,
     TitleChanged: Scheduler._on_title,
+    DetailsFound: Scheduler._on_details,
     SelectionRequired: Scheduler._on_selection,
     RateLimitDeferred: Scheduler._on_rate_limit,
     ProgressChanged: Scheduler._on_progress,

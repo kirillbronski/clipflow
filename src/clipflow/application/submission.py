@@ -142,6 +142,8 @@ class SubmissionService:
         original = self.repository.get(job_id)
         if original.state not in TERMINAL_STATES:
             raise JobRuleError('job_not_repeatable', 'This job is already queued or active')
-        job = Job(str(uuid4()), original.request, parent_id=original.parent_id)
+        job = Job(
+            str(uuid4()), original.request, parent_id=original.parent_id, details=original.details
+        )
         self.repository.add(job)
         return job.id

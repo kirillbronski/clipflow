@@ -467,6 +467,25 @@ def test_title_events_persist_and_named_queued_jobs_are_relabelled(queue):
     assert repo.get('one').title == 'Пропаганда - Мелом'
 
 
+def test_details_events_persist_and_waiting_jobs_take_details(queue):
+    from clipflow.domain.events import DetailsFound
+    from clipflow.domain.models import MediaDetails
+
+    repo, worker, scheduler = queue
+    seen = []
+    scheduler.subscribe(seen.append)
+    scheduler.start()
+    found = MediaDetails(duration=61.0, author='Автор')
+    worker.emit(DetailsFound(found))
+    assert repo.get('one').details == found
+    later = MediaDetails(width=640, height=360)
+    scheduler.set_details('two', later)
+    assert repo.get('two').details == later
+    assert any(e.job_id == 'two' and e.payload == DetailsFound(later) for e in seen)
+    scheduler.set_details('one', later)  # active jobs report their own details
+    assert repo.get('one').details == found
+
+
 def _set(repo, identity, **changes):
     repo.update(replace(repo.get(identity), **changes))
 

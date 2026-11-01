@@ -5,7 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from clipflow.domain.models import DownloadOptions, DownloadRequest, Job, JobState, PlaylistPosition
+from clipflow.domain.models import (
+    DownloadOptions,
+    DownloadRequest,
+    Job,
+    JobState,
+    MediaDetails,
+    PlaylistPosition,
+)
 from clipflow.domain.urls import parse_url
 from clipflow.infrastructure.repository import RepositoryError, SqliteJobRepository
 
@@ -457,3 +464,62 @@ def test_display_title_and_label_persist_and_old_records_load(tmp_path):
         assert old.request.label is None
     finally:
         repo.close()
+
+
+DETAILS = MediaDetails(7218.4, 1920, 1080, 29.97, 'Автор', 'https://i.ytimg.com/vi/x/hq.jpg', 9)
+
+
+def test_details_round_trip(tmp_path):
+    path = tmp_path / 'details.sqlite3'
+    repo = SqliteJobRepository(path)
+    repo.add(replace(job(tmp_path), details=DETAILS))
+    repo.close()
+    repo = SqliteJobRepository(path)
+    try:
+        assert repo.get('one').details == DETAILS
+    finally:
+        repo.close()
+
+
+def test_old_payload_without_details_loads(tmp_path):
+    import json
+
+    path = tmp_path / 'old.sqlite3'
+    repo = SqliteJobRepository(path)
+    repo.add(job(tmp_path))
+    repo.close()
+    with sqlite3.connect(path) as db:
+        payload = json.loads(db.execute('SELECT payload FROM jobs').fetchone()[0])
+        payload.pop('details')
+        db.execute('UPDATE jobs SET payload=?', (json.dumps(payload),))
+    repo = SqliteJobRepository(path)
+    try:
+        assert repo.get('one').details is None
+    finally:
+        repo.close()
+
+
+@pytest.mark.parametrize(
+    'bad',
+    [
+        {'width': 'x'},
+        {'duration': -1},
+        {'thumbnail': 'http://a/b.jpg'},
+        {'author': 5},
+        {'unknown': 1},
+        [],
+    ],
+)
+def test_invalid_details_payload_is_rejected(tmp_path, bad):
+    import json
+
+    path = tmp_path / 'bad.sqlite3'
+    repo = SqliteJobRepository(path)
+    repo.add(job(tmp_path))
+    repo.close()
+    with sqlite3.connect(path) as db:
+        payload = json.loads(db.execute('SELECT payload FROM jobs').fetchone()[0])
+        payload['details'] = bad
+        db.execute('UPDATE jobs SET payload=?', (json.dumps(payload),))
+    with pytest.raises(RepositoryError):
+        SqliteJobRepository(path)

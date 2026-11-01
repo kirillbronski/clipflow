@@ -4,7 +4,7 @@ import re
 from dataclasses import asdict
 from pathlib import Path
 
-from clipflow.domain.models import DownloadOptions
+from clipflow.domain.models import DownloadOptions, MediaDetails
 
 
 def reference(value):
@@ -52,3 +52,16 @@ def decode_options(raw):
         raise ValueError('invalid_boolean')
     reference(raw['auth_profile'])
     return DownloadOptions(**dict(raw, folder=path_value(raw['folder'])))
+
+
+def encode_details(details):
+    return None if details is None else asdict(details)
+
+
+def decode_details(raw):
+    """Stored details back to the model; the model rejects anything out of range."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError('invalid_media_details')
+    return MediaDetails(**raw)

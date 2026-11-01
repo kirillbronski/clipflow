@@ -20,7 +20,13 @@ from clipflow.domain.models import (
     Service,
 )
 from clipflow.domain.urls import parse_url, source_reference
-from clipflow.infrastructure.serialization import decode_options, encode_options, path_value
+from clipflow.infrastructure.serialization import (
+    decode_details,
+    decode_options,
+    encode_details,
+    encode_options,
+    path_value,
+)
 
 
 class RepositoryError(Exception):
@@ -123,6 +129,7 @@ def _encode(job):
         'automatic_retry': job.automatic_retry,
         'source_required': redacted or job.source_required,
         'title': job.title,
+        'details': encode_details(job.details),
         'request': {
             'link': {
                 'service': link.service.value,
@@ -174,6 +181,7 @@ def _decode(text):
         data.get('label'),
     )  # names arrived in 2.0.4
     raw.setdefault('title', None)
+    raw['details'] = decode_details(raw.get('details'))  # details arrived with rich rows
     raw['state'] = JobState(raw['state'])
     raw['result_files'] = tuple(path_value(p) for p in raw['result_files'])
     raw['next_allowed_at'] = (

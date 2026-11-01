@@ -1,5 +1,6 @@
 """Immutable content identities and download parameter snapshots."""
 
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -145,6 +146,33 @@ class MediaDetails:
     author: str | None = None
     thumbnail: str | None = None  # https address of a cover picture
     size_bytes: int | None = None  # expected size before the download
+
+    def __post_init__(self):
+        for value in (self.duration, self.fps):
+            if value is not None and (
+                type(value) not in (int, float) or not math.isfinite(value) or value <= 0
+            ):
+                raise ValueError('invalid_media_details')
+        for value in (self.width, self.height, self.size_bytes):
+            if value is not None and (type(value) is not int or value <= 0):
+                raise ValueError('invalid_media_details')
+        if self.author is not None and (
+            type(self.author) is not str or not self.author.strip() or len(self.author) > 200
+        ):
+            raise ValueError('invalid_media_details')
+        if self.thumbnail is not None and not is_https(self.thumbnail):
+            raise ValueError('invalid_media_details')
+
+
+def is_https(value: object) -> bool:
+    """A plain https URL with a host; anything else, including garbage, is False."""
+    if type(value) is not str:
+        return False
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return parts.scheme == 'https' and bool(parts.netloc)
 
 
 @dataclass(frozen=True)

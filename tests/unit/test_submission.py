@@ -128,3 +128,13 @@ def test_unsupported_mode_raises_invalid_mode(system):
     with pytest.raises(JobRuleError) as raised:
         service.preview('https://youtu.be/abc', presets, 'nonsense')
     assert raised.value.code == 'invalid_mode'
+
+
+def test_repeat_keeps_details(system):
+    from clipflow.domain.models import MediaDetails
+
+    service, store, presets = system
+    first = service.submit(service.preview('https://youtu.be/abc', presets)).added[0]
+    details = MediaDetails(duration=10.0, thumbnail='https://a/b.jpg')
+    store.update(replace(store.get(first), state=JobState.COMPLETED, details=details))
+    assert store.get(service.repeat(first)).details == details

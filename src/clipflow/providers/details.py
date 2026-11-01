@@ -2,9 +2,8 @@
 
 import math
 from collections.abc import Mapping
-from urllib.parse import urlsplit
 
-from clipflow.domain.models import MediaDetails, Service
+from clipflow.domain.models import MediaDetails, Service, is_https
 
 _AUTHOR_LIMIT = 200
 _COVER_WIDTH = 320
@@ -37,17 +36,6 @@ def _count(value):
     return value if type(value) is int and value > 0 else None
 
 
-def https(value):
-    """The address itself when it is a plain https URL, else None."""
-    if not isinstance(value, str):
-        return None
-    try:
-        parts = urlsplit(value)
-    except ValueError:
-        return None
-    return value if parts.scheme == 'https' and parts.netloc else None
-
-
 def _author(info, service):
     for key in ('uploader', 'channel', 'uploader_id'):
         value = info.get(key)
@@ -60,14 +48,14 @@ def _author(info, service):
 
 
 def _cover(info, kind):
-    if kind == 'photo' and https(info.get('url')):
+    if kind == 'photo' and is_https(info.get('url')):
         return info['url']
-    if https(info.get('thumbnail')):
+    if is_https(info.get('thumbnail')):
         return info['thumbnail']
     thumbnails = info.get('thumbnails')
     if not isinstance(thumbnails, list):
         return None
-    candidates = [t for t in thumbnails if isinstance(t, Mapping) and https(t.get('url'))]
+    candidates = [t for t in thumbnails if isinstance(t, Mapping) and is_https(t.get('url'))]
     sized = [t for t in candidates if _count(t.get('width')) and t['width'] >= _COVER_MIN_WIDTH]
     if sized:
         return min(sized, key=lambda t: abs(t['width'] - _COVER_WIDTH))['url']
