@@ -221,6 +221,7 @@ MESSAGES = {
     'group_downloaded': ('скачано {count}', '{count} downloaded'),
     'group_progress': ('скачано {done} из {total}', '{done} of {total} downloaded'),
     'group_now': ('сейчас: {title}', 'now: {title}'),
+    'group_running': ('в работе {count}', 'running {count}'),
     'group_failed': ('{count} с ошибкой', '{count} failed'),
     'group_list_failed': ('Не удалось получить список', 'Could not get the list'),
     'show_tracks': ('Показать треки', 'Show tracks'),

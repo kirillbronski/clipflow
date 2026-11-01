@@ -162,11 +162,10 @@ def group_text(
         return None
     if summary.current is not None:
         parts = [translator.text('group_progress', done=summary.completed, total=summary.total)]
+        if summary.working > 1:  # before the title: a long title is elided from the right
+            parts.append(translator.text('group_running', count=summary.working))
         if title:
-            others = summary.working - 1
-            parts.append(
-                translator.text('group_now', title=f'{title} +{others}' if others > 0 else title)
-            )
+            parts.append(translator.text('group_now', title=title))
         if percent is not None:
             parts.append(f'{percent}%')
         return SEPARATOR.join(parts)

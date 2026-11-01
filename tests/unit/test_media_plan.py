@@ -22,7 +22,9 @@ def test_youtube_names_carry_identity_in_the_temporary_name_and_tag():
     identity = media_identity(req, item)
     assert plan.target == output_path(req, item, 'Artist', None)
     assert plan.tag == 'clipflow:' + identity
-    assert plan.work == plan.target.with_name(plan.target.stem + '.' + identity)
+    # The identity stays in the stem: every temporary name is built from it.
+    assert plan.work.stem == plan.target.stem + '.' + identity
+    assert plan.work.parent == plan.target.parent
     assert plan.post is None
     assert isinstance(plan, MediaPlan)
 
@@ -58,3 +60,18 @@ def test_getcourse_has_neither_tag_nor_post():
     assert plan.tag is None
     assert plan.post is None
     assert plan.work == plan.target
+
+
+def test_same_title_downloads_keep_separate_temporaries():
+    from clipflow.domain.models import DownloadOptions, DownloadRequest, MediaItem
+    from clipflow.domain.urls import parse_url
+    from clipflow.providers.media_plan import plan_media
+
+    def plan(video, height):
+        req = DownloadRequest(
+            parse_url(f'https://youtu.be/{video}'), DownloadOptions(Path('/d'), max_height=height)
+        )
+        return plan_media(req, MediaItem(video, 1, 'video', 'Trailer', {}))
+
+    stems = {plan('aaa', 720).work.stem, plan('bbb', 720).work.stem, plan('aaa', 1080).work.stem}
+    assert len(stems) == 3  # parallel downloads never share .source / .processing files

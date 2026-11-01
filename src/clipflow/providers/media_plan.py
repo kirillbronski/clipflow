@@ -37,5 +37,6 @@ def plan_media(request: DownloadRequest, item: MediaItem) -> MediaPlan:
     if request.link.service != Service.YOUTUBE:
         return MediaPlan(target, target, None, post)
     identity = media_identity(request, item)
-    work = target.with_name(target.stem + '.' + identity)
+    # The suffix keeps the identity in `work.stem`: temporaries of same-titled videos differ.
+    work = target.with_name(f'{target.stem}.{identity}{target.suffix}')
     return MediaPlan(target, work, TAG_PREFIX + identity, post)

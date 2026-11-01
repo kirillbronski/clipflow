@@ -469,4 +469,5 @@ def test_group_text_counts_other_running_tracks(qapp):
     summary_ = group_summary(parent, members, {})
     assert summary_.working == 3
     text = group_text(summary_, Translator('ru'), title='Урок 5', percent=35)
-    assert text == 'скачано 0 из 4  ·  сейчас: Урок 5 +2  ·  35%'
+    # The count goes before the title: a long title is elided from the right.
+    assert text == 'скачано 0 из 4  ·  в работе 3  ·  сейчас: Урок 5  ·  35%'

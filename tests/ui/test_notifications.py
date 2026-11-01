@@ -126,3 +126,13 @@ def test_tray_icon_goes_away_after_the_message(make_window, tmp_path, monkeypatc
     assert window.tray_timer.interval() == 10_000
     window.tray_timer.timeout.emit()
     assert not window.notifier.isVisible()
+
+
+def test_clear_all_does_not_notify(make_window, tmp_path, monkeypatch):
+    window, shown = queue(
+        make_window, tmp_path, [JobState.COMPLETED, JobState.QUEUED], monkeypatch=monkeypatch
+    )
+    window.presenter._on_event(JobEvent('j0', '', WorkFinished()))
+    window.presenter.clear_all()
+    window.presenter._tick()
+    assert shown == []

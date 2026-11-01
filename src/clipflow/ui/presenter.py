@@ -18,6 +18,7 @@ from clipflow.domain.events import (
     DetailsFound,
     RequestsDiscovered,
     SelectionRequired,
+    StageChanged,
     WorkFailed,
     WorkFinished,
     WorkStopped,
@@ -345,16 +346,14 @@ class WorkbenchPresenter(QObject):
         if link.service != Service.YOUTUBE or link.kind != ContentKind.PLAYLIST:
             return None
         members = self.model.members(group_id)
-        done = [
-            m
-            for m in members
-            if m.state == JobState.COMPLETED and m.result_files and m.result_files[0].is_file()
-        ]
+        recorded = [m for m in members if m.state == JobState.COMPLETED and m.result_files]
+        # Where the list lives follows what was saved; what it lists, only files still there.
         location = m3u_location(
             self.model.title(parent),
-            [m.result_files[0] for m in done],
+            [m.result_files[0] for m in recorded],
             parent.request.options.folder,
         )
+        done = [m for m in recorded if m.result_files[0].is_file()]
         entries = [
             M3uEntry(
                 m.result_files[0],
@@ -375,7 +374,10 @@ class WorkbenchPresenter(QObject):
         if location is None or any(m.state not in TERMINAL_STATES for m in members):
             return
         with contextlib.suppress(OSError):  # a list for players is a convenience, not a failure
-            write_m3u(location, m3u_text(entries, location.parent))
+            if entries:
+                write_m3u(location, m3u_text(entries, location.parent))
+            else:
+                location.unlink(missing_ok=True)  # nothing left to play
 
     def remove_group(self, group_id):
         return self._command(lambda: self._clearing.remove_group(self._group_ids(group_id)))
@@ -417,7 +419,9 @@ class WorkbenchPresenter(QObject):
         return result
 
     def clear_all(self, *, delete_files=False):
-        return self._command(lambda: self._clearing.clear_all(delete_files))
+        result = self._command(lambda: self._clearing.clear_all(delete_files))
+        self._run = [0, 0]  # cleared by the user, like «Остановить всё»: nothing to announce
+        return result
 
     def _flush_clear(self):
         self._clearing.flush()
@@ -542,8 +546,12 @@ class WorkbenchPresenter(QObject):
         elif isinstance(event.payload, WorkFailed) and job.state == JobState.FAILED:
             self._run[1] += 1
         group_id = self.model.group_of(job.id)
-        # Only an ended track changes the list: progress must not rebuild it.
-        ended = isinstance(event.payload, (WorkFinished, WorkFailed, WorkStopped))
+        # Only an ended track changes the list: progress must not rebuild it. A cancelled
+        # track ends with its stage alone.
+        payload = event.payload
+        ended = isinstance(payload, (WorkFinished, WorkFailed, WorkStopped)) or (
+            isinstance(payload, StageChanged) and payload.state in TERMINAL_STATES
+        )
         if ended and group_id is not None and self.settings.playlist_m3u:
             self._write_m3u(group_id)
         if isinstance(event.payload, DetailsFound) and self.thumbnails is not None:

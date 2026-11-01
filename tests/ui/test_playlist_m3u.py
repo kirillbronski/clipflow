@@ -147,3 +147,18 @@ def test_turning_the_setting_on_writes_finished_playlists(make_window, tmp_path)
     assert not m3u.exists()
     window.presenter.update_preferences(playlist_m3u=True)
     assert '02 Трек 2.mp4' in m3u.read_text(encoding='utf-8')
+
+
+def test_cancelling_the_last_tracks_writes_m3u(make_window, tmp_path):
+    window, _, m3u = playlist(make_window, tmp_path, (JobState.COMPLETED, JobState.QUEUED))
+    window.presenter.cancel_queue()  # «Остановить всё»: what was downloaded still gets a list
+    assert '01 Трек 1.mp4' in m3u.read_text(encoding='utf-8')
+
+
+def test_deleting_group_files_removes_m3u_of_files_already_gone(make_window, tmp_path, qtbot):
+    window, _, m3u = playlist(make_window, tmp_path)
+    finish(window, 't2')
+    for media in m3u.parent.glob('*.mp4'):
+        media.unlink()
+    window.presenter.delete_group_files('list', confirmed=True)
+    qtbot.waitUntil(lambda: not m3u.exists(), timeout=3000)
