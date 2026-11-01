@@ -4,6 +4,7 @@ import copy
 import glob
 import os
 import shutil
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -259,7 +260,8 @@ class MediaPipeline:
         observed = 0
         total = None
         stream = None
-        counted = {}  # bytes already reported to the shared limiter, per file
+        counted = {}  # last cumulative count per file, the baseline for the shared limiter
+        counting = threading.Lock()  # fragment threads report through this one hook
 
         def hook(data):
             nonlocal last, sample_time, sample_bytes, observed, total, stream
@@ -269,11 +271,15 @@ class MediaPipeline:
             if downloaded is None:
                 downloaded = observed if data.get('status') == 'finished' else 0
             identity = data.get('filename')
-            before = counted.get(identity, 0)
-            counted[identity] = downloaded
-            fresh = downloaded - before if downloaded >= before else downloaded
-            if fresh > 0:
-                context.limiter.consume(fresh, context.cancel)
+            reported = data.get('downloaded_bytes')
+            if reported is not None:
+                # Counts include resumed bytes and drop on a retried fragment: only growth
+                # since the previous report was downloaded now.
+                with counting:
+                    before = counted.get(identity)
+                    counted[identity] = reported
+                if before is not None and reported > before:
+                    context.limiter.consume(reported - before, context.cancel)
             if (
                 sample_time is None
                 or downloaded < observed

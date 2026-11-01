@@ -92,7 +92,17 @@ def test_hook_reports_downloaded_bytes_to_limiter():
     recorder = Recorder()
     context = ExecutionContext(CancellationToken(), lambda event: None, Auth(), limiter=recorder)
     hook = MediaPipeline._telemetry(context)
-    for name, done in (('a', 100), ('a', 250), ('a', 250), ('a', 400), ('b', 50), ('a', 30)):
+    reports = (
+        ('a', 100),  # first report is the baseline: it may include resumed bytes
+        ('a', 250),
+        ('a', 250),
+        ('a', 400),
+        ('b', 800 * 1024 * 1024),  # a resumed file: nothing downloaded yet in this run
+        ('b', 800 * 1024 * 1024 + 50),
+        ('a', 30),  # a retried fragment: the count goes down, then grows again
+        ('a', 90),
+        ('a', None),
+    )
+    for name, done in reports:
         hook({'status': 'downloading', 'filename': name, 'downloaded_bytes': done})
-    # A repeated count adds nothing; a new file or a restarted one counts from zero.
-    assert recorder.counts == [100, 150, 150, 50, 30]
+    assert recorder.counts == [150, 150, 50, 60]

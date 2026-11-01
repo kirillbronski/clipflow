@@ -186,6 +186,8 @@ class SettingsPage(QWidget):
         page.layout().addWidget(caption)
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(1, 4)
+        # Saved on release: dragging past 4 must not start downloads the user did not pick.
+        slider.setTracking(False)
         slider.setPageStep(1)
         slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         slider.setTickInterval(1)
@@ -211,6 +213,7 @@ class SettingsPage(QWidget):
             warning.setVisible(value >= 3)
 
         slider.valueChanged.connect(show)
+        slider.sliderMoved.connect(show)
         slider.valueChanged.connect(
             lambda value: self._save(self._save_preference('youtube_parallel'), value)
         )

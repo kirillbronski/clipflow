@@ -207,3 +207,16 @@ def test_set_youtube_parallel_rejects_out_of_range(count):
     with pytest.raises(ValueError, match='1-4'):
         scheduler.set_youtube_parallel(count)
     assert scheduler.limits[YT] == 1
+
+
+def test_progress_events_do_not_scan_the_queue():
+    from clipflow.domain.events import ProgressChanged
+
+    repo, worker, scheduler = make(YT, YT, IG, YT, YT, parallel=2)
+    scheduler.start()
+    scans = []
+    original = repo.list
+    repo.list = lambda: scans.append(1) or original()
+    for _ in range(50):
+        send(worker, 'yt1', ProgressChanged(10, 100, 1.0, 1.0))
+    assert scans == []  # progress frees no slot: a long history must not be re-read per event

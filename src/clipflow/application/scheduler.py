@@ -471,7 +471,10 @@ class Scheduler:
         if handler is None or handler(self, job, payload) is False:
             return
         self._publish(event)
-        self._pump()
+        # Only an ended attempt or new tracks change what can start; progress must not
+        # re-read a long queue on every event.
+        if isinstance(payload, (*_ACKS, RequestsDiscovered)):
+            self._pump()
 
     def _on_stage(self, job: Job, payload: StageChanged) -> bool:
         if payload.state not in _STAGES or _STAGES.index(payload.state) < _STAGES.index(job.state):

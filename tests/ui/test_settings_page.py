@@ -190,3 +190,14 @@ def test_parallel_applied_at_startup(make_window, tmp_path):
     window, _ = make_window(settings=AppSettings(presets=presets, youtube_parallel=4))
     assert window.presenter.scheduler.limits[Service.YOUTUBE] == 4
     assert window.settings_page.parallel_slider.value() == 4
+
+
+def test_parallel_slider_saves_on_release_only(make_window):
+    window, page = open_settings(make_window)
+    slider = page.parallel_slider
+    slider.setSliderDown(True)
+    slider.setSliderPosition(4)
+    assert window.presenter.settings.youtube_parallel == 1  # dragging past 4 starts nothing
+    slider.setSliderPosition(2)
+    slider.setSliderDown(False)
+    assert window.presenter.settings.youtube_parallel == 2
