@@ -92,3 +92,9 @@ def test_preferences_action_opens_settings(make_window):
     action.trigger()
     assert window.settings_page.isVisible()
     assert window.settings_page.current_section == 'about'
+
+
+def test_section_title_is_larger_than_body_text(make_window):
+    _, page = open_settings(make_window)
+    title = page.section_title.fontInfo().pixelSize()
+    assert title >= page.language_box.fontInfo().pixelSize() + 4

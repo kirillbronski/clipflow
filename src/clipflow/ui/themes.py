@@ -172,6 +172,7 @@ QWidget#composerSection,QLabel {{ background: transparent; }}
 QLabel#muted {{ color: {muted}; font-size: 12px; }}
 QLabel#heading {{ font-size: 25px; font-weight: 700; }}
 QLabel#brand {{ font-size: 20px; font-weight: 700; padding: 8px; }}
+QLabel#sectionTitle {{ font-size: 19px; font-weight: 600; }}
 QFrame#divider {{ background: {border}; border: none; }}
 QLabel#error {{ color: {error}; }}
 QPushButton {{ background: {surface}; border: 1px solid {border}; border-radius: 7px; padding: 8px 10px; }}
