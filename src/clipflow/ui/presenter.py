@@ -14,7 +14,13 @@ from clipflow.application.history import (
 )
 from clipflow.application.playlists import M3uEntry, m3u_location, m3u_text, write_m3u
 from clipflow.application.probe_cache import ProbeCache
-from clipflow.domain.events import DetailsFound, RequestsDiscovered, SelectionRequired
+from clipflow.domain.events import (
+    DetailsFound,
+    RequestsDiscovered,
+    SelectionRequired,
+    WorkFailed,
+    WorkFinished,
+)
 from clipflow.domain.models import (
     TERMINAL_STATES,
     ContentKind,
@@ -49,6 +55,7 @@ class WorkbenchPresenter(QObject):
     shutdown_finished = Signal()
     probe_ready = Signal(str, object, str)
     auth_changed = Signal()
+    queue_finished = Signal(int, int)  # downloaded, failed in the run that just ended
 
     def __init__(
         self,
@@ -92,6 +99,7 @@ class WorkbenchPresenter(QObject):
         self.title_interval_ms = 1000
         self._titles = TitleNamer(self)
         self._keep_awake = keep_awake  # hold()/release(); None where sleep is not managed
+        self._run = [0, 0]  # finished and failed jobs since the queue last went quiet
         self._apply_runtime_settings()
         # Covers are optional: without a store the rows keep the service badge.
         self.thumbnails = ThumbnailLoader(self, thumbnails) if thumbnails is not None else None
@@ -498,6 +506,10 @@ class WorkbenchPresenter(QObject):
     def _on_event(self, event):
         job = self.repository.get(event.job_id)
         self.model.update_job(job, event.payload)
+        if isinstance(event.payload, WorkFinished) and job.state == JobState.COMPLETED:
+            self._run[0] += 1
+        elif isinstance(event.payload, WorkFailed) and job.state == JobState.FAILED:
+            self._run[1] += 1
         group_id = self.model.group_of(job.id)
         if group_id is not None and self.settings.playlist_m3u:
             self._write_m3u(group_id)
@@ -520,6 +532,22 @@ class WorkbenchPresenter(QObject):
             self._command(self.scheduler.tick)
             self._titles.schedule()
         self._guard_sleep()
+        self._check_finished()
+
+    def _check_finished(self):
+        """The run is over when nothing is left to do now; a rate-limit wait is not the end."""
+        if not any(self._run) or self._closing or not self.executor.is_idle:
+            return
+        waiting = (
+            job
+            for job in self.model.jobs
+            if job.state not in TERMINAL_STATES
+            and not (job.state == JobState.PAUSED and not job.automatic_retry)
+        )
+        if next(waiting, None) is None:
+            done, failed = self._run
+            self._run = [0, 0]
+            self.queue_finished.emit(done, failed)
 
     def _guard_sleep(self):
         """Hold the computer awake while a download or processing runs, if asked to."""

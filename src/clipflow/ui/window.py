@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QScrollArea,
+    QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
 )
@@ -105,6 +106,9 @@ class MainWindow(QMainWindow):
         self.composer.quick_bar.smart_toggle.toggled.connect(self._set_smart_mode)
         self.composer.smart_paste.connect(self._smart_paste)
         self.smart_message = self.composer.smart_message
+        # Shown in the tray only for a «downloads finished» message, when asked for.
+        self.notifier = QSystemTrayIcon(application_icon(), self)
+        presenter.queue_finished.connect(self._notify_finished)
         self._smart_timer = QTimer(self)
         self._smart_timer.setSingleShot(True)
         self._smart_timer.timeout.connect(self._hide_smart_message)
@@ -317,6 +321,17 @@ class MainWindow(QMainWindow):
     def _input_accepted(self, text):
         self.composer.accept_input(text)
         self.error_label.hide()
+
+    def _notify_finished(self, done, failed):
+        if not self.presenter.settings.notify_done:
+            return
+        text = self.tr.text('notify_done_text', count=done)
+        if failed:
+            text += self.tr.text('notify_failed_text', count=failed)
+        self.notifier.show()
+        self.notifier.showMessage(
+            self.tr.text('notify_title'), text, QSystemTrayIcon.MessageIcon.Information, 5000
+        )
 
     def _set_smart_mode(self, enabled):
         if not self.presenter.set_smart_mode(enabled):
