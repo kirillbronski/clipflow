@@ -154,3 +154,30 @@ def test_details_line_replaces_meta_text(qapp):
     assert SEPARATOR.join(['1:57', 'MP4', '1080p', 'Автор']) in drawn
     _, drawn = render(model, 1)
     assert any(text.startswith('YouTube') for text in drawn)
+
+
+class Sizes(QPainter):
+    def __init__(self, device):
+        super().__init__(device)
+        self.sizes = {}
+
+    def drawText(self, *args):
+        self.sizes[args[-1]] = self.font().pixelSize()
+        super().drawText(*args)
+
+
+def test_row_buttons_match_group_buttons(qapp):
+    model = JobListModel(
+        [job('a', JobState.COMPLETED), job('p', url=PLAYLIST), job('c', parent='p')]
+    )
+    sizes = {}
+    for row in (0, 1):
+        pixmap = QPixmap(QSize(801, 97))
+        painter = Sizes(pixmap)
+        try:
+            QueueDelegate().paint(painter, option(), model.index(row))
+        finally:
+            painter.end()
+        sizes[row] = painter.sizes
+    assert sizes[0]['⋮'] == sizes[1]['⋮'] == 17
+    assert sizes[0]['↗'] == 17

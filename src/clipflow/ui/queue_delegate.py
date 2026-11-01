@@ -218,6 +218,9 @@ class QueueDelegate(QStyledItemDelegate):
         primary, secondary = self._buttons(rect)
         painter.setPen(QPen(QColor(muted), 1.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
+        font = QFont(painter.font())
+        font.setPixelSize(17)  # the same size as a group row's buttons
+        painter.setFont(font)
         glyph = (
             '↗'
             if job.state == JobState.COMPLETED
