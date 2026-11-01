@@ -62,6 +62,16 @@ def build_menus(window):
         action.triggered.connect(lambda checked=False, m=mode: _preferences(window, theme=m))
     settings = bar.addMenu('')
     window.tr.bind(settings, 'menu_settings', setter='setTitle')
+    action = window.preferences_action = settings.addAction('')
+    window.tr.bind(action, 'menu_preferences')
+    # On macOS this moves to the application menu with ⌘,; Windows has no standard key.
+    action.setMenuRole(action.MenuRole.PreferencesRole)
+    action.setShortcuts(
+        QKeySequence.keyBindings(QKeySequence.StandardKey.Preferences) or [QKeySequence('Ctrl+,')]
+    )
+    action.triggered.connect(lambda: window.open_settings())
+    window.addAction(action)
+    settings.addSeparator()
     languages = settings.addMenu('')
     window.tr.bind(languages, 'language', setter='setTitle')
     window.language_actions = {}

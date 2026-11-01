@@ -1,5 +1,6 @@
 """Settings like 4K: sections on the left, their controls on the right."""
 
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QLabel, QScrollArea
 
 
@@ -78,3 +79,16 @@ def test_settings_fit_narrow_window(make_window):
     for area in window.settings_page.findChildren(QScrollArea):
         assert area.horizontalScrollBar().maximum() == 0
         assert area.widget().minimumSizeHint().width() <= area.viewport().width()
+
+
+def test_preferences_action_opens_settings(make_window):
+    window, _ = make_window()
+    action = window.preferences_action
+    assert action.menuRole() == QAction.MenuRole.PreferencesRole
+    assert action.shortcuts()
+    assert action.text() == 'Настройки…'
+    window.open_settings('about')
+    window.nav_buttons[0].click()
+    action.trigger()
+    assert window.settings_page.isVisible()
+    assert window.settings_page.current_section == 'about'
