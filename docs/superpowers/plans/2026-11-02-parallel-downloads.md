@@ -82,7 +82,7 @@
 
 **Files:** Modify `src/clipflow/infrastructure/settings.py`, `src/clipflow/ui/settings_page.py` (`_build_connection`), `src/clipflow/ui/i18n.py`, `src/clipflow/ui/presenter.py` (`_apply_runtime_settings`). Test: `tests/unit/test_settings_migration.py`, `tests/ui/test_settings_page.py`, `tests/ui/test_presenter.py`.
 
-**Interfaces:** Consumes `Scheduler.set_youtube_parallel` (Task 4). Produces `SettingsPage.parallel_slider` (`QSlider`, 1–4, `TicksBelow`, шаг 1), `parallel_label` (подпись значения), `parallel_warning` (`QLabel`, objectName `warning`, видим при 3–4); сохранение через `presenter.update_preferences(youtube_parallel=n)`.
+**Interfaces:** Consumes `Scheduler.set_youtube_parallel` (Task 4). Produces `SettingsPage.parallel_slider` (`QSlider`, 1–4, `TicksBelow`, шаг 1), `parallel_label` (подпись значения), `parallel_warning` (`QLabel`, objectName `error` — имеющийся цвет предупреждений темы, видим при 3–4); сохранение через `presenter.update_preferences(youtube_parallel=n)`.
 
 - [ ] Step 1: тесты — `test_youtube_parallel_round_trip` (по умолчанию 1; 3 сохраняется; `0`, `5`, `True`, `'2'` → настройки по умолчанию; файл без поля → 1); `test_parallel_slider_labels_and_warning` (значения 1–4 → подписи из Global Constraints; предупреждение скрыто на 1–2, видно на 3–4; английский язык — английские тексты); `test_parallel_slider_saves` (сдвиг на 2 → `presenter.settings.youtube_parallel == 2` и `scheduler.limits[Service.YOUTUBE] == 2`); `test_parallel_applied_at_startup` (презентер с настройкой 4 → лимит полосы 4).
 - [ ] Step 2: FAIL.
