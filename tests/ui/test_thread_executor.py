@@ -1,9 +1,10 @@
-"""The Qt executor: one download or probe at a time, failing callbacks contained, clean close."""
+"""The Qt executor: several downloads or one probe, failing callbacks contained, clean close."""
 
 from threading import Event
 
 import pytest
 
+from clipflow.domain.events import WorkFinished
 from clipflow.domain.models import ContentKind, Job, Service
 from clipflow.infrastructure.executor import ThreadExecutor
 from clipflow.providers.base import ProbeResult
@@ -15,21 +16,24 @@ class Provider:
 
     def __init__(self):
         self.release = Event()
+        self.finished = set()  # downloads let go one by one, by video id
+        self.probes = 0
 
-    def _hold(self, context):
-        while not self.release.is_set():
+    def _hold(self, context, name=None):
+        while not self.release.is_set() and name not in self.finished:
             if context.cancel.wait(0.005):
                 context.cancel.raise_if_cancelled()
 
     def execute(self, request, context):
         self.limiters = [*getattr(self, 'limiters', []), context.limiter]
-        self._hold(context)
+        self._hold(context, request.link.canonical_id)
 
     def planned_title(self, request, context):
         self._hold(context)
         return 'Planned name'
 
     def probe(self, request, context):
+        self.probes += 1
         self._hold(context)
         return ProbeResult((), (720,))
 
@@ -55,10 +59,49 @@ def failing(*args):
     raise RuntimeError('callback bug')
 
 
-def test_second_download_is_refused_while_one_runs(executor):
-    executor.start(job(), lambda event: None)
+def test_two_downloads_run_together(executor, provider, qtbot):
+    events = {'first': [], 'second': []}
+    executor.start(job('first'), events['first'].append)
+    executor.start(job('second'), events['second'].append)
+    provider.finished.add(request('first').link.canonical_id)
+    qtbot.waitUntil(lambda: bool(events['first']))
+    assert isinstance(events['first'][-1].payload, WorkFinished)
+    assert events['second'] == []
+    assert not executor.is_idle
+    provider.finished.add(request('second').link.canonical_id)
+    qtbot.waitUntil(lambda: executor.is_idle)
+    assert isinstance(events['second'][-1].payload, WorkFinished)
+    assert provider.limiters == [executor.limiter, executor.limiter]
+
+
+def test_available_after_each_finish(executor, provider, qtbot):
+    signals = []
+    executor.available.connect(lambda: signals.append(1))
+    executor.start(job('first'), lambda event: None)
+    executor.start(job('second'), lambda event: None)
+    provider.finished.add(request('first').link.canonical_id)
+    qtbot.waitUntil(lambda: len(signals) == 1)
+    assert not executor.is_idle
+
+
+def test_start_refused_while_probing(executor):
+    executor.request_probe(request(), 1, lambda *args: None)
+    assert executor.probing
     with pytest.raises(ValueError, match='Executor unavailable'):
-        executor.start(job('second'), lambda event: None)
+        executor.start(job(), lambda event: None)
+
+
+def test_probe_waits_for_all_downloads(executor, provider, qtbot):
+    executor.start(job('first'), lambda event: None)
+    executor.start(job('second'), lambda event: None)
+    executor.request_probe(request(), 1, lambda *args: None)
+    assert executor.probing
+    provider.finished.add(request('first').link.canonical_id)
+    qtbot.waitUntil(lambda: len(executor._workers) == 1)
+    qtbot.wait(50)
+    assert provider.probes == 0
+    provider.finished.add(request('second').link.canonical_id)
+    qtbot.waitUntil(lambda: provider.probes == 1)
 
 
 def test_failing_finish_callback_is_reported_and_the_slot_freed(executor, provider, qtbot):

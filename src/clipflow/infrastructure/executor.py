@@ -126,11 +126,16 @@ class ThreadExecutor(QObject):
         return not self._workers and self._probe is None
 
     @property
+    def probing(self):
+        """A quality check runs or waits: downloads and the check never overlap."""
+        return self._probe is not None or self._pending_probe is not None
+
+    @property
     def is_closed(self):
         return self._closed
 
     def start(self, job, on_event):
-        if self._closing or not self.is_idle:
+        if self._closing or self.probing:
             raise ValueError('Executor unavailable')
         provider = self.registry[(job.request.link.service, job.request.link.kind)]
         # Preferences are taken now; the shared limiter follows later changes as well.
@@ -180,7 +185,8 @@ class ThreadExecutor(QObject):
         worker.deleteLater()
         self._start_probe()
         self._try_close()
-        if self.is_idle and not self._closing:
+        # Every finished download frees a slot, not only the last one.
+        if not self._closing:
             self.available.emit()
 
     def can_name(self, job):
