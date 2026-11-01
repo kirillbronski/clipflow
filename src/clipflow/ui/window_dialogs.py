@@ -1,6 +1,9 @@
 """Dialogs and the context menu of the main window; open dialogs are tracked on the window."""
 
-from PySide6.QtCore import QPoint, Qt
+import sys
+
+from PySide6.QtCore import QPoint, Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -75,42 +78,84 @@ class WindowDialogs:
             return
         if not window.queue_view.selectionModel().isSelected(index):
             window.queue_view.setCurrentIndex(index)
-        model = window.presenter.model
+        self.row_menu(index.data(JobListModel.JobIdRole), position)
+
+    def row_menu(self, job_id, position=None):
+        """The row menu as in 4K; links act on this row, the rest on the selection it is in."""
+        window = self.window
+        presenter = window.presenter
+        model = presenter.model
         selected = tuple(
             i.data(JobListModel.JobIdRole)
             for i in window.queue_view.selectionModel().selectedRows()
         )
+        targets = selected if job_id in selected else (job_id,)
         # A selected group row stands for the group with all its members.
         identities = tuple(
             dict.fromkeys(
                 member
-                for identity in selected
+                for identity in targets
                 for member in (identity, *(j.id for j in model.members(identity)))
             )
         )
-        jobs = tuple(window.presenter.repository.get(identity) for identity in identities)
+        jobs = tuple(presenter.repository.get(identity) for identity in identities)
+        job = presenter.repository.get(job_id)
         menu = QMenu(window)
-        action = menu.addAction(window.tr.text('open_folder'))
-        action.triggered.connect(lambda: window.presenter.open_result(identities[0]))
-        terminal = all(
-            j.state in {JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED} for j in jobs
+
+        def add(key, slot, enabled=True):
+            action = menu.addAction(window.tr.text(key))
+            action.setEnabled(enabled)
+            action.triggered.connect(slot)
+
+        reveal = 'row_menu.reveal' if sys.platform == 'darwin' else 'row_menu.reveal_windows'
+        add(reveal, lambda: presenter.open_result(job_id), bool(job.result_files))
+        self._link_items(add, job.request.link)
+        menu.addSeparator()
+        terminal = all(j.state in TERMINAL_STATES for j in jobs)
+        add(
+            'row_menu.repeat',
+            lambda: [presenter.repeat_job(identity) for identity in identities],
+            terminal,
         )
-        action = menu.addAction(window.tr.text('repeat_job'))
-        action.setEnabled(terminal)
-        action.triggered.connect(
-            lambda: [window.presenter.repeat_job(identity) for identity in identities]
+        running = tuple(j.id for j in jobs if j.state not in TERMINAL_STATES)
+        add(
+            'row_menu.cancel',
+            lambda: [presenter.cancel_job(identity) for identity in running],
+            bool(running),
         )
         menu.addSeparator()
-        action = menu.addAction(window.tr.text('remove_list'))
-        action.setEnabled(terminal and window.presenter.executor.is_idle)
-        action.triggered.connect(lambda: window.presenter.remove_jobs(identities))
-        action = menu.addAction(window.tr.text('delete_files'))
-        action.setEnabled(
-            terminal and window.presenter.executor.is_idle and any(j.result_files for j in jobs)
+        add(
+            'remove_list',
+            lambda: presenter.remove_jobs(identities),
+            terminal and presenter.executor.is_idle,
         )
-        action.triggered.connect(lambda: self.confirm_delete(identities))
+        add(
+            'delete_files',
+            lambda: self.confirm_delete(identities),
+            terminal and presenter.executor.is_idle and any(j.result_files for j in jobs),
+        )
+        self._popup(menu, job_id, position)
+        return menu
+
+    @staticmethod
+    def _link_items(add, link):
+        # A protected GetCourse source keeps only the school's address; copying it would mislead.
+        usable = not link.canonical_id.startswith('protected-')
+        url = link.canonical_url
+        add('row_menu.copy_link', lambda: QGuiApplication.clipboard().setText(url), usable)
+        add('row_menu.open_link', lambda: QDesktopServices.openUrl(QUrl(url)), usable)
+
+    def _popup(self, menu, job_id, position):
+        """At the cursor, or under the row's «⋮» when opened from the button or the keyboard."""
+        window = self.window
+        model = window.presenter.model
         menu.aboutToHide.connect(menu.deleteLater)
-        menu.popup(window.queue_view.viewport().mapToGlobal(position))
+        view = window.queue_view
+        if position is None:
+            index = window.queue_panel.proxy.mapFromSource(model.index(model._rows[job_id]))
+            rect = view.visualRect(index)
+            position = rect.topRight() + QPoint(-40, rect.height() // 2)
+        menu.popup(view.viewport().mapToGlobal(position))
 
     def group_menu(self, group_id, position=None):
         """Actions on a whole playlist or profile, at the cursor or under its row."""
@@ -148,6 +193,7 @@ class WindowDialogs:
             ),
         )
         add('group_menu.open_folder', lambda: presenter.open_group_folder(group_id))
+        self._link_items(add, jobs[0].request.link)
         menu.addSeparator()
         add('group_menu.remove', lambda: presenter.remove_group(group_id))
         add(
@@ -157,14 +203,8 @@ class WindowDialogs:
             and all(j.state in TERMINAL_STATES for j in members)
             and any(j.result_files for j in members),
         )
-        menu.aboutToHide.connect(menu.deleteLater)
-        view = window.queue_view
-        if position is None:
-            row = presenter.model._rows.get(group_id)
-            index = window.queue_panel.proxy.mapFromSource(presenter.model.index(row))
-            rect = view.visualRect(index)
-            position = rect.topRight() + QPoint(-80, rect.height() // 2)
-        menu.popup(view.viewport().mapToGlobal(position))
+        self._popup(menu, group_id, position)
+        return menu
 
     def confirm_delete_group(self, group_id):
         members = self.window.presenter.model.members(group_id)

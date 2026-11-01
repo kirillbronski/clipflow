@@ -37,11 +37,9 @@ MESSAGES = {
         'Lessons and course materials — ready when you are.',
     ),
     'history_count': ('История  ·  {count}', 'History  ·  {count}'),
-    'open_folder': ('Открыть папку файла', 'Open file folder'),
     'clear_queue': ('Убрать незавершённые', 'Remove unfinished'),
     'clear_history': ('Убрать завершённые', 'Remove finished'),
     'keeps_files_hint': ('Файлы на диске останутся', 'Files on disk are kept'),
-    'repeat_job': ('Скачать повторно', 'Download again'),
     'remove_list': ('Убрать из списка', 'Remove from list'),
     'delete_files': ('Удалить файлы с диска', 'Delete files from disk'),
     'delete_confirmation': (
@@ -315,6 +313,12 @@ MESSAGES.update(
     {
         'about': ('О программе', 'About'),
         'settings_section.general': ('Основные', 'General'),
+        'row_menu.reveal': ('Показать в Finder', 'Show in Finder'),
+        'row_menu.reveal_windows': ('Показать в Проводнике', 'Show in Explorer'),
+        'row_menu.copy_link': ('Скопировать ссылку', 'Copy link'),
+        'row_menu.open_link': ('Открыть ссылку в браузере', 'Open link in browser'),
+        'row_menu.repeat': ('Повторить', 'Repeat'),
+        'row_menu.cancel': ('Отменить', 'Cancel download'),
         'settings_section.accounts': ('Авторизация', 'Sign-in'),
         'settings_section.about': ('О программе', 'About'),
         'auto_start_setting': (

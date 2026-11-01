@@ -379,6 +379,8 @@ def test_menu_button_offers_what_the_group_allows(make_window, tmp_path):
         'Продолжить все': False,
         'Повторить неудачные': False,
         'Открыть папку': True,
+        'Скопировать ссылку': True,
+        'Открыть ссылку в браузере': True,
         'Убрать из списка': True,
         'Удалить файлы с диска…': True,
     }

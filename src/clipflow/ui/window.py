@@ -331,8 +331,8 @@ class MainWindow(QMainWindow):
         self.sidebar.set_counts(self.presenter.model.jobs)
 
     def _row_action(self, identity, action):
-        if action == 'cancel':
-            self.presenter.cancel_job(identity)
+        if action == 'row_menu':
+            self.dialogs.row_menu(identity)
         elif action == 'open_group':
             self.queue_panel.open_group(identity)
         elif action == 'group_folder':
