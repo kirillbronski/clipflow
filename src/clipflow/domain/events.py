@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Event, Lock
 from typing import Literal
 
-from clipflow.domain.models import DownloadRequest, JobState
+from clipflow.domain.models import DownloadRequest, JobState, MediaDetails
 
 StopReason = Literal['pause', 'cancel', 'shutdown']
 
@@ -49,6 +49,11 @@ class StageChanged:
 @dataclass(frozen=True)
 class TitleChanged:
     title: str
+
+
+@dataclass(frozen=True)
+class DetailsFound:
+    details: MediaDetails
 
 
 @dataclass(frozen=True)
@@ -100,6 +105,7 @@ class WorkStopped:
 ProviderEvent = (
     StageChanged
     | TitleChanged
+    | DetailsFound
     | ProgressChanged
     | FilesSaved
     | RequestsDiscovered

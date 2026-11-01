@@ -135,6 +135,19 @@ TERMINAL_STATES = frozenset({JobState.COMPLETED, JobState.CANCELLED, JobState.FA
 
 
 @dataclass(frozen=True)
+class MediaDetails:
+    """What the queue row shows about the file itself; any part may be unknown."""
+
+    duration: float | None = None  # seconds
+    width: int | None = None
+    height: int | None = None
+    fps: float | None = None
+    author: str | None = None
+    thumbnail: str | None = None  # https address of a cover picture
+    size_bytes: int | None = None  # expected size before the download
+
+
+@dataclass(frozen=True)
 class Job:
     id: str
     request: DownloadRequest
@@ -148,6 +161,7 @@ class Job:
     automatic_retry: bool = False
     source_required: bool = False
     title: str | None = None  # resolved file/display name shown in the queue
+    details: MediaDetails | None = None
 
     def __post_init__(self):
         _display_name(self.title)
