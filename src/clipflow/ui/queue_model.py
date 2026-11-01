@@ -3,7 +3,7 @@
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt
 
 from clipflow.application.groups import descendants, group_summary, is_group
-from clipflow.application.queue_view import job_kind, normalize
+from clipflow.application.queue_view import job_kind, natural_key, normalize
 from clipflow.domain.events import ProgressChanged, TitleChanged
 from clipflow.domain.models import TERMINAL_STATES, JobState
 from clipflow.ui.i18n import Translator
@@ -159,6 +159,20 @@ class JobListModel(QAbstractListModel):
         )
         return title, percent
 
+    def sort_size(self, job):
+        """Bytes for sorting: the files, else the expected size; a group adds its tracks."""
+        if job.id in self._groups:
+            return _total(self._own_size(m) for m in self.members(job.id))
+        return self._own_size(job)
+
+    def _own_size(self, job):
+        return self._size(job) or (job.details.size_bytes if job.details else None)
+
+    def sort_duration(self, job):
+        if job.id in self._groups:
+            return _total(m.details.duration if m.details else None for m in self.members(job.id))
+        return job.details.duration if job.details else None
+
     def _summary(self, job):
         if job.id not in self._groups:
             return None
@@ -211,6 +225,12 @@ class JobListModel(QAbstractListModel):
 
 
 KINDS = ('all', 'video', 'audio', 'photo', 'playlists')
+SORTS = ('added', 'title', 'size', 'duration')
+
+
+def _total(values):
+    known = [v for v in values if v]
+    return sum(known) if known else None
 
 
 class QueueFilter(QSortFilterProxyModel):
@@ -221,8 +241,39 @@ class QueueFilter(QSortFilterProxyModel):
         self.status = 'all'
         self.kind = 'all'
         self.query = ''
+        self.sort_key = 'added'
+        self.descending = False
         self.group_id = None
         self.setSourceModel(model)
+        # Sorting is only how rows are shown; the queue itself keeps its order.
+        self.setDynamicSortFilter(True)
+        self.sort(0)
+
+    def sort_by(self, key, descending=False):
+        if key not in SORTS:
+            raise ValueError('invalid_sort')
+        self.sort_key = key
+        self.descending = bool(descending)
+        self.invalidate()
+
+    def lessThan(self, left, right):
+        a, b = self._sort_value(left.row()), self._sort_value(right.row())
+        if (a is None) != (b is None):
+            return b is None  # unknown values go last either way
+        if a is not None and a != b:
+            return a > b if self.descending else a < b
+        return left.row() < right.row()  # ties keep the queue order
+
+    def _sort_value(self, row):
+        model = self.sourceModel()
+        job = model.jobs[row]
+        if self.sort_key == 'title':
+            return natural_key(model.title(job))
+        if self.sort_key == 'size':
+            return model.sort_size(job)
+        if self.sort_key == 'duration':
+            return model.sort_duration(job)
+        return row
 
     def show_status(self, status):
         if status not in {'all', 'active', 'completed', 'failed'}:

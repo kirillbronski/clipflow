@@ -107,3 +107,73 @@ def test_counts_follow_kind_and_search(qapp):
     assert (proxy.count('all'), proxy.count('completed'), proxy.count('active')) == (2, 1, 1)
     proxy.show_query('song')
     assert (proxy.count('all'), proxy.count('completed')) == (1, 1)
+
+
+def sized(identity, size=None, duration=None, title=None, parent=None, url=None):
+    details = MediaDetails(size_bytes=size, duration=duration) if size or duration else None
+    item = job(identity, url=url, parent=parent, details=details)
+    if title:
+        item = Job(item.id, item.request, parent_id=parent, details=details, title=title)
+    return item
+
+
+def test_sort_by_each_key_both_ways(qapp):
+    jobs = [
+        sized('a', 300, 10, 'Урок 10'),
+        sized('b', 100, 30, 'Урок 2'),
+        sized('c', 200, 20, 'урок 1'),
+    ]
+    _, proxy = make(jobs)
+    assert shown(proxy) == ['a', 'b', 'c']
+    expected = {'title': ['c', 'b', 'a'], 'size': ['b', 'c', 'a'], 'duration': ['a', 'c', 'b']}
+    for key, order in expected.items():
+        proxy.sort_by(key)
+        assert shown(proxy) == order, key
+        proxy.sort_by(key, descending=True)
+        assert shown(proxy) == order[::-1], key
+    proxy.sort_by('added', descending=True)
+    assert shown(proxy) == ['c', 'b', 'a']
+    proxy.sort_by('added')
+    assert shown(proxy) == ['a', 'b', 'c']
+    with pytest.raises(ValueError, match='invalid_sort'):
+        proxy.sort_by('rating')
+
+
+def test_unknown_values_sort_last_both_ways(qapp):
+    jobs = [sized('old'), sized('big', 500, 50), sized('small', 5, 5)]
+    _, proxy = make(jobs)
+    for key in ('size', 'duration'):
+        proxy.sort_by(key)
+        assert shown(proxy) == ['small', 'big', 'old']
+        proxy.sort_by(key, descending=True)
+        assert shown(proxy) == ['big', 'small', 'old']
+
+
+def test_ties_keep_queue_order(qapp):
+    _, proxy = make([sized('x', 7), sized('y', 7), sized('z', 7)])
+    proxy.sort_by('size')
+    assert shown(proxy) == ['x', 'y', 'z']
+    proxy.sort_by('size', descending=True)
+    assert shown(proxy) == ['x', 'y', 'z']
+
+
+def test_group_sorts_by_its_totals(qapp):
+    jobs = [
+        sized('single', 250, 25),
+        sized('list', url=PLAYLIST),
+        sized('t1', 100, 10, parent='list'),
+        sized('t2', 200, 20, parent='list'),
+    ]
+    _, proxy = make(jobs)
+    proxy.sort_by('size')
+    assert shown(proxy) == ['single', 'list']  # 250 < 300
+    proxy.sort_by('duration', descending=True)
+    assert shown(proxy) == ['list', 'single']  # 30 > 25
+
+
+def test_new_jobs_respect_sort_and_search(qapp):
+    model, proxy = make([sized('b', 20, title='Бета'), sized('c', 30, title='Гамма')])
+    proxy.sort_by('size')
+    proxy.show_query('а')
+    model.set_jobs([*model.jobs, sized('a', 10, title='Альфа'), sized('z', 1, title='Зет')])
+    assert shown(proxy) == ['a', 'b', 'c']
