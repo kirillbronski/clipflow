@@ -412,7 +412,9 @@ class WorkbenchPresenter(QObject):
 
     def cancel_queue(self):
         # Scheduler cancels every service and stops pumping before worker ACK.
-        return self._command(self.scheduler.clear_queue)
+        result = self._command(self.scheduler.clear_queue)
+        self._run = [0, 0]  # the user ended the run: «загрузки завершены» would be news to no one
+        return result
 
     def clear_all(self, *, delete_files=False):
         return self._command(lambda: self._clearing.clear_all(delete_files))

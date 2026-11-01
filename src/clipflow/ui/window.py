@@ -29,6 +29,7 @@ from clipflow.ui.window_menus import build_menus
 from clipflow.version import APP_VERSION
 
 SMART_MESSAGE_MS = 3000  # how long «Добавлено: N» stays under the link field
+TRAY_ICON_MS = 10_000
 
 
 class MainWindow(QMainWindow):
@@ -109,6 +110,11 @@ class MainWindow(QMainWindow):
         # Shown in the tray only for a «downloads finished» message, when asked for.
         self.notifier = QSystemTrayIcon(application_icon(), self)
         presenter.queue_finished.connect(self._notify_finished)
+        # The tray icon only carries the message: it goes away once the message has been seen.
+        self.tray_timer = QTimer(self)
+        self.tray_timer.setSingleShot(True)
+        self.tray_timer.setInterval(TRAY_ICON_MS)
+        self.tray_timer.timeout.connect(self.notifier.hide)
         self._smart_timer = QTimer(self)
         self._smart_timer.setSingleShot(True)
         self._smart_timer.timeout.connect(self._hide_smart_message)
@@ -335,6 +341,7 @@ class MainWindow(QMainWindow):
         self.notifier.showMessage(
             self.tr.text('notify_title'), text, QSystemTrayIcon.MessageIcon.Information, 5000
         )
+        self.tray_timer.start()
 
     def _set_smart_mode(self, enabled):
         if not self.presenter.set_smart_mode(enabled):

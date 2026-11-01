@@ -105,3 +105,24 @@ def test_playlist_listing_is_not_a_download(make_window, tmp_path, monkeypatch):
     )
     events(window, ('list', WorkFinished()), ('t', WorkFinished()))
     assert shown == ['Скачано: 1']
+
+
+def test_stop_all_does_not_notify(make_window, tmp_path, monkeypatch):
+    window, shown = queue(
+        make_window, tmp_path, [JobState.COMPLETED, JobState.QUEUED], monkeypatch=monkeypatch
+    )
+    window.presenter._on_event(JobEvent('j0', '', WorkFinished()))
+    window.presenter.cancel_queue()  # «Остановить всё»: the user ended the run, nothing to report
+    window.presenter._tick()
+    assert shown == []
+
+
+def test_tray_icon_goes_away_after_the_message(make_window, tmp_path, monkeypatch):
+    window, shown = queue(make_window, tmp_path, [JobState.COMPLETED], monkeypatch=monkeypatch)
+    events(window, ('j0', WorkFinished()))
+    assert shown
+    assert window.notifier.isVisible()
+    assert window.tray_timer.isActive()
+    assert window.tray_timer.interval() == 10_000
+    window.tray_timer.timeout.emit()
+    assert not window.notifier.isVisible()
