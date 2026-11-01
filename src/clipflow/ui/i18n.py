@@ -95,7 +95,7 @@ MESSAGES = {
     'paste': ('Вставить', 'Paste'),
     'link_accessible': ('Ссылка для скачивания', 'Download link'),
     'add_primary': ('Добавить в очередь', 'Add to queue'),
-    'download_options': ('Параметры загрузки', 'Download options'),
+    'download_options': ('Другие параметры', 'More options'),
     'audio_format': ('MP3', 'MP3'),
     'numbering': ('Нумеровать треки плейлиста', 'Number playlist tracks'),
     'all_media': ('Все фото и видео', 'Photos and videos'),
@@ -313,6 +313,14 @@ MESSAGES.update(
     {
         'about': ('О программе', 'About'),
         'settings_section.general': ('Основные', 'General'),
+        'smart_mode': ('Умный режим', 'Smart mode'),
+        'smart_mode_hint': (
+            'Вставленная ссылка сразу добавляется в очередь и скачивается с текущими настройками.',
+            'A pasted link joins the queue and downloads at once with these settings.',
+        ),
+        'smart_added': ('Добавлено: {count}', 'Added: {count}'),
+        'smart_existing': ('уже в очереди: {count}', 'already queued: {count}'),
+        'choose_folder_menu': ('Выбрать папку…', 'Choose folder…'),
         'kind.all': ('Все', 'All'),
         'kind.video': ('Видео', 'Video'),
         'kind.audio': ('Аудио', 'Audio'),

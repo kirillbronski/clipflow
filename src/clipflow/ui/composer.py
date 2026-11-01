@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from clipflow.domain.models import ContentKind, Service
 from clipflow.domain.urls import parse_url
 from clipflow.ui.i18n import Translator
+from clipflow.ui.quick_bar import QuickBar
 
 NAMES = {Service.YOUTUBE: 'YouTube', Service.INSTAGRAM: 'Instagram', Service.GETCOURSE: 'GetCourse'}
 
@@ -63,6 +64,8 @@ class Composer(QFrame):
         self._build_profile_row(layout)
         self._build_entry(layout)
         self._build_parameters(layout, settings.auto_start)
+        self.quick_bar = QuickBar(self, self.tr)
+        self._top_row.insertWidget(1, self.quick_bar, 1)
         self._connect_inputs()
         self._load(settings)
         self._loading = False
@@ -94,7 +97,12 @@ class Composer(QFrame):
             modes.addWidget(button)
             button.clicked.connect(lambda checked=False, m=mode: self._set_mode(m))
         top.addLayout(modes)
+        self._top_row = top
         layout.addLayout(top)
+        # A narrow card puts the quick bar on a line of its own instead of squashing it.
+        self._bar_row = QHBoxLayout()
+        layout.addLayout(self._bar_row)
+        self.quick_bar_wrapped = False
 
     def _build_profile_row(self, layout):
         self.profile_row = QWidget()
@@ -155,6 +163,7 @@ class Composer(QFrame):
         self.summary.setObjectName('muted')
         self.summary.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         disclosure.addWidget(self.summary, 1)
+        self.summary.hide()  # the quick bar above shows these choices now
         layout.addLayout(disclosure)
         self.parameters = QWidget()
         self.parameters.setObjectName('composerSection')
@@ -266,6 +275,23 @@ class Composer(QFrame):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._arrange_entry()
+        self._arrange_quick_bar()
+
+    def _arrange_quick_bar(self):
+        bar = self.quick_bar
+        modes = sum(
+            b.sizeHint().width() + 4 for b in self.mode_buttons.values() if not b.isHidden()
+        )
+        needed = self.download_label.sizeHint().width() + bar.sizeHint().width() + modes + 40
+        wrapped = needed > self.width()
+        if wrapped == self.quick_bar_wrapped:
+            return
+        self.quick_bar_wrapped = wrapped
+        (self._top_row if wrapped else self._bar_row).removeWidget(bar)
+        if wrapped:
+            self._bar_row.addWidget(bar)
+        else:
+            self._top_row.insertWidget(1, bar, 1)
 
     def _arrange_entry(self):
         parent = self.parentWidget()
@@ -523,6 +549,10 @@ class Composer(QFrame):
         return options
 
     def _summary(self):
+        self._summary_text()
+        self._refresh_quick_bar()
+
+    def _summary_text(self):
         options = self._presets[self.service]
         if self.service == Service.INSTAGRAM and options.media_filter == 'photo':
             self.summary.setText(self.tr.text('photo_summary'))
@@ -536,6 +566,10 @@ class Composer(QFrame):
             else self.tr.text('best_quality')
         )
         self.summary.setText(f'{options.format.upper()} · {quality}')
+
+    def _refresh_quick_bar(self):
+        if getattr(self, 'quick_bar', None) is not None:
+            self.quick_bar.refresh()
 
     def _text_changed(self, text):
         if self._loading:
