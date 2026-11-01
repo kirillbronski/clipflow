@@ -1,6 +1,6 @@
 """Settings like 4K: sections on the left, their controls on the right."""
 
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QLabel, QScrollArea
 
 
@@ -85,7 +85,7 @@ def test_preferences_action_opens_settings(make_window):
     window, _ = make_window()
     action = window.preferences_action
     assert action.menuRole() == QAction.MenuRole.PreferencesRole
-    assert action.shortcuts()
+    assert QKeySequence('Ctrl+,') in action.shortcuts()
     assert action.text() == 'Настройки…'
     window.open_settings('about')
     window.nav_buttons[0].click()
@@ -98,3 +98,12 @@ def test_section_title_is_larger_than_body_text(make_window):
     _, page = open_settings(make_window)
     title = page.section_title.fontInfo().pixelSize()
     assert title >= page.language_box.fontInfo().pixelSize() + 4
+
+
+def test_texts_point_to_the_sign_in_section():
+    from clipflow.ui.i18n import CATALOG
+
+    for language in ('ru', 'en'):
+        for key in ('error.auth_required', 'job_error.signin'):
+            assert 'Accounts' not in CATALOG[language][key]
+            assert 'Аккаунты' not in CATALOG[language][key]

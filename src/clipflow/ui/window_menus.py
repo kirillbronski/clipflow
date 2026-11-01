@@ -64,11 +64,12 @@ def build_menus(window):
     window.tr.bind(settings, 'menu_settings', setter='setTitle')
     action = window.preferences_action = settings.addAction('')
     window.tr.bind(action, 'menu_preferences')
-    # On macOS this moves to the application menu with ⌘,; Windows has no standard key.
+    # On macOS this moves to the application menu. Ctrl+, (⌘, on macOS) is always bound: the
+    # Windows scheme's standard binding is only the rare hardware Settings key.
     action.setMenuRole(action.MenuRole.PreferencesRole)
-    action.setShortcuts(
-        QKeySequence.keyBindings(QKeySequence.StandardKey.Preferences) or [QKeySequence('Ctrl+,')]
-    )
+    comma = QKeySequence('Ctrl+,')
+    standard = QKeySequence.keyBindings(QKeySequence.StandardKey.Preferences)
+    action.setShortcuts([comma, *(key for key in standard if key != comma)])
     action.triggered.connect(lambda: window.open_settings())
     window.addAction(action)
     settings.addSeparator()

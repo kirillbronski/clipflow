@@ -390,8 +390,8 @@ MESSAGES.update(
             'Could not save the protected profile.',
         ),
         'error.auth_required': (
-            'Сохранённый вход недоступен. Откройте «Аккаунты» и войдите заново.',
-            'Saved sign-in is unavailable. Open Accounts and sign in again.',
+            'Сохранённый вход недоступен. Откройте «Настройки» → «Авторизация» и войдите заново.',
+            'Saved sign-in is unavailable. Open Settings → Sign-in and sign in again.',
         ),
         'error.auth_launch_failed': (
             'Не удалось открыть окно входа.',
@@ -402,8 +402,8 @@ MESSAGES.update(
             'This profile belongs to another service or school.',
         ),
         'job_error.signin': (
-            'Нужен вход в {service}. Откройте «Аккаунты».',
-            'Sign-in to {service} is required. Open Accounts.',
+            'Нужен вход в {service}. Откройте «Настройки» → «Авторизация».',
+            'Sign-in to {service} is required. Open Settings → Sign-in.',
         ),
         'job_error.access': (
             'Материал недоступен: удалён, закрыт или нет доступа.',

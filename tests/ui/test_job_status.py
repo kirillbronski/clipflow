@@ -62,7 +62,7 @@ def test_every_source_error_code_has_specific_text():
 def test_signin_names_the_service(ru):
     assert (
         error_text('auth_required', Service.INSTAGRAM, ru)
-        == 'Нужен вход в Instagram. Откройте «Аккаунты».'
+        == 'Нужен вход в Instagram. Откройте «Настройки» → «Авторизация».'
     )
 
 
@@ -71,8 +71,8 @@ def test_signin_names_the_service(ru):
     [
         (
             'auth_required',
-            'Нужен вход в YouTube. Откройте «Аккаунты».',
-            'Sign-in to YouTube is required. Open Accounts.',
+            'Нужен вход в YouTube. Откройте «Настройки» → «Авторизация».',
+            'Sign-in to YouTube is required. Open Settings → Sign-in.',
         ),
         (
             'unavailable_media',
@@ -130,11 +130,11 @@ def test_carousel_item_prefix(ru, en):
 def test_getcourse_signin_names_getcourse(ru, en):
     assert (
         error_text('getcourse_auth_failed', Service.GETCOURSE, ru)
-        == 'Нужен вход в GetCourse. Откройте «Аккаунты».'
+        == 'Нужен вход в GetCourse. Откройте «Настройки» → «Авторизация».'
     )
     assert (
         error_text('getcourse_auth_failed', Service.GETCOURSE, en)
-        == 'Sign-in to GetCourse is required. Open Accounts.'
+        == 'Sign-in to GetCourse is required. Open Settings → Sign-in.'
     )
 
 
@@ -267,7 +267,10 @@ def tooltip(window, row=0):
 
 def test_failed_row_tooltip_has_reason_and_code(make_window, tmp_path):
     window = seeded_window(make_window, tmp_path, failed('auth_required'))
-    assert tooltip(window) == 'Нужен вход в Instagram. Откройте «Аккаунты».\nКод: auth_required'
+    assert (
+        tooltip(window)
+        == 'Нужен вход в Instagram. Откройте «Настройки» → «Авторизация».\nКод: auth_required'
+    )
 
 
 def test_failed_row_second_line_is_reason(make_window, tmp_path):
@@ -294,7 +297,8 @@ def test_reason_follows_language_switch(make_window, tmp_path):
     window = seeded_window(make_window, tmp_path, failed('auth_required'))
     window.tr.set_language('en')
     assert (
-        tooltip(window) == 'Sign-in to Instagram is required. Open Accounts.\nCode: auth_required'
+        tooltip(window)
+        == 'Sign-in to Instagram is required. Open Settings → Sign-in.\nCode: auth_required'
     )
     assert any(text.startswith('Sign-in to Instagram') for text, _ in painted(window))
 
