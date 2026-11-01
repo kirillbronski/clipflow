@@ -36,7 +36,7 @@
 </picture>
 
 <details>
-<summary><strong>Плейлист, настройки и светлая тема</strong></summary>
+<summary><strong>Плейлист, настройки, светлая тема и Windows</strong></summary>
 
 | Экран плейлиста | Одновременные загрузки и скорость |
 | :---: | :---: |
@@ -46,9 +46,11 @@
 | :---: | :---: |
 | ![Настройки → Дополнительные](docs/screenshots/readme-advanced-dark.png) | ![Светлая тема](docs/screenshots/readme-queue-light.png) |
 
+![ClipFlow 2.1.0 на Windows 11](docs/screenshots/readme-windows.png)
+
 </details>
 
-Снимки сделаны в настоящем Qt-приложении 2.1.0 на Mac. Задания в очереди —
+Снимки сделаны в настоящем Qt-приложении 2.1.0 на Mac и Windows 11. Задания в очереди —
 демонстрационные: они показывают интерфейс, а не загрузку этих материалов с площадок.
 
 ## Что умеет ClipFlow
