@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSlider,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -175,6 +176,50 @@ class SettingsPage(QWidget):
         hint.setObjectName('muted')
         hint.setWordWrap(True)
         page.layout().addWidget(hint)
+        self.add_divider(page)
+        self._parallel_row(page)
+
+    def _parallel_row(self, page):
+        """YouTube downloads at once: a 1-4 slider, its risk word and a warning from 3 up."""
+        caption = self.tr.widget(QLabel, 'youtube_parallel')
+        caption.setWordWrap(True)
+        page.layout().addWidget(caption)
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(1, 4)
+        slider.setPageStep(1)
+        slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        slider.setTickInterval(1)
+        slider.setMaximumWidth(260)
+        label = QLabel()
+        row = QHBoxLayout()
+        row.addWidget(slider, 1)
+        row.addWidget(label)
+        row.addStretch()
+        page.layout().addLayout(row)
+        hint = self.tr.widget(QLabel, 'youtube_parallel_hint')
+        hint.setObjectName('muted')
+        hint.setWordWrap(True)
+        page.layout().addWidget(hint)
+        warning = self.tr.widget(QLabel, 'youtube_parallel_warning')
+        warning.setObjectName('error')
+        warning.setWordWrap(True)
+        page.layout().addWidget(warning)
+        self.parallel_slider, self.parallel_label, self.parallel_warning = slider, label, warning
+
+        def show(value):
+            label.setText(self.tr.text(f'parallel.{value}'))
+            warning.setVisible(value >= 3)
+
+        slider.valueChanged.connect(show)
+        slider.valueChanged.connect(
+            lambda value: self._save(self._save_preference('youtube_parallel'), value)
+        )
+
+        def refresh():
+            slider.setValue(self.presenter.settings.youtube_parallel)
+            show(slider.value())
+
+        self._refreshers.append(refresh)
 
     def _build_notifications(self):
         page = self._section('notifications')

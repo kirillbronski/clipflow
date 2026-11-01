@@ -502,6 +502,7 @@ class WorkbenchPresenter(QObject):
         settings = self.settings
         self.executor.preferences = DownloadPreferences(settings.rate_limit, settings.subtitles)
         self.scheduler.skip_downloaded = settings.skip_downloaded
+        self.scheduler.set_youtube_parallel(settings.youtube_parallel)
 
     def _on_event(self, event):
         job = self.repository.get(event.job_id)

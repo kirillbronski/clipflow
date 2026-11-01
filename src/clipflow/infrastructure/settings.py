@@ -33,6 +33,7 @@ _EXTRAS = (
     'hide_completed',
     'rate_limit',
     'notify_done',
+    'youtube_parallel',
 )
 
 
@@ -58,6 +59,7 @@ class AppSettings:
     hide_completed: bool = False
     rate_limit: int | None = None  # bytes per second
     notify_done: bool = False
+    youtube_parallel: int = 1  # YouTube downloads at once
 
     def _check_options(self):
         flags = (
@@ -74,6 +76,8 @@ class AppSettings:
             raise ValueError('invalid_subtitles')
         if type(self.rate_limit) not in (int, type(None)) or self.rate_limit not in RATE_LIMITS:
             raise ValueError('invalid_rate_limit')
+        if type(self.youtube_parallel) is not int or not 1 <= self.youtube_parallel <= 4:
+            raise ValueError('invalid_youtube_parallel')
 
     def __post_init__(self):
         if type(self.schema_version) is not int or self.schema_version != 2:

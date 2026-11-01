@@ -157,3 +157,36 @@ def test_subtitle_language_only_when_enabled(make_window):
     assert not page.subtitles_language_box.isVisible()
     page.subtitles_toggle.click()
     assert page.subtitles_language_box.isVisible()
+
+
+def test_parallel_slider_labels_and_warning(make_window):
+    window, page = open_settings(make_window)
+    page.show_section('connection')
+    labels = {1: 'Безопасно', 2: 'Обычно', 3: 'Быстро', 4: 'Рискованно'}
+    for value, text in labels.items():
+        page.parallel_slider.setValue(value)
+        assert page.parallel_label.text() == text
+        assert page.parallel_warning.isVisible() == (value >= 3)
+    assert 'заблокировать' in page.parallel_warning.text()
+    window.presenter.update_preferences(language='en')
+    assert page.parallel_label.text() == 'Risky'
+    assert page.parallel_warning.text() == 'YouTube may temporarily block downloads from your IP'
+
+
+def test_parallel_slider_saves(make_window):
+    from clipflow.domain.models import Service
+
+    window, page = open_settings(make_window)
+    page.parallel_slider.setValue(2)
+    assert window.presenter.settings.youtube_parallel == 2
+    assert window.presenter.scheduler.limits[Service.YOUTUBE] == 2
+
+
+def test_parallel_applied_at_startup(make_window, tmp_path):
+    from clipflow.domain.models import DownloadOptions, Service
+    from clipflow.infrastructure.settings import AppSettings
+
+    presets = {s: DownloadOptions(tmp_path / 'downloads') for s in Service}
+    window, _ = make_window(settings=AppSettings(presets=presets, youtube_parallel=4))
+    assert window.presenter.scheduler.limits[Service.YOUTUBE] == 4
+    assert window.settings_page.parallel_slider.value() == 4

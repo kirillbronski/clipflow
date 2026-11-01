@@ -262,3 +262,19 @@ def test_new_settings_round_trip_and_defaults(tmp_path):
         path.write_text(json.dumps(raw), encoding='utf-8')
         assert store.load() == AppSettings(), key
         raw.pop(key)
+
+
+def test_youtube_parallel_round_trip(tmp_path):
+    store = SettingsStore(tmp_path)
+    assert AppSettings().youtube_parallel == 1
+    store.save(replace(AppSettings(), youtube_parallel=3))
+    assert store.load().youtube_parallel == 3
+    path = tmp_path / 'settings-v2.json'
+    raw = json.loads(path.read_text(encoding='utf-8'))
+    raw.pop('youtube_parallel')
+    path.write_text(json.dumps(raw), encoding='utf-8')
+    assert store.load().youtube_parallel == 1
+    for bad in (0, 5, True, '2', 2.0):
+        raw['youtube_parallel'] = bad
+        path.write_text(json.dumps(raw), encoding='utf-8')
+        assert store.load() == AppSettings(), bad

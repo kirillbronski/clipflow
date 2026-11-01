@@ -472,7 +472,10 @@ def test_instagram_rate_limit_releases_real_qt_executor_for_youtube(make_window,
     qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
     window.presenter.start_queue()
     qtbot.waitUntil(youtube.started.is_set)
-    job = window.presenter.repository.get(first)
+    # Instagram runs beside YouTube now: wait for its deferral rather than assume it came first.
+    repository = window.presenter.repository
+    qtbot.waitUntil(lambda: repository.get(first).state == JobState.PAUSED)
+    job = repository.get(first)
     assert captured == [policy]
     assert job.state == JobState.PAUSED
     assert job.pause_reason == 'rate_limit'
