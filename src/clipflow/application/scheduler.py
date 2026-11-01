@@ -50,6 +50,12 @@ _STAGES = (JobState.PROBING, JobState.DOWNLOADING, JobState.PROCESSING)
 _ACKS = (WorkFinished, WorkFailed, WorkStopped)
 
 
+def _same_media(request) -> tuple:
+    """The same video in the same format: a playlist position or folder does not matter."""
+    link, options = request.link, request.options
+    return link.service, link.canonical_id, options.format, options.max_height
+
+
 def _storable(job: Job, details: MediaDetails) -> MediaDetails:
     """Instagram cover addresses are signed CDN links: kept in memory, never on disk."""
     if job.request.link.service is Service.INSTAGRAM and details.thumbnail:
@@ -62,6 +68,7 @@ class Scheduler:
         self.repository = repository
         self.executor = executor
         self.clock = clock or (lambda: datetime.now(UTC))
+        self.skip_downloaded = False  # «Пропускать уже скачанное в плейлистах»
         self._instagram_deferred: RateLimitDeferred | None = None
         self._preferred_job: str | None = None
         self._running = False
@@ -447,11 +454,22 @@ class Scheduler:
                 or (j.result_files and all(path.is_file() for path in j.result_files))
             )
         }
+        downloaded = self._downloaded() if self.skip_downloaded else set()
         for request in payload.requests:
             key = request_key(request)
-            if key not in keys:
+            if key not in keys and _same_media(request) not in downloaded:
                 self.repository.add(Job(uuid4().hex, request, parent_id=job.id))
                 keys.add(key)
+
+    def _downloaded(self):
+        """Media already saved in some format, whatever playlist or folder it came from."""
+        return {
+            _same_media(j.request)
+            for j in self.repository.list()
+            if j.state == JobState.COMPLETED
+            and j.result_files
+            and all(path.is_file() for path in j.result_files)
+        }
 
     def _on_title(self, job: Job, payload: TitleChanged) -> None:
         self.repository.update(replace(job, title=' '.join(payload.title.split())[:240] or None))

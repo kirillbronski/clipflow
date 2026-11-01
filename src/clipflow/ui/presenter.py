@@ -434,6 +434,7 @@ class WorkbenchPresenter(QObject):
         """Settings the worker side reads: download preferences and the duplicate rule."""
         settings = self.settings
         self.executor.preferences = DownloadPreferences(settings.rate_limit, settings.subtitles)
+        self.scheduler.skip_downloaded = settings.skip_downloaded
 
     def _on_event(self, event):
         job = self.repository.get(event.job_id)

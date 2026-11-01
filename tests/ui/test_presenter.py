@@ -322,3 +322,9 @@ def test_rate_limit_applies_to_the_next_job(qtbot, tmp_path, repository):
         provider.released.set()
         presenter.shutdown()
         qtbot.waitUntil(lambda: presenter.is_closed, timeout=5000)
+
+
+def test_presenter_keeps_skip_rule_in_the_scheduler(presenter):
+    assert presenter.scheduler.skip_downloaded is False
+    presenter.update_preferences(skip_downloaded=True)
+    assert presenter.scheduler.skip_downloaded is True

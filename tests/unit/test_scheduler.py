@@ -702,3 +702,57 @@ def test_instagram_cover_address_is_not_stored(tmp_path):
     assert repo.get('post').details == MediaDetails(width=1080)
     scheduler.set_details('later', signed)
     assert repo.get('later').details == MediaDetails(width=1080)
+
+
+def _track(folder, video, index=1, fmt='mp4', height=None):
+    from clipflow.domain.models import PlaylistPosition
+
+    return DownloadRequest(
+        parse_url(f'https://www.youtube.com/watch?v={video}'),
+        DownloadOptions(folder, format=fmt, max_height=height),
+        playlist=PlaylistPosition('PLnew', index, 'Новый'),
+    )
+
+
+def _discover(tmp_path, done_request, skip, discovered, delete=False):
+    repo = MemoryJobRepository()
+    repo.add(Job('parent', request('parent')))
+    saved = tmp_path / 'old' / 'saved.mp4'
+    saved.parent.mkdir(exist_ok=True)
+    saved.write_bytes(b'kept')
+    repo.add(Job('done', done_request, state=JobState.COMPLETED, result_files=(saved,)))
+    if delete:
+        saved.unlink()
+    worker = ControlledExecutor()
+    scheduler = Scheduler(repo, worker)
+    scheduler.skip_downloaded = skip
+    scheduler.start()
+    worker.emit(RequestsDiscovered(discovered))
+    return repo, saved
+
+
+def test_skip_downloaded_track_in_new_playlist(tmp_path):
+    single = DownloadRequest(parse_url('https://youtu.be/vid_A'), DownloadOptions(tmp_path / 'old'))
+    repo, _ = _discover(
+        tmp_path, single, True, (_track(tmp_path, 'vid_A'), _track(tmp_path, 'vid_B', 2))
+    )
+    added = [j.request.link.canonical_id for j in repo.list() if j.parent_id == 'parent']
+    assert added == ['vid_B']
+
+
+def test_missing_files_or_other_format_are_not_skipped(tmp_path):
+    single = DownloadRequest(parse_url('https://youtu.be/vid_A'), DownloadOptions(tmp_path / 'old'))
+    for discovered in (
+        (_track(tmp_path, 'vid_A', fmt='mp3'),),
+        (_track(tmp_path, 'vid_A', height=720),),
+    ):
+        repo, _ = _discover(tmp_path, single, True, discovered)
+        assert [j.id for j in repo.list() if j.parent_id == 'parent'], discovered
+    repo, _ = _discover(tmp_path, single, True, (_track(tmp_path, 'vid_A'),), delete=True)
+    assert [j for j in repo.list() if j.parent_id == 'parent']
+
+
+def test_skip_off_keeps_old_behaviour(tmp_path):
+    single = DownloadRequest(parse_url('https://youtu.be/vid_A'), DownloadOptions(tmp_path / 'old'))
+    repo, _ = _discover(tmp_path, single, False, (_track(tmp_path, 'vid_A'),))
+    assert [j for j in repo.list() if j.parent_id == 'parent']
