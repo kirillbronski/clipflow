@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QItemSelectionModel
-from PySide6.QtGui import QDesktopServices, QGuiApplication
+from PySide6.QtGui import QDesktopServices
 
 from clipflow.domain.models import (
     ContentKind,
@@ -82,11 +82,11 @@ def test_row_menu_items_and_enabled_state(make_window, tmp_path, state, files, e
     menu.close()
 
 
-def test_copy_link_puts_url_on_clipboard(make_window, tmp_path):
+def test_copy_link_puts_url_on_clipboard(make_window, tmp_path, clipboard):
     window = seeded(make_window, tmp_path, job('abc'))
     menu = window.dialogs.row_menu('abc')
     action(window, menu, 'row_menu.copy_link').trigger()
-    assert QGuiApplication.clipboard().text() == 'https://www.youtube.com/watch?v=abc'
+    assert clipboard.text() == 'https://www.youtube.com/watch?v=abc'
     menu.close()
 
 
@@ -118,7 +118,7 @@ def test_menu_button_opens_the_row_menu(make_window, tmp_path, monkeypatch):
     assert opened == ['abc']
 
 
-def test_menu_acts_on_selection(make_window, tmp_path, monkeypatch):
+def test_menu_acts_on_selection(make_window, tmp_path, monkeypatch, clipboard):
     window = seeded(make_window, tmp_path, job('one', JobState.FAILED), job('two', JobState.FAILED))
     view = window.queue_view
     flags = QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows
@@ -127,7 +127,7 @@ def test_menu_acts_on_selection(make_window, tmp_path, monkeypatch):
     target = window.proxy.index(1, 0).data(window.presenter.model.JobIdRole)
     menu = window.dialogs.row_menu(target)
     action(window, menu, 'row_menu.copy_link').trigger()
-    assert QGuiApplication.clipboard().text().endswith('v=' + target)
+    assert clipboard.text().endswith('v=' + target)
     removed = []
     monkeypatch.setattr(window.presenter, 'remove_jobs', removed.append)
     action(window, menu, 'remove_list').trigger()
@@ -152,14 +152,14 @@ def test_protected_link_cannot_be_copied(make_window, tmp_path):
     menu.close()
 
 
-def test_group_menu_has_link_items(make_window, tmp_path, monkeypatch):
+def test_group_menu_has_link_items(make_window, tmp_path, monkeypatch, clipboard):
     opened = []
     monkeypatch.setattr(QDesktopServices, 'openUrl', lambda url: opened.append(url.toString()))
     parent = job('p', JobState.COMPLETED, url=PLAYLIST)
     window = seeded(make_window, tmp_path, parent, replace(job('c'), parent_id='p'))
     menu = window.dialogs.group_menu('p')
     action(window, menu, 'row_menu.copy_link').trigger()
-    assert QGuiApplication.clipboard().text() == parent.request.link.canonical_url
+    assert clipboard.text() == parent.request.link.canonical_url
     action(window, menu, 'row_menu.open_link').trigger()
     assert opened == [parent.request.link.canonical_url]
     menu.close()
