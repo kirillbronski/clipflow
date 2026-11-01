@@ -315,6 +315,9 @@ MESSAGES.update(
         'settings_section.general': ('Основные', 'General'),
         'smart_mode': ('Умный режим', 'Smart mode'),
         'quality_best_short': ('Лучшее', 'Best'),
+        'chip.all_media': ('Фото и видео', 'Photos & videos'),
+        'chip.video_only': ('Только видео', 'Videos only'),
+        'chip.photo_only': ('Только фото', 'Photos only'),
         'smart_mode_hint': (
             'Вставленная ссылка сразу добавляется в очередь и скачивается с текущими настройками.',
             'A pasted link joins the queue and downloads at once with these settings.',

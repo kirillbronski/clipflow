@@ -14,6 +14,8 @@ from clipflow.ui.toggle import ToggleSwitch
 
 SPACING = 8
 STANDARD_HEIGHTS = (2160, 1440, 1080, 720, 480, 360)
+# Short chip texts for Instagram's content choice; the menu keeps the full wording.
+_SHORT_KINDS = {'all': 'chip.all_media', 'video': 'chip.video_only', 'photo': 'chip.photo_only'}
 FOLDER_WIDTH = 180  # the folder chip's text is elided beyond this
 
 
@@ -34,11 +36,11 @@ class QuickBar(QWidget):
             layout.addWidget(chip)
         layout.addSpacing(SPACING)
         self.smart_toggle = ToggleSwitch(theme=theme)
-        self.smart_label = self.tr.widget(QLabel, 'smart_mode')
-        self.smart_label.setText('💡 ' + self.tr.text('smart_mode'))
+        # As in 4K, a bulb and a switch; the name lives in the tooltip and for screen readers.
+        self.smart_label = QLabel('💡')
         self.tr.bind(self.smart_toggle, 'smart_mode_hint', setter='setToolTip')
         self.tr.bind(self.smart_label, 'smart_mode_hint', setter='setToolTip')
-        self.smart_toggle.setAccessibleName(self.tr.text('smart_mode'))
+        self.tr.bind(self.smart_toggle, 'smart_mode', setter='setAccessibleName')
         layout.addWidget(self.smart_toggle)
         layout.addWidget(self.smart_label)
         layout.addStretch(1)
@@ -127,7 +129,8 @@ class QuickBar(QWidget):
         box = self._kind_box()
         self.kind_chip.setVisible(box is not None)
         if box is not None:
-            self.kind_chip.setText(box.currentText())
+            short = _SHORT_KINDS.get(box.currentData()) if box is composer.filter_box else None
+            self.kind_chip.setText(self.tr.text(short) if short else box.currentText())
             self.kind_chip.setEnabled(box.isEnabled())
         quality = composer.quality_box
         self.quality_chip.setVisible(quality.isEnabled() and quality.count() > 0)
@@ -144,5 +147,4 @@ class QuickBar(QWidget):
         self.folder_chip.setText(
             metrics.elidedText(label, Qt.TextElideMode.ElideLeft, FOLDER_WIDTH)
         )
-        self.smart_label.setText('💡 ' + self.tr.text('smart_mode'))
         self.composer._arrange_quick_bar()

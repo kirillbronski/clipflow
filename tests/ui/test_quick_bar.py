@@ -30,7 +30,7 @@ def test_chips_per_service(make_window):
         composer.format_box.itemText(i) for i in range(composer.format_box.count())
     ]
     composer.set_service(Service.INSTAGRAM)
-    assert bar.kind_chip.text() == composer.filter_box.currentText()
+    assert bar.kind_chip.text() == 'Фото и видео'  # a short chip; the menu keeps the full text
     composer.set_service(Service.GETCOURSE)
     assert not bar.kind_chip.isVisible()
 
@@ -164,3 +164,23 @@ def test_quality_chip_says_best_briefly(make_window):
     assert window.composer.quality_box.currentData() is None
     assert bar.quality_chip.text() == 'Лучшее'
     assert window.tr.text('best_available') in chip_items(bar.quality_chip)
+
+
+def test_wide_fonts_keep_instagram_on_one_line_at_1240(make_window, qtbot):
+    window, _ = make_window()
+    # Windows fonts are wider than macOS ones: imitate them for the whole card.
+    window.composer.setStyleSheet('QPushButton, QLabel, QToolButton { font-size: 15px; }')
+    window._navigate('instagram', False, 'Instagram')
+    window.resize(1240, 792)
+    qtbot.wait(80)
+    assert not window.composer.quick_bar_wrapped
+
+
+def test_smart_switch_is_a_bulb_with_a_named_toggle(make_window):
+    window, _ = make_window()
+    bar = window.composer.quick_bar
+    assert bar.smart_label.text() == '💡'
+    assert bar.smart_toggle.accessibleName() == 'Умный режим'
+    assert bar.smart_toggle.toolTip() == window.tr.text('smart_mode_hint')
+    window.language_actions['en'].trigger()
+    assert bar.smart_toggle.accessibleName() == 'Smart mode'
