@@ -35,8 +35,11 @@ def _source(module, directory):
         f'{base}/{filename}.tar.xz', directory / (filename + '.tar.xz'), SOURCE_SHA256[module]
     )
     with tarfile.open(archive) as stream:
+        roots = {Path(item.name).parts[0] for item in stream.getmembers() if item.name}
+        if len(roots) != 1:
+            raise RuntimeError('Source archive must contain one root directory')
         stream.extractall(directory, filter='data')
-    return directory / filename
+    return directory / roots.pop()
 
 
 def _qt(module, source, build, prefix):

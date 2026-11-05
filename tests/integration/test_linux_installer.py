@@ -143,3 +143,26 @@ def test_arm64_uses_native_source_built_qtifw(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, 'linux_qtifw', types.SimpleNamespace(build_qtifw=build))
     monkeypatch.setattr(tools, 'download_checked', reject_binary)
     assert tools.install_qtifw('aarch64', tmp_path) == creator
+
+
+def test_qtifw_source_accepts_vendor_archive_root_without_patch_version(monkeypatch, tmp_path):
+    import io
+    import tarfile
+    import types
+
+    archive = tmp_path / 'vendor.tar.xz'
+    root = 'installer-framework-everywhere-src-4.8'
+    with tarfile.open(archive, 'w:xz') as stream:
+        payload = b'TEMPLATE = subdirs\n'
+        item = tarfile.TarInfo(root + '/installerfw.pro')
+        item.size = len(payload)
+        stream.addfile(item, io.BytesIO(payload))
+    monkeypatch.setitem(
+        sys.modules,
+        'linux_tools',
+        types.SimpleNamespace(download_checked=lambda *args: archive),
+    )
+    builder = script('linux_qtifw')
+    source = builder._source('qtifw', tmp_path)
+    assert source == tmp_path / root
+    assert (source / 'installerfw.pro').read_bytes() == payload
