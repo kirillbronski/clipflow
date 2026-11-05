@@ -5,6 +5,10 @@ import weakref
 from PySide6.QtCore import QLibraryInfo, QLocale, QObject, QTranslator, Signal
 
 MESSAGES = {
+    'accounts.secret_store_unavailable': (
+        'Не найдено хранилище паролей (GNOME Keyring или KWallet) или оно заблокировано. Данные входа не сохранятся после закрытия ClipFlow.',
+        'No password store (GNOME Keyring or KWallet) was found, or it is locked. Sign-in data will not be kept after ClipFlow closes.',
+    ),
     'download_label': ('Скачать', 'Download'),
     'sources_label': ('Источники', 'Sources'),
     'filter_all': ('Все', 'All'),

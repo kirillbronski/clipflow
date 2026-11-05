@@ -204,3 +204,17 @@ def test_auth_change_clears_probe_cache(make_window):
     gateway.profiles.pop(Service.INSTAGRAM)
     presenter._poll_auth()
     assert presenter._probe_cache.get(('key',)) is None
+
+
+def test_accounts_warns_when_secrets_not_persistent(make_window, tmp_path, monkeypatch):
+    window, _ = make_window()
+    gateway = NativeAuthGateway(tmp_path)
+    monkeypatch.setattr(gateway, 'secrets_persistent', lambda: False, raising=False)
+    window.presenter.set_auth_gateway(gateway)
+    window.open_settings('accounts')
+    assert window.accounts_page.secret_warning.isVisible()
+    window.language_actions['en'].trigger()
+    assert 'Sign-in data will not be kept' in window.accounts_page.secret_warning.text()
+    monkeypatch.setattr(gateway, 'secrets_persistent', lambda: True)
+    window.accounts_page.refresh()
+    assert not window.accounts_page.secret_warning.isVisible()

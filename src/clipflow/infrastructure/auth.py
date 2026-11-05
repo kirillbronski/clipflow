@@ -282,6 +282,33 @@ class NativeAuthGateway:
             browser=browsers.get(method, ''),
         )
 
+    def secrets_persistent(self):
+        return self.platform.secrets_persistent()
+
+    def _start_sign_in(self, args):
+        self.secrets_persistent()
+        key = self.platform.session_key
+        options = {}
+        if key is not None:
+            args += ['--session-key-stdin']
+            options['stdin'] = subprocess.PIPE
+        process = subprocess.Popen(
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=dict(os.environ),
+            **options,
+        )
+        if key is not None:
+            try:
+                process.stdin.write(key + b'\n')
+                process.stdin.close()
+            except OSError:
+                process.terminate()
+                process.wait(timeout=5)
+                raise
+        return process
+
     def sign_in(self, service, language):
         service = Service(service)
         if self._closing or service not in self.sessions or language not in {'ru', 'en'}:
@@ -307,9 +334,7 @@ class NativeAuthGateway:
             instance_id,
         ]
         try:
-            process = subprocess.Popen(
-                args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=dict(os.environ)
-            )
+            process = self._start_sign_in(args)
         except OSError:
             raise MediaFailure('auth_launch_failed') from None
         handle = AuthProcessHandle(self, service, process, directory, instance_id)

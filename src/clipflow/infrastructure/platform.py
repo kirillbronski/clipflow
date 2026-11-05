@@ -33,8 +33,10 @@ def data_directory():
 
 
 class PlatformServices:
-    def __init__(self, data_dir=None):
+    def __init__(self, data_dir=None, session_key: bytes | None = None):
         self.data_dir = Path(data_dir or data_directory()).expanduser().resolve()
+        self.session_key = session_key
+        self._persistent = None
 
     def key_namespace(self):
         if os.environ.get('CLIPFLOW_DATA_DIR'):
@@ -47,6 +49,8 @@ class PlatformServices:
         try:
             if SYSTEM == 'win32':
                 return _protect_windows(data, decrypt)
+            if SYSTEM.startswith('linux'):
+                return self._protect_linux(data, decrypt)
             if SYSTEM != 'darwin':
                 raise OSError
             from cryptography.fernet import Fernet
@@ -65,6 +69,40 @@ class PlatformServices:
                 return cipher.decrypt(data) if decrypt else cipher.encrypt(data)
         except Exception:  # noqa: BLE001  # keyring и cryptography: наружу только безопасный код, без ключей
             raise OSError('auth_protection_failed') from None
+
+    def _linux_key(self, create):
+        from cryptography.fernet import Fernet
+
+        from clipflow.infrastructure.linux_secrets import SecretStoreUnavailable, fernet_key
+
+        if self.session_key is None:
+            try:
+                return fernet_key(*self.key_namespace(), create=create)
+            except SecretStoreUnavailable:
+                self.session_key = Fernet.generate_key()
+                self._persistent = False
+        return self.session_key
+
+    def _protect_linux(self, data, decrypt):
+        from cryptography.fernet import Fernet
+
+        with _key_lock:
+            key = self._linux_key(create=not decrypt)
+            if key is None:
+                raise ValueError
+            cipher = Fernet(key)
+            return cipher.decrypt(data) if decrypt else cipher.encrypt(data)
+
+    def secrets_persistent(self):
+        if not SYSTEM.startswith('linux'):
+            return True
+        with _key_lock:
+            if self.session_key is not None:
+                return False
+            if self._persistent is None:
+                self._linux_key(create=False)
+                self._persistent = self.session_key is None
+            return self._persistent
 
     def reveal(self, path: Path):
         from PySide6.QtCore import QUrl

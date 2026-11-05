@@ -84,3 +84,33 @@ def test_legacy_parity_matrix_has_real_test_targets():
             source = ROOT / path
             assert source.is_file()
             assert f'def {function}(' in source.read_text(encoding='utf-8')
+
+
+def test_auth_process_reads_session_key_from_stdin(monkeypatch, tmp_path):
+    import io
+
+    from clipflow.infrastructure.auth_process import __main__ as entry
+
+    args = entry._parser().parse_args(['--youtube-login', '--session-key-stdin'])
+    monkeypatch.setattr(sys, 'stdin', io.TextIOWrapper(io.BytesIO(b'key\n')))
+    assert entry._platform_services(args, tmp_path).session_key == b'key'
+
+
+def test_temporary_sign_in_uses_off_the_record_browser(tmp_path):
+    code = """
+from pathlib import Path
+from PySide6.QtWidgets import QApplication
+from clipflow.infrastructure.auth_process.window import browser_profile
+app = QApplication([])
+profile = browser_profile(app, Path('.'), persistent=False)
+assert profile.isOffTheRecord()
+profile.deleteLater()
+"""
+    result = subprocess.run(
+        [sys.executable, '-c', code],
+        capture_output=True,
+        text=True,
+        env=dict(os.environ, QT_QPA_PLATFORM='offscreen'),
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr

@@ -20,6 +20,9 @@ def auth_root(tmp_path, monkeypatch):
     monkeypatch.setenv('CLIPFLOW_DATA_DIR', str(tmp_path))
 
 
+@pytest.mark.skipif(
+    sys.platform.startswith('linux'), reason='Legacy 1.8.7 had no Linux session format'
+)
 def test_old_encrypted_session_readable(tmp_path):
     from tests.fixtures import legacy_profile_codec as old
 

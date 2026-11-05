@@ -28,6 +28,7 @@ def _parser():
     parser.add_argument('--data-dir')
     parser.add_argument('--instance-id')
     parser.add_argument('--report')
+    parser.add_argument('--session-key-stdin', action='store_true')
     return parser
 
 
@@ -203,6 +204,11 @@ def _start_self_test(app, window, launch, platform, theme, report):
     QTimer.singleShot(25000, lambda: app.exit(2))
 
 
+def _platform_services(args, root):
+    key = sys.stdin.buffer.readline(128).strip() if args.session_key_stdin else None
+    return PlatformServices(root, session_key=key)
+
+
 def main(argv=None):
     args = _parser().parse_args(sys.argv[1:] if argv is None else argv)
     launch = _launch(args)
@@ -235,7 +241,7 @@ def main(argv=None):
     translator.install_qt()
     from clipflow.infrastructure.auth_process.window import AuthWindow
 
-    platform = PlatformServices(launch.root)
+    platform = _platform_services(args, launch.root)
     window = AuthWindow(
         directory,
         service,

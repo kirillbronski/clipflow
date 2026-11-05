@@ -96,7 +96,7 @@ def test_windows_seals_sessions_with_dpapi(monkeypatch, services):
 
 
 def test_other_systems_refuse_to_store_sessions(monkeypatch, services):
-    monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    monkeypatch.setattr(platform, 'SYSTEM', 'sunos5')
     with pytest.raises(OSError, match='auth_protection_failed'):
         services.protect(b'cookies')
 
