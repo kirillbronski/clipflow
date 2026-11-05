@@ -29,6 +29,22 @@ class KeepAwake:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
+            elif self._system.startswith('linux'):
+                self._process = self._run(
+                    [
+                        'systemd-inhibit',
+                        '--what=sleep:idle',
+                        '--who=ClipFlow',
+                        '--why=Downloads in progress',
+                        '--mode=block',
+                        'tail',
+                        f'--pid={os.getpid()}',
+                        '-f',
+                        '/dev/null',
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             elif self._system == 'win32':
                 self._windows().SetThreadExecutionState(_CONTINUOUS | _SYSTEM_REQUIRED)
 

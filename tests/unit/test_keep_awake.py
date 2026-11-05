@@ -61,7 +61,7 @@ def test_launch_failure_is_silent():
 
 
 def test_other_systems_do_nothing():
-    guard = KeepAwake(run=None, system='linux')
+    guard = KeepAwake(run=None, system='sunos5')
     guard.hold()
     guard.release()
 
@@ -89,3 +89,45 @@ def test_release_survives_a_stuck_caffeinate():
     assert started[0].killed
     guard.hold()
     assert len(started) == 2  # released state is clean: the next hold starts anew
+
+
+def test_linux_hold_runs_systemd_inhibit_bound_to_pid():
+    started = []
+
+    def run(args, **kwargs):
+        started.append(Process(args))
+        return started[-1]
+
+    guard = KeepAwake(run=run, system='linux')
+    guard.hold()
+    guard.hold()
+    assert [p.args for p in started] == [
+        [
+            'systemd-inhibit',
+            '--what=sleep:idle',
+            '--who=ClipFlow',
+            '--why=Downloads in progress',
+            '--mode=block',
+            'tail',
+            f'--pid={os.getpid()}',
+            '-f',
+            '/dev/null',
+        ]
+    ]
+    guard.release()
+    assert started[0].terminated
+
+
+def test_linux_missing_systemd_inhibit_is_silent():
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        raise FileNotFoundError('systemd-inhibit')
+
+    guard = KeepAwake(run=run, system='linux')
+    guard.hold()
+    guard.release()
+    guard.hold()
+    guard.release()
+    assert len(calls) == 2
