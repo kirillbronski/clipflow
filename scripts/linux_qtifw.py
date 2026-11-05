@@ -59,7 +59,6 @@ def _qt(module, source, build, prefix):
             '-no-feature-gssapi',
             '-no-opengl',
             '-no-egl',
-            '-no-xinput2',
             '-no-sm',
             '-no-icu',
             '-nomake',
