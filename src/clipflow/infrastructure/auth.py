@@ -325,6 +325,7 @@ class NativeAuthGateway:
         existing = self._handles.get(service)
         if existing is not None and existing.process.poll() is None:
             return existing
+        self.platform.secrets_persistent(refresh=True)
         directory = self.sessions[service].directory
         directory.mkdir(parents=True, exist_ok=True)
         instance_id = uuid4().hex

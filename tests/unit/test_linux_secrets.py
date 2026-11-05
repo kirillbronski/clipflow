@@ -279,3 +279,36 @@ assert s.save([cookie])
         SessionStore(tmp_path / 'YouTubeAuth', Service.YOUTUBE, parent.protect).saved()[0]['value']
         == 'synthetic'
     )
+
+
+def test_store_locked_after_startup_shares_temporary_auth_directory(linux, monkeypatch, tmp_path):
+    import io
+
+    from clipflow.domain.models import Service
+    from clipflow.infrastructure import auth
+    from tests.support.auth import Process
+
+    gateway = auth.NativeAuthGateway(tmp_path)
+    assert gateway.secrets_persistent()
+
+    def unavailable(*a, **kw):
+        raise linux_secrets.SecretStoreUnavailable('auth_secret_store_unavailable')
+
+    monkeypatch.setattr(linux_secrets, 'fernet_key', unavailable)
+    sent = []
+
+    class Input(io.BytesIO):
+        def close(self):
+            sent.append(self.getvalue().splitlines())
+            super().close()
+
+    def start(args, **kwargs):
+        process = Process()
+        process.stdin = Input()
+        return process
+
+    monkeypatch.setattr(auth.subprocess, 'Popen', start)
+    handle = gateway.sign_in(Service.YOUTUBE, 'en')
+    assert not gateway.secrets_persistent()
+    assert handle.directory.is_relative_to(platform.RAM_ROOT)
+    assert sent[0][1].decode() == str(handle.directory.parent)

@@ -101,12 +101,14 @@ class PlatformServices:
             cipher = Fernet(key)
             return cipher.decrypt(data) if decrypt else cipher.encrypt(data)
 
-    def secrets_persistent(self):
+    def secrets_persistent(self, *, refresh=False):
         if not SYSTEM.startswith('linux'):
             return True
         with _key_lock:
             if self.session_key is not None:
                 return False
+            if refresh:
+                self._persistent = None
             if self._persistent is None:
                 self._linux_key(create=False)
                 self._persistent = self.session_key is None
