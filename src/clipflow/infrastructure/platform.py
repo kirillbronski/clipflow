@@ -3,10 +3,12 @@
 import hashlib
 import os
 import sys
+import tempfile
 import threading
 from pathlib import Path
 
 SYSTEM = sys.platform
+RAM_ROOT = Path('/dev/shm')
 _key_lock = threading.Lock()
 
 
@@ -33,10 +35,16 @@ def data_directory():
 
 
 class PlatformServices:
-    def __init__(self, data_dir=None, session_key: bytes | None = None):
+    def __init__(self, data_dir=None, session_key: bytes | None = None, session_directory=None):
         self.data_dir = Path(data_dir or data_directory()).expanduser().resolve()
         self.session_key = session_key
         self._persistent = None
+        self._temporary = None
+        self._session_directory = Path(session_directory).resolve() if session_directory else None
+        if self._session_directory is not None and not self._session_directory.is_relative_to(
+            RAM_ROOT.resolve()
+        ):
+            raise ValueError('Invalid temporary authentication directory')
 
     def key_namespace(self):
         if os.environ.get('CLIPFLOW_DATA_DIR'):
@@ -103,6 +111,21 @@ class PlatformServices:
                 self._linux_key(create=False)
                 self._persistent = self.session_key is None
             return self._persistent
+
+    def protected_path(self, path):
+        path = Path(path).resolve()
+        if not SYSTEM.startswith('linux') or self.secrets_persistent():
+            return path
+        with _key_lock:
+            if self._session_directory is None:
+                self._temporary = tempfile.TemporaryDirectory(prefix='clipflow-auth-', dir=RAM_ROOT)
+                self._session_directory = Path(self._temporary.name)
+            root = self._session_directory
+        if path.is_relative_to(root):
+            return path
+        if path.is_relative_to(self.data_dir):
+            return root / path.relative_to(self.data_dir)
+        return root / hashlib.sha256(str(path).encode()).hexdigest() / path.name
 
     def reveal(self, path: Path):
         from PySide6.QtCore import QUrl

@@ -102,7 +102,7 @@ class NativeAuthGateway:
     def _gc_path(self, profile):
         if not isinstance(profile, str) or not re.fullmatch(r'gc-[0-9a-f]{24}', profile):
             raise MediaFailure('auth_scope_mismatch')
-        return self.data_dir / 'GetCourseAuth' / (profile + '.dat')
+        return self.platform.protected_path(self.data_dir / 'GetCourseAuth' / (profile + '.dat'))
 
     @staticmethod
     def school(url):
@@ -278,13 +278,16 @@ class NativeAuthGateway:
         )
         if normalized is None:
             raise MediaFailure('auth_invalid_settings')
+        browser = browsers.get(method, '')
+        if normalized == 'browser' and browser not in browsers_for():
+            browser = browsers_for()[0]
         return self.configure_getcourse(
             url,
             normalized,
             email=payload.get('email', ''),
             password=payload.get('password', ''),
             file=payload.get('file', ''),
-            browser=browsers.get(method, ''),
+            browser=browser,
         )
 
     def secrets_persistent(self):
@@ -306,7 +309,8 @@ class NativeAuthGateway:
         )
         if key is not None:
             try:
-                process.stdin.write(key + b'\n')
+                directory = self.platform.protected_path(self.data_dir)
+                process.stdin.write(key + b'\n' + str(directory).encode('utf-8') + b'\n')
                 process.stdin.close()
             except OSError:
                 process.terminate()

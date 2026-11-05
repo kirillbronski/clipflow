@@ -1,5 +1,7 @@
 """Linux secret-store availability and safe, temporary sign-in encryption."""
 
+import sys
+
 import pytest
 from cryptography.fernet import Fernet
 from keyring.errors import KeyringLocked
@@ -71,10 +73,14 @@ def test_missing_backend_is_unavailable(monkeypatch):
 
 
 @pytest.fixture
-def linux(monkeypatch):
+def linux(monkeypatch, tmp_path):
     monkeypatch.setattr(platform, 'SYSTEM', 'linux')
     backend = Backend()
     monkeypatch.setattr(linux_secrets, '_backend', lambda: backend)
+    if not platform.RAM_ROOT.is_dir():
+        ram = tmp_path / 'ram'
+        ram.mkdir()
+        monkeypatch.setattr(platform, 'RAM_ROOT', ram)
 
 
 def test_linux_protect_round_trips_with_stored_key(linux, monkeypatch, tmp_path):
@@ -110,7 +116,8 @@ def test_stale_session_key_files_read_as_signed_out(linux, tmp_path):
     second = platform.PlatformServices(tmp_path, session_key=Fernet.generate_key())
     atomic_protected(path, {'cookie': 'private'}, first.protect)
     assert load_protected(path, second.protect) is None
-    assert b'private' not in path.read_bytes()
+    assert not path.exists()
+    assert b'private' not in first.protected_path(path).read_bytes()
 
 
 def test_linux_protect_errors_hide_secrets(linux, monkeypatch, tmp_path):
@@ -158,4 +165,117 @@ def test_sign_in_passes_session_key_over_stdin(linux, monkeypatch, tmp_path, tem
     monkeypatch.setattr(auth.subprocess, 'Popen', start)
     gateway.sign_in(Service.YOUTUBE, 'en')
     assert ('--session-key-stdin' in calls[0][0]) is temporary
-    assert sent == ([b'k\n'] if temporary else [])
+    if temporary:
+        assert sent[0].splitlines()[0] == b'k'
+        assert len(sent[0].splitlines()) == 2
+    else:
+        assert sent == []
+
+
+def test_temporary_sign_in_preserves_durable_session(linux, monkeypatch, tmp_path):
+    from clipflow.domain.models import Service
+    from clipflow.infrastructure.auth import NativeAuthGateway
+
+    key = Fernet.generate_key()
+    monkeypatch.setattr(linux_secrets, 'fernet_key', lambda *a, **kw: key)
+    first = NativeAuthGateway(tmp_path)
+    cookies = [
+        {
+            'domain': '.youtube.com',
+            'path': '/',
+            'name': 'SAPISID',
+            'value': 'durable',
+            'expires': -1,
+            'secure': True,
+            'httpOnly': True,
+        }
+    ]
+    assert first.sessions[Service.YOUTUBE].save(cookies)
+    original = tmp_path / 'YouTubeAuth/session.dat'
+    before = original.read_bytes()
+
+    def unavailable(*a, **kw):
+        raise linux_secrets.SecretStoreUnavailable('auth_secret_store_unavailable')
+
+    monkeypatch.setattr(linux_secrets, 'fernet_key', unavailable)
+    temporary = NativeAuthGateway(tmp_path)
+    cookies[0]['value'] = 'temporary'
+    assert temporary.sessions[Service.YOUTUBE].save(cookies)
+    assert original.read_bytes() == before
+    assert temporary.sessions[Service.YOUTUBE].saved()[0]['value'] == 'temporary'
+    directory = temporary.platform.protected_path(tmp_path)
+    assert directory.is_relative_to(platform.RAM_ROOT)
+    child = platform.PlatformServices(
+        tmp_path, session_key=temporary.platform.session_key, session_directory=directory
+    )
+    from clipflow.infrastructure.auth_process.sessions import SessionStore
+
+    assert (
+        SessionStore(tmp_path / 'YouTubeAuth', Service.YOUTUBE, child.protect).saved()[0]['value']
+        == 'temporary'
+    )
+    temporary.sessions[Service.YOUTUBE].logout()
+    assert original.read_bytes() == before
+    monkeypatch.setattr(linux_secrets, 'fernet_key', lambda *a, **kw: key)
+    assert NativeAuthGateway(tmp_path).sessions[Service.YOUTUBE].saved()[0]['value'] == 'durable'
+
+
+def test_temporary_getcourse_preserves_durable_profile(linux, monkeypatch, tmp_path):
+    from clipflow.infrastructure.auth import NativeAuthGateway
+
+    school = 'https://school.getcourse.ru/pl/teach/control/lesson/view?id=1'
+    key = Fernet.generate_key()
+    monkeypatch.setattr(linux_secrets, 'fernet_key', lambda *a, **kw: key)
+    first = NativeAuthGateway(tmp_path)
+    profile = first.configure_getcourse(
+        school, 'email', email='test@example.test', password='durable'
+    )
+    original = first._gc_path(profile)
+    before = original.read_bytes()
+
+    def unavailable(*a, **kw):
+        raise linux_secrets.SecretStoreUnavailable('auth_secret_store_unavailable')
+
+    monkeypatch.setattr(linux_secrets, 'fernet_key', unavailable)
+    temporary = NativeAuthGateway(tmp_path)
+    temporary.configure_getcourse(school, 'email', email='test@example.test', password='temporary')
+    assert original.read_bytes() == before
+    assert temporary.options_for(profile, school)['password'] == 'temporary'
+    monkeypatch.setattr(linux_secrets, 'fernet_key', lambda *a, **kw: key)
+    assert NativeAuthGateway(tmp_path).options_for(profile, school)['password'] == 'durable'
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='Real Linux RAM filesystem IPC')
+def test_temporary_credentials_are_shared_with_auth_child(linux, tmp_path):
+    import subprocess
+    import sys
+
+    from clipflow.domain.models import Service
+    from clipflow.infrastructure.auth_process.sessions import SessionStore
+
+    parent = platform.PlatformServices(tmp_path, session_key=Fernet.generate_key())
+    directory = parent.protected_path(tmp_path)
+    code = """
+import sys
+from pathlib import Path
+from clipflow.domain.models import Service
+from clipflow.infrastructure.auth_process.__main__ import _parser, _platform_services
+from clipflow.infrastructure.auth_process.sessions import SessionStore
+args = _parser().parse_args(['--youtube-login', '--session-key-stdin'])
+p = _platform_services(args, Path(sys.argv[1]))
+s = SessionStore(Path(sys.argv[1]) / 'YouTubeAuth', Service.YOUTUBE, p.protect)
+cookie = dict(domain='.youtube.com', path='/', name='SAPISID', value='synthetic', expires=-1)
+assert s.save([cookie])
+"""
+    result = subprocess.run(
+        [sys.executable, '-c', code, str(tmp_path)],
+        input=parent.session_key + b'\n' + str(directory).encode() + b'\n',
+        capture_output=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / 'YouTubeAuth/session.dat').exists()
+    assert (
+        SessionStore(tmp_path / 'YouTubeAuth', Service.YOUTUBE, parent.protect).saved()[0]['value']
+        == 'synthetic'
+    )

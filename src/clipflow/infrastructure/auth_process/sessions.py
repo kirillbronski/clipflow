@@ -23,10 +23,16 @@ AUTH_MODES = (
 )
 
 
+def protected_path(path, protect):
+    owner = getattr(protect, '__self__', None)
+    resolve = getattr(owner, 'protected_path', Path)
+    return resolve(path)
+
+
 def atomic_protected(path, payload, protect):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     encrypted = protect(json.dumps(payload, ensure_ascii=False).encode('utf-8'))
+    path = protected_path(path, protect)
+    path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
         with NamedTemporaryFile(dir=path.parent, prefix='.protected-', delete=False) as stream:
@@ -42,7 +48,7 @@ def atomic_protected(path, payload, protect):
 
 def load_protected(path, protect):
     try:
-        raw = Path(path).read_bytes()
+        raw = protected_path(path, protect).read_bytes()
         if len(raw) > 16 * 1024 * 1024:
             return None
         return json.loads(protect(raw, decrypt=True))
@@ -111,10 +117,17 @@ def cookie_jar(cookies):
 
 class SessionStore:
     def __init__(self, directory, service, protect):
-        self.directory = Path(directory)
+        self._directory = Path(directory)
         self.service = service
         self.protect = protect
-        self.snapshot = self.directory / 'session.dat'
+
+    @property
+    def directory(self):
+        return protected_path(self._directory, self.protect)
+
+    @property
+    def snapshot(self):
+        return self.directory / 'session.dat'
 
     def saved(self):
         if (self.directory / 'logout-request').exists():

@@ -206,7 +206,8 @@ def _start_self_test(app, window, launch, platform, theme, report):
 
 def _platform_services(args, root):
     key = sys.stdin.buffer.readline(128).strip() if args.session_key_stdin else None
-    return PlatformServices(root, session_key=key)
+    directory = sys.stdin.buffer.readline(4096).strip().decode('utf-8') if key else None
+    return PlatformServices(root, session_key=key, session_directory=directory)
 
 
 def sandbox_environment(environ, system=None, flag=None):
@@ -229,7 +230,9 @@ def main(argv=None):
     if isinstance(launch, int):
         return launch
     os.environ.update(sandbox_environment(os.environ))
-    service, directory = launch.service, launch.directory
+    platform = _platform_services(args, launch.root)
+    service = launch.service
+    directory = platform.protected_path(launch.directory)
     directory.mkdir(parents=True, exist_ok=True)
     from PySide6.QtCore import QCoreApplication, QLockFile, Qt
     from PySide6.QtWidgets import QApplication
@@ -256,7 +259,6 @@ def main(argv=None):
     translator.install_qt()
     from clipflow.infrastructure.auth_process.window import AuthWindow
 
-    platform = _platform_services(args, launch.root)
     window = AuthWindow(
         directory,
         service,

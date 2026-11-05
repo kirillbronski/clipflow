@@ -251,3 +251,20 @@ def test_saved_unavailable_browser_resets_on_linux(monkeypatch, tmp_path, browse
     gateway = NativeAuthGateway(tmp_path)
     gateway._getcourse_jar({'method': 'browser', 'browser': browser})
     assert seen == [('chrome',)]
+
+
+@pytest.mark.parametrize('method', ['Opera GX', 'Safari'])
+def test_legacy_browser_import_uses_available_browser_on_linux(monkeypatch, tmp_path, method):
+    from clipflow.infrastructure.auth import NativeAuthGateway
+    from clipflow.infrastructure.auth_process.sessions import atomic_protected, load_protected
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    gateway = NativeAuthGateway(tmp_path)
+    atomic_protected(
+        tmp_path / 'getcourse-profile.dat', {'method': method}, gateway.platform.protect
+    )
+    profile = gateway.import_legacy_getcourse(
+        'https://school.getcourse.ru/pl/teach/control/lesson/view?id=1'
+    )
+    payload = load_protected(gateway._gc_path(profile), gateway.platform.protect)
+    assert payload['browser'] == 'chrome'

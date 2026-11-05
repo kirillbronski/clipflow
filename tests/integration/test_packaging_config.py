@@ -361,3 +361,22 @@ def test_linux_spec_inputs_include_secret_service(monkeypatch, tmp_path):
     cfg = configuration()
     monkeypatch.setattr(cfg, 'resolve_tool', lambda name: tmp_path / name)
     assert 'keyring.backends.SecretService' in cfg.spec_inputs(ROOT, 'linux')['hiddenimports']
+
+
+def test_linux_glibc_gate_has_architecture_specific_floor(tmp_path):
+    import types
+
+    cfg = configuration()
+    for name in ('v39', 'v40'):
+        (tmp_path / name).write_bytes(b'\x7fELF')
+
+    def run(args, **kwargs):
+        return types.SimpleNamespace(stdout='GLIBC_2.' + args[-1].name[1:])
+
+    assert cfg.glibc_violations(tmp_path, run=run, limit=cfg.linux_glibc_limit('x86_64')) == [
+        'v39',
+        'v40',
+    ]
+    assert cfg.glibc_violations(tmp_path, run=run, limit=cfg.linux_glibc_limit('aarch64')) == [
+        'v40'
+    ]
