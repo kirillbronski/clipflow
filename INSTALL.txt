@@ -9,3 +9,21 @@ macOS: перетащите ClipFlow.app из DMG в Applications, затем и
 Настройки и данные входа сохраняются отдельно от приложения.
 Для закрытого контента требуется аккаунт с доступом.
 Исходники и инструкции: https://github.com/kirillbronski/clipflow
+
+
+Linux (Ubuntu 22.04+ / Fedora 40+, x86-64 / ARM64)
+RU: разрешите запуск файла Setup.run как программы в свойствах файла и откройте его.
+Установка без root: ~/.local/opt/ClipFlow. Данные: $XDG_DATA_HOME/ClipFlow или
+~/.local/share/ClipFlow. Для обновления запустите новый установщик; профиль сохраняется.
+Удаление: ярлык «Удалить ClipFlow» в меню; данные пользователя остаются.
+Portable: распакуйте tar.gz целиком и запустите ClipFlow/ClipFlow.
+Для сохранения входа нужно разблокированное GNOME Keyring / KWallet (Secret Service).
+Без него вход доступен только до закрытия программы.
+EN: allow executing Setup.run as a program in file properties, then open it.
+No root is required. Install: ~/.local/opt/ClipFlow. Data: $XDG_DATA_HOME/ClipFlow,
+or ~/.local/share/ClipFlow. Run the newer installer to update, preserving the profile.
+Use “Uninstall ClipFlow” from the applications menu; user data is retained.
+Portable: extract the complete tar.gz, then run ClipFlow/ClipFlow.
+Persistent sign-in needs an unlocked Secret Service store (GNOME Keyring / KWallet).
+Without one, sign-in lasts only until ClipFlow closes.
+CLI update: pass both --root PATH and ClipFlowUpgradeTarget=PATH to the install command.

@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -24,15 +25,19 @@ def clean_environment(data):
     env.update(
         PYTHONNOUSERSITE='1',
         CLIPFLOW_DATA_DIR=str(data),
-        QT_QPA_PLATFORM='windows' if os.name == 'nt' else 'cocoa',
     )
+    if sys.platform.startswith('linux'):
+        if not env.get('DISPLAY') and not env.get('WAYLAND_DISPLAY'):
+            env['QT_QPA_PLATFORM'] = 'offscreen'
+    else:
+        env['QT_QPA_PLATFORM'] = 'windows' if os.name == 'nt' else 'cocoa'
     return env
 
 
 def inspect_package(executable):
     from PyInstaller.archive.readers import CArchiveReader
 
-    root = executable.parent if os.name == 'nt' else executable.parents[2]
+    root = executable.parents[2] if sys.platform == 'darwin' else executable.parent
     files = [p for p in root.rglob('*') if p.is_file()]
     bad = [
         str(p.relative_to(root))

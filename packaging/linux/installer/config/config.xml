@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Installer>
+  <Name>ClipFlow</Name><Version>2.1.0</Version><Title>ClipFlow</Title>
+  <Publisher>ClipFlow</Publisher><TargetDir>@HomeDir@/.local/opt/ClipFlow</TargetDir>
+  <RunProgram>@TargetDir@/ClipFlow</RunProgram>
+  <MaintenanceToolName>maintenancetool</MaintenanceToolName>
+  <ControlScript>controller.qs</ControlScript><WizardStyle>Modern</WizardStyle>
+  <InstallerApplicationIcon>clipflow</InstallerApplicationIcon>
+  <AllowNonAsciiCharacters>true</AllowNonAsciiCharacters><AllowSpaceInPath>true</AllowSpaceInPath>
+  <RemoveTargetDir>false</RemoveTargetDir>
+  <Translations><Translation>ifw_ru</Translation><Translation>qt_ru</Translation><Translation>ifw_en</Translation><Translation>qt_en</Translation></Translations>
+</Installer>

@@ -73,6 +73,8 @@ def test_missing_backend_is_unavailable(monkeypatch):
 @pytest.fixture
 def linux(monkeypatch):
     monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    backend = Backend()
+    monkeypatch.setattr(linux_secrets, '_backend', lambda: backend)
 
 
 def test_linux_protect_round_trips_with_stored_key(linux, monkeypatch, tmp_path):
