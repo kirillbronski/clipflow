@@ -57,7 +57,6 @@ def _qt(module, source, build, prefix):
             '-no-cups',
             '-no-sql-sqlite',
             '-no-feature-gssapi',
-            '-no-qml-debug',
             '-no-opengl',
             '-no-egl',
             '-no-xinput2',
@@ -77,7 +76,7 @@ def _qt(module, source, build, prefix):
     else:
         args = [prefix / 'bin/qt-configure-module', source]
         if module == 'qtdeclarative':
-            args += ['-no-feature-quick']
+            args += ['-no-feature-quick', '-no-qml-debug']
     _run(args, build)
     _run(['cmake', '--build', '.', '--parallel', '2'], build)
     _run(['cmake', '--install', '.'], build)
