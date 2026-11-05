@@ -25,7 +25,9 @@ ClipFlow's own code is published without an open-source license. See COPYRIGHT.m
   Archive LICENSE.txt and existing GPL texts accompany distributions.
 - Node.js v22.23.4, linux-x64/linux-arm64; vendor LICENSE copied from the archive.
   Source/license: https://github.com/nodejs/node/tree/v22.23.4 .
-- Qt Installer Framework 4.8.1 official Linux x64 and ARM64 installers. Build tools
+- Qt Installer Framework 4.8.1: official Linux x64 tools; ARM64 tools built from
+  vendor sources against static Qt 6.7.2 (qtbase, qtdeclarative, qttools, qt5compat).
+  Source archive SHA256 values and build commands are in scripts/linux_qtifw.py. Build tools
   are not included in the ClipFlow application; the generated installer uses QtIFW.
   GPLv3 with the Qt Installer Framework distribution exception and third-party
   notices are retained under assets/licenses/QtIFW-*.

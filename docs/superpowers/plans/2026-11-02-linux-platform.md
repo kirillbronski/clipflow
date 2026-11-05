@@ -285,7 +285,8 @@
 ## Owner-approved implementation refinements — 5 November 2026
 
 ARM64 minimum is Ubuntu24.04/glibc2.39; x86-64 remains Ubuntu22.04/glibc2.35.
-Official PySide6 6.10.3 ARM64 wheels require glibc2.39. Official QtIFW4.8.1 binaries
-exist for both architectures, so use pinned vendor binaries instead of building QtIFW.
+Official PySide6 6.10.3 ARM64 wheels require glibc2.39. Official QtIFW4.8.1 x64 binaries are pinned. The ARM64 binary requires obsolete
+libtiff.so.5 on Ubuntu24; build QtIFW4.8.1 against static Qt6.7.2 from pinned
+vendor source archives, cache verified tools, and run full native installer smoke.
 Temporary authentication must not replace durable profiles: use a private RAM-backed
 /dev/shm directory, shared with the auth child via stdin along with its ephemeral key.

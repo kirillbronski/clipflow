@@ -24,8 +24,10 @@ D-Bus/keyring-сессии 2 PASS; QtIFW4.8.1 с тестовым executable: у
 проверка готового приложения. Полный suite, exact-SHA CI и пакеты записываются
 ниже после завершения; сейчас не считаются подтверждёнными.
 
-План уточнён: у QtIFW4.8.1 существуют официальные ARM64 binaries — закреплены
-обе архитектуры с SHA256. CLI обновление требует явного ClipFlowUpgradeTarget,
+QtIFW4.8.1 x64 — официальный закреплённый binary. ARM64 binary потребовал
+устаревшую libtiff.so.5 на Ubuntu24; для ARM64 возвращена сборка из исходников
+QtIFW4.8.1 + static Qt6.7.2 с SHA256 и кешем. Упаковщик и installerbase проверяются
+после сборки и восстановления кеша. CLI обновление требует явного ClipFlowUpgradeTarget,
 потому что QtIFW проверяет --root до installationStarted. GUI обновляет только
 после нажатия Install. RemoveTargetDir=false сохраняет чужие файлы; пустой каталог
 установки может остаться. Маркер продукта — обычный clipflow-install.txt:

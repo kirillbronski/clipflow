@@ -24,7 +24,10 @@ review исправлены имена generic outputs/повтор коллек
 x86-64: Ubuntu22.04+/glibc2.35; ARM64: Ubuntu24.04+/glibc2.39.
 Fedora40+ поддерживается обеими архитектурами. Собирайте на соответствующей ОС/архитектуре.
 `python scripts/linux_tools.py --arch x86_64 --dest .runtime/linux` получает закреплённые
-FFmpeg/Node/QtIFW с SHA256; для ARM64 используйте `aarch64`.
+FFmpeg/Node/QtIFW с SHA256; для ARM64 используйте `aarch64`. На ARM64 QtIFW4.8.1
+собирается со static Qt6.7.2 из закреплённых исходников (официальный ARM binary
+требует устаревшую libtiff.so.5). Пакеты компилятора, CMake/Ninja и XCB/Fontconfig
+указаны в `.github/workflows/build.yml`; CI кеширует проверенный `.runtime/linux/qtifw`.
 Добавьте `.runtime/linux/bin` в PATH и задайте
 `QTIFW_BINARYCREATOR` на `.runtime/linux/qtifw/bin/binarycreator`, затем выполните
 `python scripts/check.py` и `python scripts/build.py`.

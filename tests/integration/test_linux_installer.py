@@ -106,7 +106,8 @@ def test_linux_tool_pins_are_complete():
 
     tools = script('linux_tools')
     for arch in ('x86_64', 'aarch64'):
-        for name in ('ffmpeg', 'node', 'qtifw'):
+        names = ('ffmpeg', 'node', 'qtifw') if arch == 'x86_64' else ('ffmpeg', 'node')
+        for name in names:
             pin = tools.PINS[arch][name]
             assert pin['url'].startswith('https://')
             assert re.fullmatch('[a-f0-9]{64}', pin['sha256'])
@@ -124,3 +125,21 @@ def test_linux_tools_rejects_checksum_mismatch(tmp_path):
             'https://example.test/tool', destination, '0' * 64, download=download
         )
     assert not destination.exists()
+
+
+def test_arm64_uses_native_source_built_qtifw(monkeypatch, tmp_path):
+    import types
+
+    tools = script('linux_tools')
+    creator = tmp_path / 'qtifw/bin/binarycreator'
+
+    def build(destination):
+        assert destination == tmp_path
+        return creator
+
+    def reject_binary(*args):
+        pytest.fail('The vendor ARM64 binary requires obsolete libtiff.so.5')
+
+    monkeypatch.setitem(sys.modules, 'linux_qtifw', types.SimpleNamespace(build_qtifw=build))
+    monkeypatch.setattr(tools, 'download_checked', reject_binary)
+    assert tools.install_qtifw('aarch64', tmp_path) == creator

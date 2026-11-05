@@ -34,10 +34,6 @@ PINS = {
             'url': 'https://nodejs.org/dist/v22.23.4/node-v22.23.4-linux-arm64.tar.xz',
             'sha256': '6287aa46b6c375d816e63ae66d024fbbfd70404825aabdfdf898a970871d2f4b',
         },
-        'qtifw': {
-            'url': 'https://download.qt.io/official_releases/qt-installer-framework/4.8.1/QtInstallerFramework-linux-arm64-4.8.1.run',
-            'sha256': '2f1da1df46ac7f42b137d931e7c6d6ce35fc921016cf583cbede682777265426',
-        },
     },
 }
 
@@ -92,6 +88,14 @@ def install_tools(arch, destination):
         pin = PINS[arch][name]
         archive = download_checked(pin['url'], destination / (name + '.tar.xz'), pin['sha256'])
         _archive_tool(archive, destination, name, binaries, licenses)
+    return install_qtifw(arch, destination)
+
+
+def install_qtifw(arch, destination):
+    if arch == 'aarch64':
+        from linux_qtifw import build_qtifw
+
+        return build_qtifw(destination)
     pin = PINS[arch]['qtifw']
     setup = download_checked(pin['url'], destination / 'qtifw.run', pin['sha256'])
     setup.chmod(setup.stat().st_mode | 0o111)
