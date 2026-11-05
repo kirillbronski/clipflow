@@ -209,11 +209,26 @@ def _platform_services(args, root):
     return PlatformServices(root, session_key=key)
 
 
+def sandbox_environment(environ, system=None, flag=None):
+    system = sys.platform if system is None else system
+    result = dict(environ)
+    if system.startswith('linux'):
+        flag = flag or Path('/proc/sys/kernel/apparmor_restrict_unprivileged_userns')
+        try:
+            restricted = flag.read_text().strip() == '1'
+        except OSError:
+            restricted = False
+        if restricted:
+            result['QTWEBENGINE_DISABLE_SANDBOX'] = '1'
+    return result
+
+
 def main(argv=None):
     args = _parser().parse_args(sys.argv[1:] if argv is None else argv)
     launch = _launch(args)
     if isinstance(launch, int):
         return launch
+    os.environ.update(sandbox_environment(os.environ))
     service, directory = launch.service, launch.directory
     directory.mkdir(parents=True, exist_ok=True)
     from PySide6.QtCore import QCoreApplication, QLockFile, Qt
