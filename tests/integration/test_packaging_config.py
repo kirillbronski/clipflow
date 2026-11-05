@@ -301,3 +301,63 @@ def test_coverage_measures_only_current_platform(tmp_path, monkeypatch, system, 
     coverage = Coverage(config_file=str(ROOT / 'pyproject.toml'), data_file=str(tmp_path / 'data'))
     own = {'win32': 'windows', 'darwin': 'macos', 'linux': 'linux'}[system]
     assert bool(coverage.analysis2(str(source))[1]) is (marked == own)
+
+
+@pytest.mark.parametrize(
+    ('machine', 'expected'),
+    [('x86_64', 'x86_64'), ('amd64', 'x86_64'), ('arm64', 'aarch64'), ('aarch64', 'aarch64')],
+)
+def test_linux_arch_normalizes(machine, expected):
+    assert configuration().linux_arch(machine) == expected
+
+
+def test_linux_arch_refuses_unknown():
+    with pytest.raises(ValueError, match='Unsupported Linux architecture'):
+        configuration().linux_arch('riscv64')
+
+
+def test_linux_artifact_names():
+    assert configuration().linux_artifact_names('2.1.0', 'aarch64') == {
+        'setup': 'ClipFlow-2.1.0-Linux-aarch64-Setup.run',
+        'portable': 'ClipFlow-2.1.0-Linux-aarch64-portable.tar.gz',
+    }
+
+
+def test_max_glibc_reads_highest_version():
+    cfg = configuration()
+    assert cfg.max_glibc('GLIBC_2.17 GLIBC_2.34 GLIBC_2.2.5 GLIBC_PRIVATE') == (2, 34)
+    assert cfg.max_glibc('no symbol versions') is None
+
+
+def test_glibc_violations_lists_only_newer_elf(tmp_path):
+    import types
+
+    cfg = configuration()
+    for name, content in [('new', b'\x7fELFnew'), ('old', b'\x7fELFold'), ('text', b'hello')]:
+        (tmp_path / name).write_bytes(content)
+    seen = []
+
+    def run(args, **kwargs):
+        seen.append(Path(args[-1]).name)
+        return types.SimpleNamespace(
+            stdout='GLIBC_2.38' if args[-1].name == 'new' else 'GLIBC_2.35'
+        )
+
+    assert cfg.glibc_violations(tmp_path, run=run) == ['new']
+    assert set(seen) == {'new', 'old'}
+
+
+def test_desktop_entry_quotes_space_and_cyrillic_path():
+    entry = configuration().desktop_entry('/home/кирилл a/ClipFlow')
+    assert 'Exec="/home/кирилл a/ClipFlow"\n' in entry
+    assert 'Type=Application\n' in entry
+    assert 'StartupWMClass=ClipFlow\n' in entry
+    with pytest.raises(ValueError, match='Invalid desktop entry'):
+        configuration().desktop_entry('/tmp/file\nInjected=true')
+
+
+def test_linux_spec_inputs_include_secret_service(monkeypatch, tmp_path):
+    pytest.importorskip('secretstorage')
+    cfg = configuration()
+    monkeypatch.setattr(cfg, 'resolve_tool', lambda name: tmp_path / name)
+    assert 'keyring.backends.SecretService' in cfg.spec_inputs(ROOT, 'linux')['hiddenimports']
