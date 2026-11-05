@@ -107,7 +107,10 @@ class WindowDialogs:
             action.setEnabled(enabled)
             action.triggered.connect(slot)
 
-        reveal = 'row_menu.reveal' if sys.platform == 'darwin' else 'row_menu.reveal_windows'
+        reveal = {
+            'darwin': 'row_menu.reveal',
+            'win32': 'row_menu.reveal_windows',
+        }.get(sys.platform, 'row_menu.reveal_linux')
         add(reveal, lambda: presenter.open_result(job_id), bool(job.result_files))
         self._link_items(add, job.request.link)
         menu.addSeparator()

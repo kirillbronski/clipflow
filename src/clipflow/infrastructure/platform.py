@@ -10,6 +10,16 @@ SYSTEM = sys.platform
 _key_lock = threading.Lock()
 
 
+def platform_name(system=None):
+    system = sys.platform if system is None else system
+    if system.startswith('linux'):
+        return 'linux'
+    try:
+        return {'win32': 'windows', 'darwin': 'macos'}[system]
+    except KeyError:
+        raise ValueError('Unsupported platform: ' + system) from None
+
+
 def data_directory():
     if os.environ.get('CLIPFLOW_DATA_DIR'):
         return Path(os.environ['CLIPFLOW_DATA_DIR']).expanduser().resolve()

@@ -149,3 +149,16 @@ def test_choose_folder_returns_the_choice_or_nothing(monkeypatch, services, tmp_
     assert services.choose_folder(None, tmp_path) == tmp_path.resolve()
     assert services.choose_folder(None, tmp_path) is None
     assert seen == [str(tmp_path), str(tmp_path)]
+
+
+@pytest.mark.parametrize(
+    ('system', 'expected'),
+    [('win32', 'windows'), ('darwin', 'macos'), ('linux', 'linux'), ('linux2', 'linux')],
+)
+def test_platform_name_maps_each_desktop_os(system, expected):
+    assert platform.platform_name(system) == expected
+
+
+def test_platform_name_refuses_unsupported_os():
+    with pytest.raises(ValueError, match='Unsupported platform'):
+        platform.platform_name('sunos5')

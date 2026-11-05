@@ -274,3 +274,30 @@ def test_check_keeps_an_explicit_qt_platform(monkeypatch):
     main, _, _ = offline_check(monkeypatch, [0, 0])
     assert main() == 0
     assert os.environ['QT_QPA_PLATFORM'] == 'cocoa'
+
+
+def test_resolve_tool_uses_linux_runtime_folder(monkeypatch, tmp_path):
+    cfg = configuration()
+    monkeypatch.setattr(cfg, 'ROOT', tmp_path)
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    monkeypatch.delenv('CLIPFLOW_FFMPEG_PATH', raising=False)
+    monkeypatch.delenv('CLIPFLOW_BIN_DIR', raising=False)
+    tool = tmp_path / '.runtime/linux/bin/ffmpeg'
+    tool.parent.mkdir(parents=True)
+    tool.write_bytes(b'test')
+    assert cfg.runtime_folder('linux') == 'linux'
+    assert cfg.resolve_tool('ffmpeg') == tool
+
+
+@pytest.mark.parametrize('system', ['win32', 'darwin', 'linux'])
+@pytest.mark.parametrize('marked', ['windows', 'macos', 'linux'])
+def test_coverage_measures_only_current_platform(tmp_path, monkeypatch, system, marked):
+    from coverage import Coverage
+
+    gate = module('check_coverage', ROOT / 'scripts/check_coverage.py')
+    monkeypatch.setenv('CLIPFLOW_FOREIGN_OS', gate.foreign_system(system))
+    source = tmp_path / 'native.py'
+    source.write_text(f'def seal():  # pragma: only {marked}\n    return 1\n', encoding='utf-8')
+    coverage = Coverage(config_file=str(ROOT / 'pyproject.toml'), data_file=str(tmp_path / 'data'))
+    own = {'win32': 'windows', 'darwin': 'macos', 'linux': 'linux'}[system]
+    assert bool(coverage.analysis2(str(source))[1]) is (marked == own)

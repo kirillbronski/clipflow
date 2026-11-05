@@ -3,10 +3,21 @@
 import os
 import runpy
 import shutil
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_VERSION = runpy.run_path(str(ROOT / 'src/clipflow/version.py'))['APP_VERSION']
+
+
+def runtime_folder(system=None):
+    system = sys.platform if system is None else system
+    if system.startswith('linux'):
+        return 'linux'
+    try:
+        return {'win32': 'windows', 'darwin': 'macos'}[system]
+    except KeyError:
+        raise ValueError('Unsupported platform: ' + system) from None
 
 
 def resolve_tool(name):
@@ -19,7 +30,7 @@ def resolve_tool(name):
     executable = name + ('.exe' if os.name == 'nt' else '')
     for folder in (
         Path(os.environ.get('CLIPFLOW_BIN_DIR', 'nonexistent')),
-        ROOT / '.runtime' / ('windows' if os.name == 'nt' else 'macos') / 'bin',
+        ROOT / '.runtime' / runtime_folder() / 'bin',
     ):
         candidate = folder / executable
         if candidate.is_file():

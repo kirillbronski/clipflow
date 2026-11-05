@@ -161,3 +161,12 @@ def test_normal_run_waits_for_running_work_before_exit(monkeypatch, tmp_path, qt
     assert window.presenter.is_closed
     window.close()
     window.deleteLater()
+
+
+def test_binary_searches_linux_runtime_folder(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    monkeypatch.setattr(bootstrap, '__file__', str(tmp_path / 'src/clipflow/ui/bootstrap.py'))
+    tool = tmp_path / '.runtime/linux/bin/ffmpeg'
+    tool.parent.mkdir(parents=True)
+    tool.write_bytes(b'test')
+    assert bootstrap._binary('ffmpeg') == str(tool)
