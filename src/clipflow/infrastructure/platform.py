@@ -23,6 +23,10 @@ def platform_name(system=None):
 def data_directory():
     if os.environ.get('CLIPFLOW_DATA_DIR'):
         return Path(os.environ['CLIPFLOW_DATA_DIR']).expanduser().resolve()
+    if SYSTEM.startswith('linux'):
+        xdg = Path(os.environ.get('XDG_DATA_HOME', ''))
+        base = xdg if xdg.is_absolute() else Path.home() / '.local/share'
+        return base / 'ClipFlow'
     if SYSTEM == 'darwin':
         return Path.home() / 'Library/Application Support/ClipFlow'
     return Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'ClipFlow'

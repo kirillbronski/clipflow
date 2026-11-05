@@ -162,3 +162,38 @@ def test_platform_name_maps_each_desktop_os(system, expected):
 def test_platform_name_refuses_unsupported_os():
     with pytest.raises(ValueError, match='Unsupported platform'):
         platform.platform_name('sunos5')
+
+
+@pytest.mark.parametrize(
+    ('xdg', 'suffix'),
+    [
+        ('absolute', 'xdg/ClipFlow'),
+        ('rel/x', '.local/share/ClipFlow'),
+        (None, '.local/share/ClipFlow'),
+    ],
+)
+def test_linux_data_directory_obeys_xdg(monkeypatch, tmp_path, xdg, suffix):
+    monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    monkeypatch.delenv('CLIPFLOW_DATA_DIR', raising=False)
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    if xdg is None:
+        monkeypatch.delenv('XDG_DATA_HOME', raising=False)
+    else:
+        monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path / 'xdg') if xdg == 'absolute' else xdg)
+    assert platform.data_directory() == tmp_path / suffix
+
+
+def test_linux_data_dir_accepts_cyrillic_and_space_home(monkeypatch, tmp_path):
+    monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    monkeypatch.delenv('CLIPFLOW_DATA_DIR', raising=False)
+    monkeypatch.delenv('XDG_DATA_HOME', raising=False)
+    home = tmp_path / 'кирилл a'
+    monkeypatch.setattr(Path, 'home', lambda: home)
+    assert platform.data_directory() == home / '.local/share/ClipFlow'
+
+
+def test_explicit_data_dir_wins_on_linux(monkeypatch, tmp_path):
+    monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    monkeypatch.setenv('CLIPFLOW_DATA_DIR', str(tmp_path / 'explicit'))
+    monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path / 'xdg'))
+    assert platform.data_directory() == tmp_path / 'explicit'
