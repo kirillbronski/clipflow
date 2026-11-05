@@ -72,7 +72,20 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Build and smoke native package
+        if: runner.os != 'Linux'
         run: python scripts/build.py
+      - name: Build and smoke Linux package with diagnostic log
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python scripts/build.py 2>&1 | tee work/native-build.log
+      - name: Linux build diagnostics
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build-log-${{ matrix.os }}
+          path: work/native-build.log
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Candidate artifacts and native proof
         uses: actions/upload-artifact@v4
         with:
