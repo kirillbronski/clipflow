@@ -78,9 +78,9 @@ def _qt(module, source, build, prefix):
     else:
         args = [prefix / 'bin/qt-configure-module', source]
         if module == 'qtdeclarative':
-            args += ['-no-feature-quick', '-no-qml-debug']
+            args += ['-no-qml-debug']
     _run(args, build)
-    _run(['cmake', '--build', '.', '--parallel', '2'], build)
+    _run(['cmake', '--build', '.', '--parallel', str(min(4, os.cpu_count() or 1))], build)
     _run(['cmake', '--install', '.'], build)
 
 
@@ -106,7 +106,7 @@ def build_qtifw(destination):
         _qt(module, source, build / (module + '-build'), prefix)
     source = _source('qtifw', build)
     _run([prefix / 'bin/qmake', 'CONFIG+=release', 'CONFIG+=lzmasdk'], source)
-    _run(['make', '-j2'], source)
+    _run(['make', '-j' + str(min(4, os.cpu_count() or 1))], source)
     shutil.rmtree(target, ignore_errors=True)
     shutil.copytree(source / 'bin', target / 'bin')
     _probe(target)
