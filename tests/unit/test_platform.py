@@ -197,3 +197,57 @@ def test_explicit_data_dir_wins_on_linux(monkeypatch, tmp_path):
     monkeypatch.setenv('CLIPFLOW_DATA_DIR', str(tmp_path / 'explicit'))
     monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path / 'xdg'))
     assert platform.data_directory() == tmp_path / 'explicit'
+
+
+@pytest.mark.parametrize(
+    ('system', 'excluded'), [('linux', ('opera_gx', 'safari')), ('darwin', ()), ('win32', ())]
+)
+def test_browser_list_matches_platform(system, excluded):
+    from clipflow.domain.models import BROWSERS, browsers_for
+
+    assert browsers_for(system) == tuple(b for b in BROWSERS if b not in excluded)
+
+
+def test_linux_yandex_cookie_folder(monkeypatch):
+    from clipflow.infrastructure.auth import NativeAuthGateway
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    assert NativeAuthGateway.browser_source('yandex') == (
+        'chrome',
+        str(Path.home() / '.config/yandex-browser'),
+    )
+
+
+@pytest.mark.parametrize('browser', ['opera_gx', 'safari'])
+def test_configure_rejects_unavailable_browser_on_linux(monkeypatch, tmp_path, browser):
+    from clipflow.infrastructure.auth import NativeAuthGateway
+    from clipflow.providers.base import MediaFailure
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    with pytest.raises(MediaFailure, match='auth_invalid_settings'):
+        NativeAuthGateway(tmp_path).configure_getcourse(
+            'https://school.getcourse.ru/pl/teach/control/lesson/view?id=1',
+            'browser',
+            browser=browser,
+        )
+
+
+@pytest.mark.parametrize('browser', ['opera_gx', 'safari'])
+def test_saved_unavailable_browser_resets_on_linux(monkeypatch, tmp_path, browser):
+    from http.cookiejar import CookieJar
+
+    import yt_dlp.cookies
+
+    from clipflow.infrastructure.auth import NativeAuthGateway
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    seen = []
+
+    def load(file, source, ydl):
+        seen.append(source)
+        return CookieJar()
+
+    monkeypatch.setattr(yt_dlp.cookies, 'load_cookies', load)
+    gateway = NativeAuthGateway(tmp_path)
+    gateway._getcourse_jar({'method': 'browser', 'browser': browser})
+    assert seen == [('chrome',)]

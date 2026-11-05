@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clipflow.domain.models import BROWSERS, Service
+from clipflow.domain.models import Service, browsers_for
 from clipflow.ui.composer import NAMES
 
 
@@ -119,7 +119,7 @@ class GetCourseDialog(QDialog):
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
         self.file = QLineEdit()
         self.browser = QComboBox()
-        for browser in BROWSERS:
+        for browser in browsers_for():
             self.browser.addItem(
                 {
                     'chrome': 'Google Chrome',

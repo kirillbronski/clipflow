@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from clipflow.domain.models import BROWSERS, ContentKind, Service
+from clipflow.domain.models import ContentKind, Service, browsers_for
 from clipflow.domain.urls import parse_url
 from clipflow.infrastructure.auth_process.sessions import (
     FOLDERS,
@@ -193,11 +193,16 @@ class NativeAuthGateway:
                 info = warning = error = debug
 
             with YoutubeDL({'quiet': True, 'no_warnings': True, 'logger': Quiet()}) as ydl:
-                return load_cookies(None, self.browser_source(payload['browser']), ydl)
+                browser = payload.get('browser')
+                if browser not in browsers_for():
+                    browser = browsers_for()[0]
+                return load_cookies(None, self.browser_source(browser), ydl)
         return None
 
     @staticmethod
     def browser_source(browser):
+        if browser == 'yandex' and sys.platform.startswith('linux'):
+            return 'chrome', str(Path.home() / '.config/yandex-browser')
         if browser == 'yandex':
             folder = (
                 Path.home() / 'Library/Application Support/Yandex/YandexBrowser'
@@ -225,7 +230,7 @@ class NativeAuthGateway:
             raise MediaFailure('auth_invalid_settings')
         if method == 'cookies' and not Path(file).is_file():
             raise MediaFailure('auth_invalid_settings')
-        if method == 'browser' and browser not in BROWSERS:
+        if method == 'browser' and browser not in browsers_for():
             raise MediaFailure('auth_invalid_settings')
         payload = {
             'school': host,

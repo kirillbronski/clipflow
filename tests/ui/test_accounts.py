@@ -218,3 +218,18 @@ def test_accounts_warns_when_secrets_not_persistent(make_window, tmp_path, monke
     monkeypatch.setattr(gateway, 'secrets_persistent', lambda: True)
     window.accounts_page.refresh()
     assert not window.accounts_page.secret_warning.isVisible()
+
+
+def test_accounts_combo_lists_linux_browsers(make_window, monkeypatch):
+    import sys
+
+    from clipflow.ui.accounts import GetCourseDialog
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    window, _ = make_window()
+    dialog = GetCourseDialog(window.presenter, window.tr, parent=window)
+    choices = [dialog.browser.itemData(i) for i in range(dialog.browser.count())]
+    assert 'chrome' in choices
+    assert 'opera_gx' not in choices
+    assert 'safari' not in choices
+    dialog.deleteLater()
