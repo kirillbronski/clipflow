@@ -2,6 +2,31 @@
 
 Обновлено 1 ноября 2026 года (2.1.0). Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
+## Linux — продолжение 5 ноября 2026
+
+Владелец слил PR #3 в main (`c61eceb`), затем поручил выполнить Linux-план в dev.
+Базовый dev: `1e48475`. Спецификация: `docs/superpowers/specs/2026-11-02-linux-platform-design.md`;
+план: `docs/superpowers/plans/2026-11-02-linux-platform.md`; ручная QA: `docs/LINUX-QA.md`.
+Реализованы XDG-пути, Secret Service/Fernet с временным ключом и предупреждением,
+передача ключа auth child через stdin и off-the-record browser при fallback,
+systemd-inhibit, список браузеров Linux, отдельный Ubuntu sandbox workaround,
+PyInstaller/QtIFW .run и portable tar.gz, glibc<=2.35 gate, CI для Ubuntu обеих архитектур.
+Обнаружена и исправлена высота свёрнутой карточки с Linux system font (Qt heightForWidth).
+
+Локально: Python3.12/Linux x86-64, настоящая проверка Secret Service в отдельной
+D-Bus/keyring-сессии 2 PASS; QtIFW4.8.1 с тестовым executable: установка → обновление
+→ удаление в пути с пробелом/кириллицей PASS, профиль сохранён. Это не frozen
+проверка готового приложения. Полный suite, exact-SHA CI и пакеты записываются
+ниже после завершения; сейчас не считаются подтверждёнными.
+
+План уточнён: у QtIFW4.8.1 существуют официальные ARM64 binaries — закреплены
+обе архитектуры с SHA256. CLI обновление требует явного ClipFlowUpgradeTarget,
+потому что QtIFW проверяет --root до installationStarted. GUI обновляет только
+после нажатия Install. RemoveTargetDir=false сохраняет чужие файлы; пустой каталог
+установки может остаться. Маркер продукта — обычный clipflow-install.txt:
+QtIFW не включил скрытый .clipflow-install в фактический тестовый пакет.
+Ручная Fedora44/Ubuntu ARM64 QA, личные/live gates и публичный релиз остаются открытыми.
+
 ## 2.1.0 собрана и установлена — 1 ноября
 
 70e0e86 (после зелёного CI eb72b51 на обеих ОС): Mac и Parallels — установлено, окна «ClipFlow 2.1.0» открыты; файлы и SHA256SUMS в Мой диск/ClipFlow; отчёт `docs/releases/2.1.0-candidate-2026-11-01.md`. README обновлён: новые снимки `docs/screenshots/readme-*.png` (демо-очередь в настоящем окне на Mac, Windows — снимок экрана VM `prlctl capture`). В PowerShell-скриптах VM не называть функцию `H` — это алиас Get-History.

@@ -5,7 +5,7 @@
 <h1 align="center">ClipFlow</h1>
 
 <p align="center"><strong>Видео, музыка и фотографии — в вашей коллекции.</strong><br />
-Одно приложение для YouTube, Instagram и GetCourse. Windows и macOS. Файлы остаются у вас.</p>
+Одно приложение для YouTube, Instagram и GetCourse. Windows, macOS и Linux (кандидат, ручная приёмка открыта). Файлы остаются у вас.</p>
 
 <p align="center">
   <a href="https://github.com/kirillbronski/clipflow/actions/workflows/check.yml"><img alt="Проверки dev" src="https://github.com/kirillbronski/clipflow/actions/workflows/check.yml/badge.svg?branch=dev" /></a>
@@ -239,3 +239,19 @@ python scripts/check.py
 Собственный код ClipFlow распространяется без открытой лицензии:
 [COPYRIGHT.md](COPYRIGHT.md). У компонентов поставки сохраняются их
 [сторонние лицензии](THIRD-PARTY-NOTICES.md).
+
+
+## Linux: кандидат третьей платформы
+
+Ubuntu 22.04+ / Fedora 40+, x86-64 и ARM64. Установщик `.run` ставит программу
+без root в `~/.local/opt/ClipFlow`; portable `tar.gz` распаковывается целиком.
+Для `.run` может потребоваться «Разрешить запуск как программу» в свойствах файла.
+Данные: `$XDG_DATA_HOME/ClipFlow` при абсолютном пути, иначе `~/.local/share/ClipFlow`.
+GNOME Keyring / KWallet с Secret Service сохраняет ключ сессии. Если хранилище
+отсутствует или заблокировано, окно аккаунтов предупреждает: вход действует
+только до закрытия приложения, браузер входа работает без постоянного профиля.
+
+Сборка: `python scripts/build.py` на Linux; инструменты и контрольные суммы
+закреплены в `scripts/linux_tools.py`. Кандидаты и отчёты — в артефактах GitHub
+Actions; успешность каждого коммита нужно проверять по его отчёту.
+[Чек-лист ручной приёмки Fedora/Ubuntu ARM64](docs/LINUX-QA.md) остаётся открытым.

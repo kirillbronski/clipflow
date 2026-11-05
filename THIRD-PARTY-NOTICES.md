@@ -15,3 +15,23 @@ Dependencies retain their own licenses. Check the exact versions used for each d
 FFmpeg/Node runtimes are not stored in this source repository. Packaging includes the binaries available on the build machine; their exact build configuration and corresponding redistribution obligations must be checked for each public binary release. This dependency list is not a replacement for their full license texts.
 
 ClipFlow's own code is published without an open-source license. See COPYRIGHT.md. This does not change the licenses of third-party components.
+
+
+## Pinned Linux distribution tools
+
+- FFmpeg GPL build: BtbN `autobuild-2026-11-04-12-51`,
+  `n8.1.3-34-ga35157abb9`, linux64/linuxarm64 GPL 8.1 archives.
+  Upstream builds/source configuration: https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-11-04-12-51 .
+  Archive LICENSE.txt and existing GPL texts accompany distributions.
+- Node.js v22.23.4, linux-x64/linux-arm64; vendor LICENSE copied from the archive.
+  Source/license: https://github.com/nodejs/node/tree/v22.23.4 .
+- Qt Installer Framework 4.8.1 official Linux x64 and ARM64 installers. Build tools
+  are not included in the ClipFlow application; the generated installer uses QtIFW.
+  GPLv3 with the Qt Installer Framework distribution exception and third-party
+  notices are retained under assets/licenses/QtIFW-*.
+  Source: https://download.qt.io/official_releases/qt-installer-framework/4.8.1/ .
+- SecretStorage and Jeepney: Linux Secret Service backend dependencies of keyring;
+  their installed package metadata/notices are collected by PyInstaller.
+
+Exact download URLs and architecture-specific SHA256 values: scripts/linux_tools.py.
+The licensing policy for ClipFlow's own code is unchanged.
