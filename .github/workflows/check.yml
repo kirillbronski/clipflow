@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-15]
+        os: [windows-latest, macos-15, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -27,6 +27,11 @@ jobs:
       - name: Install FFmpeg on macOS
         if: runner.os == 'macOS'
         run: brew install ffmpeg
+      - name: Install Linux runtime and test tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libfontconfig1 libdbus-1-3 libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libasound2 ffmpeg gnome-keyring dbus-x11
       - name: Offline checks and coverage
         shell: python
         run: |
@@ -72,6 +77,17 @@ jobs:
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_AUTH_NATIVE: '1'
+      - name: Native Linux Secret Service
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          export XDG_RUNTIME_DIR=$(mktemp -d /tmp/clipflow-secrets.XXXXXX)
+          export XDG_DATA_HOME="$PWD/work/native-secrets/data"
+          export XDG_CONFIG_HOME="$PWD/work/native-secrets/config"
+          export XDG_CACHE_HOME="$PWD/work/native-secrets/cache"
+          dbus-run-session -- sh -c 'printf test | gnome-keyring-daemon --unlock --components=secrets; python -m pytest tests/platform/test_secret_service.py -q'
+        env:
+          CLIPFLOW_SECRET_SERVICE_NATIVE: '1'
       - name: Test failure diagnostics
         if: always()
         shell: python
