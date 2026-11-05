@@ -211,7 +211,11 @@ class MainWindow(QMainWindow):
     def _resize_composer(self, *args):
         def apply():
             instagram = self.composer.service == Service.INSTAGRAM
-            height = max(170, self.composer.sizeHint().height() + 2)
+            layout = self.composer.layout()
+            preferred = layout.totalHeightForWidth(self.composer.width())
+            if preferred < 0 or self.composer.parameters_button.isChecked():
+                preferred = self.composer.sizeHint().height()
+            height = max(170, preferred + 2)
             self.composer_host.setVerticalScrollBarPolicy(
                 Qt.ScrollBarPolicy.ScrollBarAlwaysOff
                 if instagram
