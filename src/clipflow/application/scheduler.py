@@ -1,0 +1,590 @@
+"""Download queue with a slot lane per site. All commands/events run on the owning thread.
+
+YouTube runs up to `limits[YOUTUBE]` jobs at once; Instagram and GetCourse one each, beside it.
+
+Executors must marshal callbacks to that thread (Qt queued signals in T10).
+WorkFinished/WorkFailed/WorkStopped are terminal *worker* acknowledgements: the
+executor must release network/process resources before delivering them. A stop
+request alone never frees the worker slot. Subscribers receive accepted JobEvents;
+command state changes use StageChanged after the repository has been updated.
+"""
+
+from collections import Counter
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
+from typing import Protocol
+from uuid import uuid4
+
+from clipflow.application.errors import JobRuleError
+from clipflow.application.ports import JobRepository
+from clipflow.domain.events import (
+    DetailsFound,
+    FilesSaved,
+    JobEvent,
+    ProgressChanged,
+    RateLimitDeferred,
+    RequestsDiscovered,
+    SelectionRequired,
+    StageChanged,
+    StopReason,
+    TitleChanged,
+    WorkFailed,
+    WorkFinished,
+    WorkStopped,
+)
+from clipflow.domain.models import (
+    TERMINAL_STATES,
+    ContentKind,
+    Job,
+    JobState,
+    MediaDetails,
+    ParsedLink,
+    Service,
+)
+from clipflow.domain.urls import request_key, source_reference
+
+
+class Executor(Protocol):
+    def start(self, job: Job, on_event: Callable[[JobEvent], None]) -> None: ...
+    def stop(self, job_id: str, reason: StopReason) -> None: ...
+
+
+_STAGES = (JobState.PROBING, JobState.DOWNLOADING, JobState.PROCESSING)
+_ACKS = (WorkFinished, WorkFailed, WorkStopped)
+
+
+def _same_media(request) -> tuple:
+    """The same video in the same format: a playlist position or folder does not matter."""
+    link, options = request.link, request.options
+    return link.service, link.canonical_id, options.format, options.max_height
+
+
+@dataclass
+class _Attempt:
+    """One running attempt: its slot is held until the worker acknowledges the end."""
+
+    attempt_id: str
+    launched: bool = False
+    discovered: bool = False
+    stopping: bool = False
+
+
+def _storable(job: Job, details: MediaDetails) -> MediaDetails:
+    """Instagram cover addresses are signed CDN links: kept in memory, never on disk."""
+    if job.request.link.service is Service.INSTAGRAM and details.thumbnail:
+        return replace(details, thumbnail=None)
+    return details
+
+
+class Scheduler:
+    def __init__(self, repository: JobRepository, executor: Executor, *, clock=None):
+        self.repository = repository
+        self.executor = executor
+        self.clock = clock or (lambda: datetime.now(UTC))
+        self.skip_downloaded = False  # «Пропускать уже скачанное в плейлистах»
+        self._instagram_deferred: RateLimitDeferred | None = None
+        self._preferred_job: str | None = None
+        self._running = False
+        self._drained = False
+        self._closed = False
+        self._pumping = False
+        self._active: dict[str, _Attempt] = {}
+        self.limits = dict.fromkeys(Service, 1)
+        self._subscribers: list[Callable[[JobEvent], None]] = []
+
+    def subscribe(self, callback: Callable[[JobEvent], None]) -> Callable[[], None]:
+        self._subscribers.append(callback)
+
+        def unsubscribe():
+            if callback in self._subscribers:
+                self._subscribers.remove(callback)
+
+        return unsubscribe
+
+    @property
+    def active_ids(self) -> tuple[str, ...]:
+        return tuple(self._active)
+
+    def set_youtube_parallel(self, count: int) -> None:
+        """Lowering the limit never stops running jobs: new ones wait for a free slot."""
+        if type(count) is not int or not 1 <= count <= 4:
+            raise ValueError('YouTube parallel downloads must be 1-4')
+        self.limits[Service.YOUTUBE] = count
+        self._pump()
+
+    def _publish(self, event: JobEvent) -> None:
+        for callback in tuple(self._subscribers):
+            callback(event)
+
+    def _save(self, job: Job) -> None:
+        self.repository.update(job)
+        self._publish(JobEvent(job.id, job.attempt_id or '', StageChanged(job.state)))
+
+    def start(self, job_id: str | None = None) -> None:
+        if self._closed:
+            raise JobRuleError('scheduler_closed', 'Scheduler is shut down')
+        if job_id is not None:
+            selected = self.repository.get(job_id)
+            if selected.state != JobState.QUEUED or selected.source_required:
+                raise JobRuleError('job_not_startable', 'Job cannot be started')
+            self._preferred_job = job_id
+        self._running = True
+        self._drained = False
+        self._pump()
+
+    def _pump(self) -> None:
+        # Synchronous executors may finish inside start(): loop, never recurse.
+        if self._pumping:
+            return
+        self._pumping = True
+        try:
+            while self._running and not self._drained:
+                self._defer_waiting_instagram()
+                jobs = self.repository.list()
+                queued = [j for j in jobs if j.state == JobState.QUEUED and not j.source_required]
+                if not queued:
+                    # A running playlist may still add tracks: drained only when nothing runs.
+                    if not self._active:
+                        self._drained = not any(
+                            j.state == JobState.PAUSED
+                            and j.automatic_retry
+                            and j.pause_reason in {'rate_limit', 'rate_spacing'}
+                            and j.next_allowed_at is not None
+                            for j in jobs
+                        )
+                    break
+                # A quality check and downloads never overlap.
+                if getattr(self.executor, 'probing', False):
+                    break
+                job = self._next(jobs, queued)
+                if job is None:
+                    break
+                job = replace(
+                    job,
+                    state=JobState.PROBING,
+                    attempt_id=uuid4().hex,
+                    error=None,
+                    pause_reason=None,
+                    next_allowed_at=None,
+                    automatic_retry=False,
+                )
+                attempt = _Attempt(job.attempt_id)
+                self._active[job.id] = attempt
+                self._save(job)
+                # A subscriber can pause/cancel/shut down while seeing PROBING.
+                if self._active.get(job.id) is not attempt:
+                    continue
+                attempt.launched = True
+                try:
+                    self.executor.start(job, self.handle)
+                except Exception:  # noqa: BLE001  # адаптер исполнителя: наружу только безопасный код, без секретов
+                    # Do not leak arbitrary adapter exceptions (may contain secrets).
+                    self.handle(JobEvent(job.id, job.attempt_id, WorkFailed('worker_start_failed')))
+        finally:
+            self._pumping = False
+
+    def _next(self, jobs: list[Job], queued: list[Job]) -> Job | None:
+        """The first waiting job whose lane has a free slot; a chosen job is first in its lane."""
+        busy = Counter(j.request.link.service for j in jobs if j.id in self._active)
+        preferred = next((j for j in queued if j.id == self._preferred_job), None)
+        if preferred is None:
+            self._preferred_job = None
+        for job in ([preferred] if preferred else []) + queued:
+            lane = job.request.link.service
+            if busy[lane] >= self.limits[lane]:
+                continue
+            if preferred and job is not preferred and lane == preferred.request.link.service:
+                continue
+            if job is preferred:
+                self._preferred_job = None
+            return job
+        return None
+
+    def _stop(self, job_id: str, reason: StopReason) -> None:
+        attempt = self._active.get(job_id)
+        if attempt is not None and not attempt.stopping:
+            if not attempt.launched:
+                del self._active[job_id]
+                return
+            attempt.stopping = True
+            # If stop raises, keep the slot occupied: worker teardown is unproven.
+            self.executor.stop(job_id, reason)
+
+    def pause(self, job_id: str) -> None:
+        job = self.repository.get(job_id)
+        if job.state in TERMINAL_STATES:
+            return
+        if job.state == JobState.PAUSED:
+            if job.automatic_retry:
+                self._save(replace(job, pause_reason='user', automatic_retry=False))
+            return
+        self._save(replace(job, state=JobState.PAUSED, pause_reason='user', automatic_retry=False))
+        self._stop(job_id, 'pause')
+
+    def resume(self, job_id: str) -> None:
+        job = self.repository.get(job_id)
+        if job.source_required:
+            raise JobRuleError('source_required', 'Job source must be provided again')
+        if job.state != JobState.PAUSED or job.pause_reason == 'selection_required':
+            raise JobRuleError('job_not_resumable', 'Job cannot be resumed')
+        if job.next_allowed_at and job.next_allowed_at > self.clock():
+            raise JobRuleError('cooldown_active', 'Cooldown has not expired')
+        self._save(replace(job, state=JobState.QUEUED, pause_reason=None, next_allowed_at=None))
+        self._drained = False
+        self._pump()
+
+    def tick(self) -> None:
+        """Called on the owner thread by T10; construction never resumes network."""
+        if not self._running or self._closed:
+            return
+        for job in self.repository.list():
+            if (
+                job.state == JobState.PAUSED
+                and job.automatic_retry
+                and job.pause_reason in {'rate_limit', 'rate_spacing'}
+                and job.next_allowed_at
+                and job.next_allowed_at <= self.clock()
+            ):
+                self._save(
+                    replace(job, state=JobState.QUEUED, pause_reason=None, next_allowed_at=None)
+                )
+        self._pump()
+
+    def _defer_waiting_instagram(self) -> None:
+        limit = self._instagram_deferred
+        if limit is None or limit.next_allowed_at <= self.clock():
+            return
+        for waiting in self.repository.list():
+            if (
+                waiting.state == JobState.QUEUED
+                and waiting.request.link.service == Service.INSTAGRAM
+            ):
+                self._save(
+                    replace(
+                        waiting,
+                        state=JobState.PAUSED,
+                        pause_reason=limit.reason,
+                        next_allowed_at=limit.next_allowed_at,
+                        automatic_retry=limit.automatic_retry,
+                    )
+                )
+
+    def cancel(self, job_id: str, include_children: bool = True) -> None:
+        self.repository.get(job_id)
+        self._cancel({job_id}, include_children, self.repository.list())
+
+    def _cancel(self, targets: set[str], include_children: bool, jobs) -> None:
+        """Cancel the targets (and their descendants) from one snapshot of the queue."""
+        if include_children:
+            while True:
+                expanded = targets | {j.id for j in jobs if j.parent_id in targets}
+                if expanded == targets:
+                    break
+                targets = expanded
+        # Persist the whole subtree before stop(), which may acknowledge inline.
+        for job in jobs:
+            if job.id in targets and job.state not in TERMINAL_STATES:
+                self._save(
+                    replace(job, state=JobState.CANCELLED, pause_reason=None, next_allowed_at=None)
+                )
+        for job_id in tuple(self._active):
+            if job_id in targets:
+                self._stop(job_id, 'cancel')
+
+    def retry(self, job_id: str) -> None:
+        job = self.repository.get(job_id)
+        if job.source_required:
+            raise JobRuleError('source_required', 'Job source must be provided again')
+        if job.state not in TERMINAL_STATES:
+            raise JobRuleError('job_not_retryable', 'Only terminal jobs can be retried')
+        self._save(
+            replace(job, state=JobState.QUEUED, error=None, pause_reason=None, next_allowed_at=None)
+        )
+        self._drained = False
+        self._pump()
+
+    # Group actions: one snapshot of the queue, unsuitable jobs are skipped instead of refused.
+    def pause_many(self, job_ids: Iterable[str]) -> tuple[str, ...]:
+        targets = set(job_ids)
+        changed = []
+        for job in self.repository.list():
+            if job.id not in targets or job.state in TERMINAL_STATES:
+                continue
+            if job.state == JobState.PAUSED and not job.automatic_retry:
+                continue
+            self._save(
+                replace(job, state=JobState.PAUSED, pause_reason='user', automatic_retry=False)
+            )
+            changed.append(job.id)
+        for job_id in changed:
+            self._stop(job_id, 'pause')
+        return tuple(changed)
+
+    def resume_many(self, job_ids: Iterable[str]) -> tuple[str, ...]:
+        targets = set(job_ids)
+        now = self.clock()
+        changed = []
+        for job in self.repository.list():
+            if (
+                job.id in targets
+                and job.state == JobState.PAUSED
+                and job.pause_reason == 'user'
+                and not job.source_required
+                and not (job.next_allowed_at and job.next_allowed_at > now)
+            ):
+                self._save(
+                    replace(job, state=JobState.QUEUED, pause_reason=None, next_allowed_at=None)
+                )
+                changed.append(job.id)
+        if changed:
+            self._drained = False
+            self._pump()
+        return tuple(changed)
+
+    def retry_many(self, job_ids: Iterable[str]) -> tuple[str, ...]:
+        targets = set(job_ids)
+        changed = []
+        for job in self.repository.list():
+            if (
+                job.id in targets
+                and job.state in {JobState.FAILED, JobState.CANCELLED}
+                and not job.source_required
+            ):
+                self._save(
+                    replace(
+                        job,
+                        state=JobState.QUEUED,
+                        error=None,
+                        pause_reason=None,
+                        next_allowed_at=None,
+                    )
+                )
+                changed.append(job.id)
+        if changed:
+            self._drained = False
+            self._pump()
+        return tuple(changed)
+
+    def provide_source(self, job_id: str, link: ParsedLink) -> None:
+        """Explicit replacement for a source whose secret URL was not persisted."""
+        job = self.repository.get(job_id)
+        if (
+            not job.source_required
+            or job.state not in TERMINAL_STATES | {JobState.PAUSED}
+            or link.service != job.request.link.service
+            or link.kind != job.request.link.kind
+        ):
+            raise JobRuleError('source_not_expected', 'Job is not waiting for this source')
+        if job.request.link.canonical_id != source_reference(link):
+            raise JobRuleError('source_changed', 'Source changed; add it as a new job')
+        request = replace(job.request, link=link)
+        self._save(
+            replace(
+                job,
+                request=request,
+                state=JobState.PAUSED,
+                source_required=False,
+                pause_reason='user',
+                error=None,
+                automatic_retry=False,
+            )
+        )
+
+    def select_items(self, job_id: str, ids: tuple[str, ...]) -> None:
+        job = self.repository.get(job_id)
+        if job.source_required:
+            raise JobRuleError('source_required', 'Job source must be provided again')
+        if job.state != JobState.PAUSED or job.pause_reason != 'selection_required' or not ids:
+            raise JobRuleError(
+                'selection_not_expected', 'Job is not waiting for a nonempty selection'
+            )
+        updated = replace(job.request, selection=ids)
+        self._save(replace(job, request=updated, state=JobState.QUEUED, pause_reason=None))
+        self._drained = False
+        self._pump()
+
+    def refresh_selection(self, job_id: str) -> None:
+        """Explicitly refresh non-persisted material choices after a restart."""
+        job = self.repository.get(job_id)
+        if (
+            job.source_required
+            or job.state != JobState.PAUSED
+            or job.pause_reason != 'selection_required'
+        ):
+            raise JobRuleError('selection_not_expected', 'Job is not waiting for selection')
+        self._save(replace(job, state=JobState.QUEUED, pause_reason=None))
+        self._drained = False
+        self._pump()
+
+    def set_title(self, job_id: str, title: str) -> None:
+        """Name a waiting job ahead of its download; a running job names itself."""
+        job = self.repository.get(job_id)
+        title = ' '.join(title.split())[:240]
+        if not title or job.title == title or job.state not in {JobState.QUEUED, JobState.PAUSED}:
+            return
+        self.repository.update(replace(job, title=title))
+        self._publish(JobEvent(job.id, job.attempt_id or '', TitleChanged(title)))
+
+    def set_details(self, job_id: str, details: MediaDetails) -> None:
+        """Details of a waiting job found ahead of its download; a running job reports its own."""
+        job = self.repository.get(job_id)
+        stored = _storable(job, details)
+        if job.details == stored or job.state not in {JobState.QUEUED, JobState.PAUSED}:
+            return
+        self.repository.update(replace(job, details=stored))
+        self._publish(JobEvent(job.id, job.attempt_id or '', DetailsFound(details)))
+
+    def shutdown(self) -> None:
+        self._closed = True
+        self._running = False  # Must precede stop(): synchronous ack cannot start next.
+        for job_id in tuple(self._active):
+            job = self.repository.get(job_id)
+            if job.state not in TERMINAL_STATES:
+                self._save(replace(job, state=JobState.PAUSED, pause_reason='shutdown'))
+            self._stop(job.id, 'shutdown')
+
+    def clear_queue(self) -> tuple[str, ...]:
+        self._running = False
+        jobs = self.repository.list()
+        identities = tuple(j.id for j in jobs if j.state not in TERMINAL_STATES)
+        # One snapshot for the whole queue: per-job reads made a long playlist take minutes.
+        self._cancel(set(identities), True, jobs)
+        return identities
+
+    def handle(self, event: JobEvent) -> None:
+        attempt = self._active.get(event.job_id)
+        if attempt is None or attempt.attempt_id != event.attempt_id:
+            return
+        job = self.repository.get(event.job_id)
+        payload = event.payload
+        if attempt.stopping:
+            if isinstance(payload, _ACKS):
+                del self._active[event.job_id]
+                self._pump()
+            return
+        handler = next(
+            (_EVENT_HANDLERS[kind] for kind in type(payload).__mro__ if kind in _EVENT_HANDLERS),
+            None,
+        )
+        # Unknown events and stage regressions change nothing and are not published.
+        if handler is None or handler(self, job, payload) is False:
+            return
+        self._publish(event)
+        # Only an ended attempt or new tracks change what can start; progress must not
+        # re-read a long queue on every event.
+        if isinstance(payload, (*_ACKS, RequestsDiscovered)):
+            self._pump()
+
+    def _on_stage(self, job: Job, payload: StageChanged) -> bool:
+        if payload.state not in _STAGES or _STAGES.index(payload.state) < _STAGES.index(job.state):
+            return False
+        self.repository.update(replace(job, state=payload.state))
+        return True
+
+    def _on_files(self, job: Job, payload: FilesSaved) -> None:
+        self.repository.update(
+            replace(job, result_files=tuple(dict.fromkeys(job.result_files + payload.files)))
+        )
+
+    def _on_discovered(self, job: Job, payload: RequestsDiscovered) -> None:
+        attempt = self._active[job.id]
+        attempt.discovered = attempt.discovered or bool(payload.requests)
+        # Historical cancelled/failed jobs must not suppress a new explicit
+        # collection retry. Completed children deduplicate only while their
+        # published outputs still exist; deleted media can be restored.
+        keys = {
+            request_key(j.request)
+            for j in self.repository.list()
+            if j.state not in {JobState.CANCELLED, JobState.FAILED}
+            and (
+                j.state != JobState.COMPLETED
+                or (j.result_files and all(path.is_file() for path in j.result_files))
+            )
+        }
+        # Only a YouTube playlist's tracks: a GetCourse lesson lists its videos by selection.
+        playlist = (
+            job.request.link.service == Service.YOUTUBE
+            and job.request.link.kind == ContentKind.PLAYLIST
+        )
+        downloaded = self._downloaded() if self.skip_downloaded and playlist else set()
+        for request in payload.requests:
+            key = request_key(request)
+            if key not in keys and _same_media(request) not in downloaded:
+                self.repository.add(Job(uuid4().hex, request, parent_id=job.id))
+                keys.add(key)
+
+    def _downloaded(self):
+        """Media already saved in some format, whatever playlist or folder it came from."""
+        return {
+            _same_media(j.request)
+            for j in self.repository.list()
+            if j.state == JobState.COMPLETED
+            and j.result_files
+            and all(path.is_file() for path in j.result_files)
+        }
+
+    def _on_title(self, job: Job, payload: TitleChanged) -> None:
+        self.repository.update(replace(job, title=' '.join(payload.title.split())[:240] or None))
+
+    def _on_details(self, job: Job, payload: DetailsFound) -> None:
+        self.repository.update(replace(job, details=_storable(job, payload.details)))
+
+    def _on_selection(self, job: Job, payload: SelectionRequired) -> None:
+        self._save(replace(job, state=JobState.PAUSED, pause_reason='selection_required'))
+        self._stop(job.id, 'pause')
+
+    def _on_rate_limit(self, job: Job, payload: RateLimitDeferred) -> None:
+        self._instagram_deferred = payload
+        self._save(
+            replace(
+                job,
+                state=JobState.PAUSED,
+                pause_reason=payload.reason,
+                next_allowed_at=payload.next_allowed_at,
+                automatic_retry=payload.automatic_retry,
+            )
+        )
+        self._defer_waiting_instagram()
+        self._stop(job.id, 'pause')
+
+    def _on_progress(self, job: Job, payload: ProgressChanged) -> None:
+        pass  # published as is; the job record does not change
+
+    def _on_finished(self, job: Job, payload: WorkFinished) -> None:
+        attempt = self._active.pop(job.id)
+        has_output = (
+            bool(job.result_files)
+            or attempt.discovered
+            or any(j.parent_id == job.id for j in self.repository.list())
+        )
+        self._save(
+            replace(
+                job,
+                state=JobState.COMPLETED if has_output else JobState.FAILED,
+                error=None if has_output else 'no_output',
+            )
+        )
+
+    def _on_failed(self, job: Job, payload: WorkFailed) -> None:
+        self._active.pop(job.id, None)
+        self._save(replace(job, state=JobState.FAILED, error=payload.error))
+
+    def _on_stopped(self, job: Job, payload: WorkStopped) -> None:
+        self._active.pop(job.id, None)
+        self._save(replace(job, state=JobState.PAUSED, pause_reason='worker_stopped'))
+
+
+_EVENT_HANDLERS = {
+    StageChanged: Scheduler._on_stage,
+    FilesSaved: Scheduler._on_files,
+    RequestsDiscovered: Scheduler._on_discovered,
+    TitleChanged: Scheduler._on_title,
+    DetailsFound: Scheduler._on_details,
+    SelectionRequired: Scheduler._on_selection,
+    RateLimitDeferred: Scheduler._on_rate_limit,
+    ProgressChanged: Scheduler._on_progress,
+    WorkFinished: Scheduler._on_finished,
+    WorkFailed: Scheduler._on_failed,
+    WorkStopped: Scheduler._on_stopped,
+}

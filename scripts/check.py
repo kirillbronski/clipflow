@@ -1,16 +1,48 @@
-"""Run offline regression checks with isolated profiles and no account login."""
-from pathlib import Path
+"""Run the style gate, the supported Qt suite and all runtime coverage gates."""
+
+import argparse
 import os
 import subprocess
 import sys
-import tempfile
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-with tempfile.TemporaryDirectory(prefix='clipflow-check-') as temp:
-    commands = [[sys.executable, ROOT/'run.py', '--ui-self-test']]
-    commands += [[sys.executable, path] for path in sorted((ROOT/'tests').glob('test_*.py'))]
-    for index, command in enumerate(commands):
-        env = dict(os.environ, CLIPFLOW_DATA_DIR=str(Path(temp)/str(index)))
-        print('CHECK', Path(command[1]).name, flush=True)
-        subprocess.run([str(arg) for arg in command], cwd=ROOT, env=env, check=True, timeout=90)
-print('All offline checks passed.', flush=True)
+LINT_COMMANDS = (
+    ('ruff', 'format', '--check', '.'),
+    ('ruff', 'check', '.'),
+)
+
+
+def lint(run=subprocess.run):
+    """Fail fast on formatting or lint findings; ruff output stays visible in CI logs."""
+    for command in LINT_COMMANDS:
+        result = run([sys.executable, '-m', *command], cwd=ROOT)
+        if result.returncode:
+            return result.returncode
+    return 0
+
+
+def main(argv=None, *, run=subprocess.run):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '--qt', action='store_true', help='Compatibility alias; Qt is the only runtime'
+    )
+    parser.parse_args(argv)
+    # pytest writes .coverage under the repository root; read it from there too.
+    os.chdir(ROOT)
+    result = lint(run)
+    if result:
+        return result
+    # Like the CI offline job: no real screen, focus or display scale can fail the suite.
+    # Native GUI checks run separately with an explicit QT_QPA_PLATFORM (docs/TESTING.md).
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from check_coverage import run
+
+    result = run()
+    if not result:
+        print('All offline Qt checks and coverage gates passed.', flush=True)
+    return result
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

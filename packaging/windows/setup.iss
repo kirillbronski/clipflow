@@ -2,6 +2,12 @@
 #ifndef AppVersion
   #error AppVersion must be supplied by scripts/build.py
 #endif
+#ifndef DistributionRoot
+  #error DistributionRoot must be supplied by scripts/build.py
+#endif
+#ifndef OutputRoot
+  #error OutputRoot must be supplied by scripts/build.py
+#endif
 
 [Setup]
 AppId={{7624D3E9-7848-4DB1-A1F9-071096576222}
@@ -15,7 +21,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableDirPage=no
 DisableProgramGroupPage=yes
-OutputDir=..\..\outputs
+OutputDir={#OutputRoot}
 OutputBaseFilename=ClipFlow-Setup-{#AppVersion}
 Compression=lzma2/fast
 SolidCompression=yes
@@ -37,7 +43,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Ярлыки:"
 
 [Files]
-Source: "..\..\outputs\ClipFlow\*"; DestDir: "{app}"; Excludes: "unins*,*.py,*.pyc,*.pyo,__pycache__\*,*.spec,*.log"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DistributionRoot}\*"; DestDir: "{app}"; Excludes: "unins*,*.py,*.pyc,*.pyo,__pycache__\*,*.spec,*.log"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\_internal\customtkinter"

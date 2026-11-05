@@ -1,0 +1,294 @@
+"""Painted compact rows and hit targets; no per-row QPushButtons."""
+
+from PySide6.QtCore import QEvent, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPainterPath, QPen
+from PySide6.QtWidgets import QStyle, QStyledItemDelegate
+
+from clipflow.application.history import result_status
+from clipflow.domain.models import JobState
+from clipflow.ui.i18n import Translator
+from clipflow.ui.job_status import details_text, error_text, group_text, meta_text
+from clipflow.ui.queue_model import JobListModel
+from clipflow.ui.themes import PALETTES
+
+COVER = (80, 45)
+LEFT = COVER[0] + 12  # titles start after the cover column
+
+
+class QueueDelegate(QStyledItemDelegate):
+    action_requested = Signal(str, str)
+
+    def __init__(self, parent=None, *, theme=None, translator=None):
+        super().__init__(parent)
+        self.theme = theme
+        self.tr = translator or Translator(parent=self)
+
+    def second_line(self, job, size=0):
+        """The failure reason, otherwise the file's details, or its source and quality."""
+        if job.state == JobState.FAILED:
+            return error_text(job.error, job.request.link.service, self.tr)
+        return details_text(job, size, self.tr) or meta_text(job, self.tr)
+
+    def sizeHint(self, option, index):
+        return QSize(400, 96)
+
+    @staticmethod
+    def _buttons(rect):
+        return QRect(rect.right() - 78, rect.top() + 26, 30, 30), QRect(
+            rect.right() - 40, rect.top() + 26, 30, 30
+        )
+
+    @staticmethod
+    def _group_buttons(rect):
+        """Folder, menu and «›» (open the group) at the right of a group row."""
+        return tuple(QRect(rect.right() - x, rect.top() + 26, 30, 30) for x in (116, 78, 40))
+
+    def _group_line(self, index, summary):
+        source = index.model()
+        while hasattr(source, 'sourceModel'):
+            source = source.sourceModel()
+        title, percent = source.current_label(summary.current) if summary.current else (None, None)
+        text = group_text(summary, self.tr, title, percent)
+        # No list yet: the parent's own state, as an ordinary row would show it.
+        return text or self.status_text(summary.parent, index.data(JobListModel.ProgressRole))
+
+    def paint(self, painter, option, index):
+        job = index.data(JobListModel.JobRole)
+        if job is None:
+            return
+        summary = index.data(JobListModel.GroupRole)
+        if summary is not None:
+            self._paint_group(painter, option, index, job, summary)
+            return
+        t = self.theme.tokens() if self.theme else PALETTES['dark']
+        painter.save()
+        rect = option.rect.adjusted(0, 0, -2, 0)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        if selected:
+            painter.fillRect(rect, QColor(t['selection']))
+        foreground = t['selection_text'] if selected else t['text']
+        muted = t['selection_text'] if selected else t['muted']
+        painter.setPen(QColor(t['border']))
+        painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+        font = QFont(option.font)
+        self._paint_cover(painter, font, rect, job, t, index.data(JobListModel.CoverRole))
+        left = rect.left() + LEFT
+        available = max(50, rect.width() - 262)
+        font.setPixelSize(13)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QColor(foreground))
+        painter.drawText(
+            QRect(left, rect.top() + 16, available, 23),
+            Qt.AlignmentFlag.AlignVCenter,
+            painter.fontMetrics().elidedText(
+                index.data(JobListModel.TitleRole), Qt.TextElideMode.ElideRight, available
+            ),
+        )
+        font.setPixelSize(11)
+        font.setBold(False)
+        painter.setFont(font)
+        painter.setPen(
+            QColor(t['error'] if job.state == JobState.FAILED and not selected else muted)
+        )
+        painter.drawText(
+            QRect(left, rect.top() + 39, available, 19),
+            Qt.AlignmentFlag.AlignVCenter,
+            painter.fontMetrics().elidedText(
+                self.second_line(job, index.data(JobListModel.SizeRole)),
+                Qt.TextElideMode.ElideRight,
+                available,
+            ),
+        )
+        progress = index.data(JobListModel.ProgressRole)
+        active_progress = bool(
+            progress
+            and progress.total_bytes
+            and job.state in {JobState.DOWNLOADING, JobState.PROCESSING, JobState.PAUSED}
+        )
+        painter.setPen(QColor(foreground if selected else _status_color(job, t)))
+        painter.drawText(
+            QRect(rect.right() - 235, rect.top() + (59 if active_progress else 25), 146, 26),
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+            self.status_text(job, progress),
+        )
+        if active_progress:
+            self._paint_progress(
+                painter, QRect(left, rect.top() + 71, 0, 3), rect, job, t, progress
+            )
+        self._paint_buttons(painter, rect, job, muted)
+        painter.restore()
+
+    def _paint_group(self, painter, option, index, job, summary):
+        t = self.theme.tokens() if self.theme else PALETTES['dark']
+        painter.save()
+        rect = option.rect.adjusted(0, 0, -2, 0)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        if selected:
+            painter.fillRect(rect, QColor(t['selection']))
+        foreground = t['selection_text'] if selected else t['text']
+        muted = t['selection_text'] if selected else t['muted']
+        painter.setPen(QColor(t['border']))
+        painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+        font = QFont(option.font)
+        self._paint_cover(painter, font, rect, job, t, index.data(JobListModel.CoverRole))
+        left = rect.left() + LEFT
+        available = max(50, rect.width() - 222)
+        font.setPixelSize(13)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QColor(foreground))
+        painter.drawText(
+            QRect(left, rect.top() + 16, available, 23),
+            Qt.AlignmentFlag.AlignVCenter,
+            painter.fontMetrics().elidedText(
+                index.data(JobListModel.TitleRole), Qt.TextElideMode.ElideRight, available
+            ),
+        )
+        font.setPixelSize(11)
+        font.setBold(False)
+        painter.setFont(font)
+        failing = (summary.failed and not summary.active) or (
+            not summary.total and job.state == JobState.FAILED
+        )
+        painter.setPen(QColor(t['error'] if failing and not selected else muted))
+        line = self._group_line(index, summary)
+        painter.drawText(
+            QRect(left, rect.top() + 39, available, 19),
+            Qt.AlignmentFlag.AlignVCenter,
+            painter.fontMetrics().elidedText(line, Qt.TextElideMode.ElideRight, available),
+        )
+        painter.setPen(QPen(QColor(muted), 1.5))
+        font.setPixelSize(17)
+        painter.setFont(font)
+        # «↗» opens the folder as on a finished row; «⋮» the group menu; «❯» its screen.
+        for button, glyph in zip(self._group_buttons(rect), ('↗', '⋮', '❯'), strict=True):
+            painter.drawText(button, Qt.AlignmentFlag.AlignCenter, glyph)
+        painter.restore()
+
+    @staticmethod
+    def _paint_cover(painter, font, rect, job, t, cover):
+        """The cover as in 4K, with a play mark on videos; without one, the service badge."""
+        badge = QRect(rect.left(), rect.top() + (rect.height() - COVER[1]) // 2, *COVER)
+        if cover is not None:
+            painter.save()
+            clip = QPainterPath()
+            clip.addRoundedRect(QRectF(badge), 6, 6)
+            painter.setClipPath(clip)
+            painter.drawPixmap(badge, cover)
+            painter.restore()
+            photo = job.details is not None and job.details.photo
+            if not photo and job.request.options.media_filter != 'photo':
+                mark = QRect(0, 0, 24, 24)
+                mark.moveCenter(badge.center())
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(0, 0, 0, 120))
+                painter.drawEllipse(mark)
+                painter.setPen(QColor('#ffffff'))
+                font.setPixelSize(11)
+                painter.setFont(font)
+                painter.drawText(mark, Qt.AlignmentFlag.AlignCenter, '▶')
+            return
+        tint = QColor(t[job.request.link.service.value])
+        tint.setAlpha(28)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(tint)
+        painter.drawRoundedRect(badge, 6, 6)
+        painter.setPen(QColor(t[job.request.link.service.value]))
+        font.setPixelSize(18)
+        painter.setFont(font)
+        painter.drawText(
+            badge,
+            Qt.AlignmentFlag.AlignCenter,
+            '▧' if job.request.options.media_filter == 'photo' else '▷',
+        )
+
+    @staticmethod
+    def _paint_progress(painter, origin, rect, job, t, progress):
+        bar = QRect(origin.left(), origin.top(), max(20, rect.width() - 310), 3)
+        painter.fillRect(bar, QColor(t['border']))
+        width = int(
+            bar.width() * max(0, min(0.99, progress.downloaded_bytes / progress.total_bytes))
+        )
+        painter.fillRect(
+            QRect(bar.left(), bar.top(), width, bar.height()),
+            QColor(t[job.request.link.service.value]),
+        )
+
+    def _paint_buttons(self, painter, rect, job, muted):
+        primary, secondary = self._buttons(rect)
+        painter.setPen(QPen(QColor(muted), 1.5))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        font = QFont(painter.font())
+        font.setPixelSize(17)  # the same size as a group row's buttons
+        painter.setFont(font)
+        glyph = (
+            '↗'
+            if job.state == JobState.COMPLETED
+            else 'Ⅱ'
+            if job.state in {JobState.PROBING, JobState.DOWNLOADING, JobState.PROCESSING}
+            else '▷'
+        )
+        painter.drawText(primary, Qt.AlignmentFlag.AlignCenter, glyph)
+        painter.drawText(secondary, Qt.AlignmentFlag.AlignCenter, '⋮')
+
+    def status_text(self, job, progress):
+        """The short state at the right of a row: waiting reasons, percent and speed."""
+        if job.source_required:
+            return self.tr.text('source_needed')
+        if job.pause_reason == 'selection_required':
+            return self.tr.text('selection_needed')
+        if job.pause_reason in {'rate_limit', 'rate_spacing'}:
+            label = self.tr.text('instagram_wait')
+            if job.next_allowed_at:
+                label += ' · ' + job.next_allowed_at.astimezone().strftime('%H:%M')
+            return label
+        if progress and job.state == JobState.DOWNLOADING:
+            return self._transfer_text(progress)
+        if result_status(job) == 'files_missing':
+            return self.tr.text('files_missing')
+        return self.tr.text('state_' + job.state.value)
+
+    def _transfer_text(self, progress):
+        label = (
+            f'{min(99, int(progress.downloaded_bytes / progress.total_bytes * 100))}%'
+            if progress.total_bytes
+            else f'{progress.downloaded_bytes / 1048576:.1f} ' + self.tr.text('mb')
+        )
+        if progress.speed_bytes_per_second:
+            mb_s = progress.speed_bytes_per_second / 1048576
+            label += f' · {mb_s:.1f} ' + self.tr.text('mb_s')
+        return label
+
+    def editorEvent(self, event, model, option, index):
+        if (
+            event.type() == QEvent.Type.MouseButtonRelease
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            point = event.position().toPoint()
+            if index.data(JobListModel.GroupRole) is not None:
+                buttons = self._group_buttons(option.rect.adjusted(0, 0, -2, 0))
+                actions = ('group_folder', 'group_menu', 'open_group')
+                for button, action in zip(buttons, actions, strict=True):
+                    if button.contains(point):
+                        self.action_requested.emit(index.data(JobListModel.JobIdRole), action)
+                        return True
+                return super().editorEvent(event, model, option, index)
+            primary, secondary = self._buttons(option.rect.adjusted(0, 0, -2, 0))
+            if primary.contains(event.position().toPoint()):
+                self.action_requested.emit(index.data(JobListModel.JobIdRole), 'toggle')
+                return True
+            if secondary.contains(event.position().toPoint()):
+                self.action_requested.emit(index.data(JobListModel.JobIdRole), 'row_menu')
+                return True
+        return super().editorEvent(event, model, option, index)
+
+
+def _status_color(job, t):
+    if result_status(job) == 'files_missing':
+        return t['muted']
+    if job.state == JobState.COMPLETED:
+        return t['success']
+    if job.state == JobState.FAILED:
+        return t['error']
+    return t['muted']

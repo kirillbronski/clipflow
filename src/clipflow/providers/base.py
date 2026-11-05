@@ -1,0 +1,65 @@
+"""Contracts shared by providers, executor and media pipeline."""
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
+
+from clipflow.application.ports import AuthGateway
+from clipflow.domain.events import CancellationToken, ProviderEvent
+from clipflow.domain.models import DownloadPreferences, DownloadRequest, MediaDetails, MediaItem
+
+if TYPE_CHECKING:
+    from clipflow.application.instagram_rate_policy import InstagramRatePolicy
+
+
+@dataclass(frozen=True)
+class ProbeResult:
+    items: tuple[MediaItem, ...]
+    available_heights: tuple[int, ...]
+    selection_required: bool = False
+    collection_title: str | None = None
+    collection_details: MediaDetails | None = None
+
+
+@dataclass(frozen=True)
+class DownloadResult:
+    files: tuple[Path, ...]
+    discovered_count: int = 0
+
+
+class Limiter(Protocol):
+    """The shared speed limit: a download reports its bytes and may be held back."""
+
+    def consume(self, count: int, cancel: CancellationToken) -> None: ...
+
+
+class _NoLimit:
+    def consume(self, count: int, cancel: CancellationToken) -> None:
+        pass
+
+
+NO_LIMIT = _NoLimit()
+
+
+@dataclass(frozen=True)
+class ExecutionContext:
+    cancel: CancellationToken
+    emit: Callable[[ProviderEvent], None] = field(repr=False)
+    auth: AuthGateway = field(repr=False)
+    instagram_rate: 'InstagramRatePolicy | None' = None
+    preferences: DownloadPreferences = field(default_factory=DownloadPreferences)
+    limiter: Limiter = field(default=NO_LIMIT, repr=False)
+
+
+class MediaFailure(Exception):
+    """Safe typed error; never retain raw CDN/auth URLs in the public message."""
+
+    def __init__(self, code: str):
+        self.code = code
+        super().__init__(code)
+
+
+class Provider(Protocol):
+    def probe(self, request: DownloadRequest, context: ExecutionContext) -> ProbeResult: ...
+    def execute(self, request: DownloadRequest, context: ExecutionContext) -> DownloadResult: ...

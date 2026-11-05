@@ -1,8 +1,6 @@
-"""Run ClipFlow from a checkout on Windows or macOS."""
-from pathlib import Path
-import runpy
-import sys
+"""Run the single ClipFlow Qt application from the shared checkout."""
 
-source = Path(__file__).resolve().parent / 'source'
-sys.path.insert(0, str(source))
-runpy.run_path(str(source / 'clipflow.py'), run_name='__main__')
+from clipflow.ui.bootstrap import main
+
+if __name__ == '__main__':
+    raise SystemExit(main())

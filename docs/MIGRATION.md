@@ -1,12 +1,9 @@
-# Migration from separate 1.8.4 projects
+# Миграция на единый Qt runtime
 
-The unified tree starts from verified macOS 1.8.4, which had already incorporated the Windows 1.8.4 application features. The original Windows tree remains unchanged as a baseline; source archives were saved before migration.
+`python run.py` и `python -m clipflow` теперь запускают Qt. Старые source/CustomTkinter и 11 AST/script regression tests удалены после PASS всех 70 replacement parity cases; соответствие сохранено в tests/legacy-parity.json. Тестовый historical codec остаётся независимой проверкой wire compatibility, в поставку не входит.
 
-- Renamed the main module from downloader.py to clipflow.py.
-- Isolated DPAPI/Keychain, native shortcuts/fonts, paths and binary discovery.
-- Preserved legacy Windows settings/GetCourse and session directories.
-- Retained macOS redraw batching, throttled telemetry, stale-run protection and the CustomTkinter tab callback fix.
-- Replaced machine-specific build commands with shared native packaging orchestration and a single version source.
-- Added offline checks for both platforms and a manual Windows build workflow.
+Windows профиль LocalAppData/ClipFlow сохраняется. Для старой папки данных: сначала резервная копия, затем `python scripts/migrate_windows_data.py --source ABS_PATH`. Команда копирует только разрешённые settings/GetCourse opaque profile, сохраняет оригиналы и не перезаписывает существующие целевые файлы. Не передавайте папку установленной программы вместо папки данных. Сессии Google/Instagram отдельно не импортируются автоматически.
 
-Previously released binaries are separate artifacts and do not change when the source is refactored. Windows and macOS verification status is visible in GitHub Actions; native packaging must still be validated before each new binary release.
+Legacy preferences мигрируют в settings-v2 без переноса секретов в открытый JSON. Native session encryption совместимо с прежним DPAPI/Keychain форматом. Перезапуск очереди всегда paused; подписанные media URLs/пароли не сохраняются как request. GetCourse school binding требует явного источника; неизвестный профиль не привязывать молча.
+
+Mac миграция/upgrade/Keychain проверяются на Mac в T16a; успешный Windows тест не означает Mac приёмку. Не удалять старые backups и реальные профили.

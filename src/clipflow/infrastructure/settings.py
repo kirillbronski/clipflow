@@ -1,0 +1,299 @@
+"""Versioned preferences beside legacy files, with atomic writes and safe migration."""
+
+import json
+import os
+import re
+import shutil
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from types import MappingProxyType
+from uuid import uuid4
+
+from clipflow.domain.models import DownloadOptions, Service
+from clipflow.infrastructure.repository import storage_code
+from clipflow.infrastructure.serialization import decode_options, encode_options, path_value
+
+
+class SettingsError(Exception):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
+SUBTITLES = (None, 'original', 'ru', 'en')
+RATE_LIMITS = (None, *(mb * 1024 * 1024 for mb in (1, 2, 5, 10)))
+_EXTRAS = (
+    'smart_mode',
+    'skip_downloaded',
+    'playlist_m3u',
+    'subtitles',
+    'keep_awake',
+    'hide_completed',
+    'rate_limit',
+    'notify_done',
+    'youtube_parallel',
+)
+
+
+def _presets():
+    return {service: DownloadOptions(Path.home() / 'Downloads' / 'ClipFlow') for service in Service}
+
+
+@dataclass(frozen=True)
+class AppSettings:
+    schema_version: int = 2
+    theme: str = 'dark'
+    language: str = 'ru'
+    auto_start: bool = False
+    presets: Mapping[Service, DownloadOptions] = field(default_factory=_presets)
+    recent_folders: tuple[Path, ...] = ()
+    profile_limit: int | None = 10
+    smart_mode: bool = False  # a pasted link is queued and downloaded at once
+    # 4K-style options (all off by default): see docs/superpowers/specs/*-youtube-settings-a-*.
+    skip_downloaded: bool = False
+    playlist_m3u: bool = False
+    subtitles: str | None = None  # 'original', 'ru' or 'en' when subtitles are embedded
+    keep_awake: bool = False
+    hide_completed: bool = False
+    rate_limit: int | None = None  # bytes per second
+    notify_done: bool = False
+    youtube_parallel: int = 1  # YouTube downloads at once
+
+    def _check_options(self):
+        flags = (
+            self.smart_mode,
+            self.skip_downloaded,
+            self.playlist_m3u,
+            self.keep_awake,
+            self.hide_completed,
+            self.notify_done,
+        )
+        if any(type(flag) is not bool for flag in flags):
+            raise ValueError('invalid_flag')
+        if self.subtitles not in SUBTITLES:
+            raise ValueError('invalid_subtitles')
+        if type(self.rate_limit) not in (int, type(None)) or self.rate_limit not in RATE_LIMITS:
+            raise ValueError('invalid_rate_limit')
+        if type(self.youtube_parallel) is not int or not 1 <= self.youtube_parallel <= 4:
+            raise ValueError('invalid_youtube_parallel')
+
+    def __post_init__(self):
+        if type(self.schema_version) is not int or self.schema_version != 2:
+            raise ValueError('invalid_schema')
+        if self.theme not in {'dark', 'light', 'system'} or self.language not in {'ru', 'en'}:
+            raise ValueError('invalid_preferences')
+        if type(self.auto_start) is not bool:
+            raise ValueError('invalid_auto_start')
+        self._check_options()
+        if self.profile_limit is not None and (
+            type(self.profile_limit) is not int or self.profile_limit not in (10, 50)
+        ):
+            raise ValueError('invalid_profile_limit')
+        if set(self.presets) != set(Service):
+            raise ValueError('invalid_presets')
+        presets = {Service(key): value for key, value in self.presets.items()}
+        for value in presets.values():
+            encode_options(value)
+        object.__setattr__(self, 'presets', MappingProxyType(presets))
+        recent = tuple(
+            dict.fromkeys(path_value(str(p)).expanduser().resolve() for p in self.recent_folders)
+        )[:10]
+        object.__setattr__(self, 'recent_folders', recent)
+
+
+class SettingsStore:
+    def __init__(self, directory: Path):
+        self.directory = Path(directory)
+        self.path = self.directory / 'settings-v2.json'
+        self.last_warning = None
+
+    def _write(self, path, data):
+        temporary = None
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile(
+                mode='w', encoding='utf-8', dir=self.directory, suffix='.tmp', delete=False
+            ) as output:
+                temporary = Path(output.name)
+                json.dump(data, output, ensure_ascii=False, allow_nan=False, indent=2)
+                output.write('\n')
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temporary, path)
+            if os.name == 'posix':
+                descriptor = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+        except OSError as error:
+            raise SettingsError(storage_code(error)) from None
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+    def save(self, settings: AppSettings):
+        # Revalidate the snapshot; credential values are never auth references.
+        settings = replace(settings)
+        self._write(
+            self.path,
+            {
+                'schema_version': 2,
+                'theme': settings.theme,
+                'language': settings.language,
+                'auto_start': settings.auto_start,
+                **{key: getattr(settings, key) for key in _EXTRAS},
+                'profile_limit': settings.profile_limit,
+                'recent_folders': [str(p) for p in settings.recent_folders],
+                'presets': {
+                    key.value: encode_options(value) for key, value in settings.presets.items()
+                },
+            },
+        )
+
+    def _decode(self, raw):
+        if not isinstance(raw, dict):
+            raise ValueError('invalid_settings')
+        version = raw.get('schema_version')
+        if 'schema_version' in raw and (type(version) is not int or version != 2):
+            raise SettingsError('unsupported_settings_schema')
+        if type(version) is not int:
+            raise ValueError('invalid_schema')
+        if not isinstance(raw['recent_folders'], list):
+            raise ValueError('invalid_recent_folders')
+        return AppSettings(
+            version,
+            raw['theme'],
+            raw['language'],
+            raw['auto_start'],
+            {Service(key): decode_options(value) for key, value in raw['presets'].items()},
+            tuple(path_value(p) for p in raw['recent_folders']),
+            raw['profile_limit'],
+            # Fields added after 2.0.6: a file without them reads as defaults.
+            **{key: raw[key] for key in _EXTRAS if key in raw},
+        )
+
+    def load(self):
+        self.last_warning = None
+        try:
+            text = self.path.read_text(encoding='utf-8-sig')
+        except FileNotFoundError:
+            return self._migrate()
+        except UnicodeError:
+            return self._reset()
+        except OSError as error:
+            raise SettingsError(storage_code(error)) from None
+        try:
+            return self._decode(json.loads(text))
+        except (ValueError, TypeError, KeyError, AttributeError, UnicodeError):
+            return self._reset()
+
+    def _reset(self):
+        backup = self.directory / f'settings-v2.{uuid4().hex}.bak'
+        try:
+            shutil.copy2(self.path, backup)
+        except OSError as error:
+            raise SettingsError(storage_code(error)) from None
+        settings = AppSettings()
+        self.save(settings)
+        self.last_warning = 'settings_reset'
+        return settings
+
+    def _migrate(self):
+        raw = self._read_legacy()
+        if raw is None:
+            settings = AppSettings()
+            self.save(settings)
+            return settings
+        folder = _legacy_folder(raw)
+        height = _legacy_height(raw)
+        settings = _legacy_settings(raw, folder, height)
+        # The original stays byte-for-byte intact. Back up only normalized
+        # whitelisted preferences, never unknown/nested credential-like fields.
+        backup = _legacy_backup(settings, folder, height)
+        self._write(self.directory / f'settings-v1.{uuid4().hex}.bak', backup)
+        self.save(settings)
+        return settings
+
+    def _read_legacy(self):
+        """The 1.x settings as a dict; ``None`` when there were none."""
+        legacy = self.directory / 'settings.json'
+        try:
+            raw = json.loads(legacy.read_text(encoding='utf-8-sig'))
+        except FileNotFoundError:
+            return None
+        except (ValueError, UnicodeError):
+            self.last_warning = 'legacy_settings_reset'
+            return {}
+        except OSError as error:
+            raise SettingsError(storage_code(error)) from None
+        return raw if isinstance(raw, dict) else {}
+
+
+_LEGACY_LIMITS = {'До 10 публикаций': 10, 'До 50 публикаций': 50, 'Все публикации': None}
+
+
+def _legacy_folder(raw):
+    try:
+        return path_value(raw.get('folder')).expanduser().resolve()
+    except (ValueError, OSError):
+        return AppSettings().presets[Service.YOUTUBE].folder
+
+
+def _legacy_height(raw):
+    quality = raw.get('quality')
+    if not isinstance(quality, str):
+        return None
+    match = re.fullmatch(r'(360|480|720|1080|1440|2160)p(?: \(4K\))?', quality)
+    return int(match.group(1)) if match else None
+
+
+def _legacy_flag(raw, key, default):
+    value = raw.get(key, default)
+    return value if type(value) is bool else default
+
+
+def _legacy_recent(raw):
+    recent = []
+    for value in raw.get('folders', []) if isinstance(raw.get('folders'), list) else []:
+        try:
+            recent.append(path_value(value).expanduser().resolve())
+        except (ValueError, OSError):
+            continue
+    return tuple(recent)
+
+
+def _legacy_settings(raw, folder, height):
+    presets = {service: DownloadOptions(folder, max_height=height) for service in Service}
+    presets[Service.INSTAGRAM] = replace(
+        presets[Service.INSTAGRAM],
+        author_folder=_legacy_flag(raw, 'instagram_author_folder', True),
+        post_folder=_legacy_flag(raw, 'instagram_post_folder', True),
+        description=('md' if raw.get('instagram_description_format') == 'MD' else 'txt')
+        if _legacy_flag(raw, 'save_instagram_description', False)
+        else None,
+    )
+    raw_limit = raw.get('instagram_profile_limit')
+    limit = _LEGACY_LIMITS.get(raw_limit, 10) if isinstance(raw_limit, str) else 10
+    language = raw.get('language') if raw.get('language') in ('ru', 'en') else 'ru'
+    return AppSettings(
+        language=language, presets=presets, recent_folders=_legacy_recent(raw), profile_limit=limit
+    )
+
+
+def _legacy_backup(settings, folder, height):
+    ig = settings.presets[Service.INSTAGRAM]
+    limit = settings.profile_limit
+    return {
+        'folder': str(folder),
+        'folders': [str(p) for p in settings.recent_folders],
+        'language': settings.language,
+        'quality': f'{height}p' if height else 'Лучшее доступное',
+        'instagram_author_folder': ig.author_folder,
+        'instagram_post_folder': ig.post_folder,
+        'save_instagram_description': ig.description is not None,
+        'instagram_description_format': (ig.description or 'txt').upper(),
+        'instagram_profile_limit': f'До {limit} публикаций' if limit else 'Все публикации',
+    }

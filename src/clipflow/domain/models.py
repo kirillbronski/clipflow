@@ -1,0 +1,233 @@
+"""Immutable content identities and download parameter snapshots."""
+
+import math
+import re
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
+from datetime import datetime
+from enum import StrEnum
+from pathlib import Path
+from typing import Literal
+from urllib.parse import urlsplit
+
+
+class Service(StrEnum):
+    YOUTUBE = 'youtube'
+    INSTAGRAM = 'instagram'
+    GETCOURSE = 'getcourse'
+
+
+class ContentKind(StrEnum):
+    VIDEO = 'video'
+    PLAYLIST = 'playlist'
+    POST = 'post'
+    PROFILE = 'profile'
+    LESSON = 'lesson'
+    PLAYER = 'player'
+
+
+@dataclass(frozen=True)
+class ParsedLink:
+    service: Service
+    kind: ContentKind
+    canonical_id: str
+    canonical_url: str
+
+    @property
+    def is_music(self):
+        return (
+            self.service == Service.YOUTUBE
+            and urlsplit(self.canonical_url).hostname == 'music.youtube.com'
+        )
+
+
+@dataclass(frozen=True)
+class DownloadOptions:
+    folder: Path
+    format: str = 'mp4'
+    max_height: int | None = None
+    media_filter: str = 'all'
+    author_folder: bool = True
+    post_folder: bool = True
+    description: str | None = None
+    auth_profile: str | None = None
+    numbering: bool = False
+
+    def __post_init__(self):
+        object.__setattr__(self, 'folder', Path(self.folder).expanduser().resolve())
+        if self.format not in {'mp4', 'mkv', 'webm', 'mp3'}:
+            raise ValueError('Unsupported media format')
+        if self.media_filter not in {'all', 'video', 'photo'}:
+            raise ValueError('Unsupported media filter')
+        if self.description not in {None, 'txt', 'md'}:
+            raise ValueError('Unsupported description format')
+        if self.max_height is not None and (
+            type(self.max_height) is not int or self.max_height <= 0
+        ):
+            raise ValueError('Height must be a positive integer')
+
+
+@dataclass(frozen=True)
+class PlaylistPosition:
+    playlist_id: str
+    index: int
+    title: str | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.playlist_id, str) or not re.fullmatch(
+            r'[A-Za-z0-9_-]{1,100}', self.playlist_id
+        ):
+            raise ValueError('Invalid playlist identity')
+        if type(self.index) is not int or self.index < 1:
+            raise ValueError('Playlist position must be a positive integer')
+        if self.title is not None and (not isinstance(self.title, str) or len(self.title) > 1000):
+            raise ValueError('Invalid playlist title')
+
+
+def _display_name(value):
+    if value is not None and (not isinstance(value, str) or len(value) > 1000):
+        raise ValueError('Invalid display name')
+
+
+@dataclass(frozen=True)
+class DownloadRequest:
+    link: ParsedLink
+    options: DownloadOptions
+    selection: tuple[str, ...] | None = None
+    profile_limit: int | None = None
+    playlist: PlaylistPosition | None = None
+    # Display-only name known at discovery; never part of identity or equality.
+    label: str | None = field(default=None, compare=False)
+
+    def __post_init__(self):
+        _display_name(self.label)
+        if self.link.is_music and (
+            self.options.format != 'mp3' or self.options.max_height is not None
+        ):
+            object.__setattr__(
+                self, 'options', replace(self.options, format='mp3', max_height=None)
+            )
+        if self.playlist is not None and (
+            not isinstance(self.playlist, PlaylistPosition)
+            or self.link.service != Service.YOUTUBE
+            or self.link.kind != ContentKind.VIDEO
+        ):
+            raise ValueError('Playlist position belongs to a YouTube child video')
+        if self.profile_limit not in (None, 10, 50):
+            raise ValueError('Profile limit must be 10, 50, or all')
+        if self.selection is not None:
+            if not all(isinstance(item, str) and item for item in self.selection):
+                raise ValueError('Selection contains an invalid media ID')
+            object.__setattr__(self, 'selection', tuple(self.selection))
+
+
+class JobState(StrEnum):
+    QUEUED = 'queued'
+    PROBING = 'probing'
+    DOWNLOADING = 'downloading'
+    PROCESSING = 'processing'
+    COMPLETED = 'completed'
+    PAUSED = 'paused'
+    CANCELLED = 'cancelled'
+    FAILED = 'failed'
+
+
+TERMINAL_STATES = frozenset({JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED})
+
+
+@dataclass(frozen=True)
+class DownloadPreferences:
+    """App-wide download choices taken when a job starts: speed and subtitles."""
+
+    rate_limit: int | None = None  # bytes per second
+    subtitles: str | None = None  # 'original', 'ru' or 'en'
+
+
+@dataclass(frozen=True)
+class MediaDetails:
+    """What the queue row shows about the file itself; any part may be unknown."""
+
+    duration: float | None = None  # seconds
+    width: int | None = None
+    height: int | None = None
+    fps: float | None = None
+    author: str | None = None
+    thumbnail: str | None = None  # https address of a cover picture
+    size_bytes: int | None = None  # expected size before the download
+    photo: bool = False  # a still picture: no play mark, «Фото · W×H»
+
+    def __post_init__(self):
+        for value in (self.duration, self.fps):
+            if value is not None and (
+                type(value) not in (int, float) or not math.isfinite(value) or value <= 0
+            ):
+                raise ValueError('invalid_media_details')
+        for value in (self.width, self.height, self.size_bytes):
+            if value is not None and (type(value) is not int or value <= 0):
+                raise ValueError('invalid_media_details')
+        if self.author is not None and (
+            type(self.author) is not str or not self.author.strip() or len(self.author) > 200
+        ):
+            raise ValueError('invalid_media_details')
+        if self.thumbnail is not None and not is_https(self.thumbnail):
+            raise ValueError('invalid_media_details')
+        if type(self.photo) is not bool:
+            raise ValueError('invalid_media_details')
+
+
+def is_https(value: object) -> bool:
+    """A plain https URL with a host; anything else, including garbage, is False."""
+    if type(value) is not str:
+        return False
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return parts.scheme == 'https' and bool(parts.netloc)
+
+
+@dataclass(frozen=True)
+class Job:
+    id: str
+    request: DownloadRequest
+    state: JobState = JobState.QUEUED
+    attempt_id: str | None = None
+    parent_id: str | None = None
+    result_files: tuple[Path, ...] = ()
+    error: str | None = None
+    pause_reason: str | None = None
+    next_allowed_at: datetime | None = None
+    automatic_retry: bool = False
+    source_required: bool = False
+    title: str | None = None  # resolved file/display name shown in the queue
+    details: MediaDetails | None = None
+
+    def __post_init__(self):
+        _display_name(self.title)
+
+
+# Browsers whose cookies can sign a profile in, in the order the accounts page lists them.
+BROWSERS = (
+    'chrome',
+    'edge',
+    'brave',
+    'firefox',
+    'opera',
+    'opera_gx',
+    'safari',
+    'vivaldi',
+    'chromium',
+    'yandex',
+    'whale',
+)
+
+
+@dataclass(frozen=True)
+class MediaItem:
+    """One downloadable material of a probed link; ``info`` is the extractor's metadata."""
+
+    id: str
+    index: int
+    kind: Literal['photo', 'video']
+    title: str
+    info: Mapping[str, object] = field(repr=False)

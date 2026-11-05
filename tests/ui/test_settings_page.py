@@ -1,0 +1,203 @@
+"""Settings like 4K: sections on the left, their controls on the right."""
+
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import QLabel, QScrollArea
+
+
+def open_settings(make_window):
+    window, _ = make_window()
+    window.settings_button.click()
+    return window, window.settings_page
+
+
+def test_sections_switch_pages(make_window):
+    _, page = open_settings(make_window)
+    assert page.current_section == 'general'
+    assert page.section_title.text() == 'Основные'
+    page.section_buttons['about'].click()
+    assert page.current_section == 'about'
+    assert page.section_title.text() == 'О программе'
+    assert page.about_label.isVisible()
+    assert not page.language_box.isVisible()
+
+
+def test_auto_start_toggle_and_composer_stay_in_sync(make_window):
+    window, page = open_settings(make_window)
+    page.auto_start_toggle.click()
+    assert window.presenter.settings.auto_start
+    assert window.composer.auto_start.isChecked()
+    window.composer.auto_start.click()
+    assert not window.presenter.settings.auto_start
+    assert not page.auto_start_toggle.isChecked()
+
+
+def test_auto_start_toggle_reverts_when_save_fails(make_window, monkeypatch):
+    window, page = open_settings(make_window)
+    monkeypatch.setattr(window.presenter, 'set_auto_start', lambda enabled: False)
+    page.auto_start_toggle.click()
+    assert not page.auto_start_toggle.isChecked()
+
+
+def test_settings_follow_language_switch(make_window):
+    _, page = open_settings(make_window)
+    page.language_box.setCurrentIndex(page.language_box.findData('en'))
+    assert page.section_buttons['general'].text().endswith('General')
+    assert page.section_title.text() == 'General'
+    texts = {label.text() for label in page.findChildren(QLabel)}
+    assert 'Start downloading as soon as added' in texts
+    assert any(text.startswith('Downloads begin as soon as') for text in texts)
+
+
+def test_all_sections_present(make_window):
+    _, page = open_settings(make_window)
+    assert set(page.section_buttons) == {
+        'general',
+        'advanced',
+        'connection',
+        'notifications',
+        'accounts',
+        'about',
+    }
+
+
+def test_accounts_live_in_settings(make_window):
+    window, _ = make_window()
+    assert not hasattr(window.sidebar, 'accounts_button')
+    window.open_settings('accounts')
+    assert window.settings_page.current_section == 'accounts'
+    assert window.settings_page.section_title.text() == 'Авторизация'
+    assert window.accounts_page.isVisible()
+
+
+def test_settings_remember_last_section(make_window):
+    window, _ = make_window()
+    window.open_settings('about')
+    window.nav_buttons[0].click()
+    assert not window.settings_page.isVisible()
+    window.settings_button.click()
+    assert window.settings_page.current_section == 'about'
+    assert window.heading.text() == 'Настройки'
+
+
+def test_settings_fit_narrow_window(make_window):
+    window, _ = make_window()
+    window.resize(window.minimumWidth(), 600)
+    window.open_settings('general')
+    for area in window.settings_page.findChildren(QScrollArea):
+        assert area.horizontalScrollBar().maximum() == 0
+        assert area.widget().minimumSizeHint().width() <= area.viewport().width()
+
+
+def test_preferences_action_opens_settings(make_window):
+    window, _ = make_window()
+    action = window.preferences_action
+    assert action.menuRole() == QAction.MenuRole.PreferencesRole
+    assert QKeySequence('Ctrl+,') in action.shortcuts()
+    assert action.text() == 'Настройки…'
+    window.open_settings('about')
+    window.nav_buttons[0].click()
+    action.trigger()
+    assert window.settings_page.isVisible()
+    assert window.settings_page.current_section == 'about'
+
+
+def test_section_title_is_larger_than_body_text(make_window):
+    _, page = open_settings(make_window)
+    # The stylesheet's sizes, not the matched font: Windows matches fonts differently.
+    title = page.section_title.font().pixelSize()
+    assert title >= page.language_box.font().pixelSize() + 4
+
+
+def test_texts_point_to_the_sign_in_section():
+    from clipflow.ui.i18n import CATALOG
+
+    for language in ('ru', 'en'):
+        for key in ('error.auth_required', 'job_error.signin'):
+            assert 'Accounts' not in CATALOG[language][key]
+            assert 'Аккаунты' not in CATALOG[language][key]
+
+
+def test_sections_order(make_window):
+    window, _ = make_window()
+    assert list(window.settings_page.section_buttons) == [
+        'general',
+        'advanced',
+        'connection',
+        'notifications',
+        'accounts',
+        'about',
+    ]
+
+
+def test_each_new_row_saves(make_window):
+    window, page = open_settings(make_window)
+    settings = lambda: window.presenter.settings  # noqa: E731
+    for toggle, field in (
+        (page.skip_toggle, 'skip_downloaded'),
+        (page.m3u_toggle, 'playlist_m3u'),
+        (page.keep_awake_toggle, 'keep_awake'),
+        (page.hide_completed_toggle, 'hide_completed'),
+        (page.notify_toggle, 'notify_done'),
+    ):
+        toggle.click()
+        assert getattr(settings(), field) is True, field
+    page.rate_box.setCurrentIndex(page.rate_box.findData(5 * 1024 * 1024))
+    assert settings().rate_limit == 5 * 1024 * 1024
+    page.subtitles_toggle.click()
+    assert settings().subtitles == 'original'
+    page.subtitles_language_box.setCurrentIndex(page.subtitles_language_box.findData('en'))
+    assert settings().subtitles == 'en'
+    page.subtitles_toggle.click()
+    assert settings().subtitles is None
+
+
+def test_subtitle_language_only_when_enabled(make_window):
+    _, page = open_settings(make_window)
+    page.show_section('advanced')
+    assert not page.subtitles_language_box.isVisible()
+    page.subtitles_toggle.click()
+    assert page.subtitles_language_box.isVisible()
+
+
+def test_parallel_slider_labels_and_warning(make_window):
+    window, page = open_settings(make_window)
+    page.show_section('connection')
+    labels = {1: 'Безопасно', 2: 'Обычно', 3: 'Быстро', 4: 'Рискованно'}
+    for value, text in labels.items():
+        page.parallel_slider.setValue(value)
+        assert page.parallel_label.text() == text
+        assert page.parallel_warning.isVisible() == (value >= 3)
+    assert 'заблокировать' in page.parallel_warning.text()
+    window.presenter.update_preferences(language='en')
+    assert page.parallel_label.text() == 'Risky'
+    assert page.parallel_warning.text() == 'YouTube may temporarily block downloads from your IP'
+
+
+def test_parallel_slider_saves(make_window):
+    from clipflow.domain.models import Service
+
+    window, page = open_settings(make_window)
+    page.parallel_slider.setValue(2)
+    assert window.presenter.settings.youtube_parallel == 2
+    assert window.presenter.scheduler.limits[Service.YOUTUBE] == 2
+
+
+def test_parallel_applied_at_startup(make_window, tmp_path):
+    from clipflow.domain.models import DownloadOptions, Service
+    from clipflow.infrastructure.settings import AppSettings
+
+    presets = {s: DownloadOptions(tmp_path / 'downloads') for s in Service}
+    window, _ = make_window(settings=AppSettings(presets=presets, youtube_parallel=4))
+    assert window.presenter.scheduler.limits[Service.YOUTUBE] == 4
+    assert window.settings_page.parallel_slider.value() == 4
+
+
+def test_parallel_slider_saves_on_release_only(make_window):
+    window, page = open_settings(make_window)
+    slider = page.parallel_slider
+    slider.setSliderDown(True)
+    slider.setSliderPosition(4)
+    assert window.presenter.settings.youtube_parallel == 1  # dragging past 4 starts nothing
+    slider.setSliderPosition(2)
+    slider.setSliderDown(False)
+    assert window.presenter.settings.youtube_parallel == 2

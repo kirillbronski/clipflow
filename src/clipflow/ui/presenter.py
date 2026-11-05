@@ -1,0 +1,638 @@
+"""Owner-thread commands bridge submission/scheduler/storage to Qt views."""
+
+import contextlib
+import os
+from dataclasses import dataclass, replace
+from pathlib import Path
+
+from PySide6.QtCore import QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtGui import QDesktopServices
+
+from clipflow.application.history import (
+    HistoryError,
+    result_status,
+)
+from clipflow.application.playlists import M3uEntry, m3u_location, m3u_text, write_m3u
+from clipflow.application.probe_cache import ProbeCache
+from clipflow.domain.events import (
+    DetailsFound,
+    RequestsDiscovered,
+    SelectionRequired,
+    StageChanged,
+    WorkFailed,
+    WorkFinished,
+    WorkStopped,
+)
+from clipflow.domain.models import (
+    TERMINAL_STATES,
+    ContentKind,
+    DownloadPreferences,
+    JobState,
+    Service,
+)
+from clipflow.domain.urls import parse_url
+from clipflow.ui.presenter_accounts import AccountsController
+from clipflow.ui.presenter_clearing import ClearingController
+from clipflow.ui.presenter_thumbnails import ThumbnailLoader
+from clipflow.ui.presenter_titles import TitleNamer
+from clipflow.ui.queue_model import JobListModel
+
+_UNSET = object()
+
+
+@dataclass(frozen=True)
+class SmartResult:
+    added: int
+    existing: int
+    invalid: tuple[str, ...]
+
+
+class WorkbenchPresenter(QObject):
+    jobs_changed = Signal()
+    input_accepted = Signal(str)
+    error_raised = Signal(str)
+    selection_requested = Signal(str, object)
+    source_requested = Signal(str)
+    settings_changed = Signal()
+    shutdown_finished = Signal()
+    probe_ready = Signal(str, object, str)
+    auth_changed = Signal()
+    queue_finished = Signal(int, int)  # downloaded, failed in the run that just ended
+
+    def __init__(
+        self,
+        submission,
+        scheduler,
+        settings,
+        repository,
+        *,
+        settings_store=None,
+        thumbnails=None,
+        keep_awake=None,
+    ):
+        super().__init__()
+        self.submission = submission
+        self.scheduler = scheduler
+        self.settings = settings
+        self.repository = repository
+        self.settings_store = settings_store
+        self.executor = scheduler.executor
+        self.executor.setParent(self)
+        self.model = JobListModel(repository.list(), self)
+        self._closing = False
+        self.is_closed = False
+        self._selections = {}
+        self._probe_id = ''
+        self._probe_cache = ProbeCache()
+        self._clearing = ClearingController(self)
+        self._accounts = AccountsController(self)
+        self._close_timer = QTimer(self)
+        self._close_timer.setInterval(50)
+        self._close_timer.timeout.connect(self._finish_shutdown)
+        self._unsubscribe = scheduler.subscribe(self._on_event)
+        self.executor.closed.connect(self._finish_shutdown)
+        self.executor.error.connect(self._executor_error)
+        self.executor.available.connect(self._tick)
+        self._timer = QTimer(self)
+        self._timer.setInterval(500)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start()
+        # Background naming: one metadata lookup at a time, paced to stay polite to the site.
+        self.title_interval_ms = 1000
+        self._titles = TitleNamer(self)
+        self._keep_awake = keep_awake  # hold()/release(); None where sleep is not managed
+        self._run = [0, 0]  # finished and failed jobs since the queue last went quiet
+        self._apply_runtime_settings()
+        # Covers are optional: without a store the rows keep the service badge.
+        self.thumbnails = ThumbnailLoader(self, thumbnails) if thumbnails is not None else None
+        if self.thumbnails is not None:
+            self.model.covers = self.thumbnails.pixmap
+            self.thumbnails.thumbnail_ready.connect(self.model.cover_changed)
+
+    def _command(self, action):
+        if self._closing:
+            self.error_raised.emit('app_closed')
+            return None
+        try:
+            return action()
+        except Exception as error:  # noqa: BLE001  # команда интерфейса: любой сбой — код ошибки, окно живо
+            self.error_raised.emit(getattr(error, 'code', 'action_failed'))
+            return None
+
+    def submit(self, text, mode='single', profile_limit=_UNSET):
+        def action():
+            limit = self.settings.profile_limit if profile_limit is _UNSET else profile_limit
+            preview = self.submission.preview(text, self.settings.presets, mode, limit)
+            if preview.invalid or not preview.requests:
+                self.error_raised.emit('invalid_link')
+                return None
+            result = self._add_preview(preview)
+            if result.added:
+                self.input_accepted.emit(text)
+            else:
+                self.error_raised.emit('already_queued')
+            return result
+
+        return self._command(action)
+
+    def _add_preview(self, preview, start=True):
+        result = self.submission.submit(preview)
+        self.model.set_jobs(self.repository.list())
+        self.jobs_changed.emit()
+        if start and result.added and self.settings.auto_start:
+            self._start()
+        return result
+
+    def submit_preview(self, preview):
+        return self._command(lambda: self._add_preview(preview))
+
+    def update_preset(self, service, options, profile_limit=_UNSET):
+        def action():
+            presets = dict(self.settings.presets)
+            presets[service] = options
+            limit = self.settings.profile_limit if profile_limit is _UNSET else profile_limit
+            settings = replace(
+                self.settings,
+                presets=presets,
+                profile_limit=limit,
+                recent_folders=(options.folder, *self.settings.recent_folders),
+            )
+            if settings == self.settings:
+                return True
+            return self._save_settings(settings)
+
+        return self._command(action)
+
+    def request_probe(self, text, request_id, options=None, mode='single', profile_limit=_UNSET):
+        self._probe_id = request_id
+        self.executor.cancel_probes()
+        if not text or self._closing:
+            return
+        limit = self.settings.profile_limit if profile_limit is _UNSET else profile_limit
+        presets = dict(self.settings.presets)
+        try:
+            link = parse_url(text)
+            if options is not None:
+                presets[link.service] = options
+            preview = self.submission.preview(text, presets, mode, limit)
+            if preview.invalid or not preview.requests:
+                self.probe_ready.emit(request_id, (), 'invalid_link')
+                return
+            request = preview.requests[0]
+        except ValueError:
+            self.probe_ready.emit(request_id, (), 'invalid_link')
+            return
+        key = ProbeCache.key_for(request)
+        cached = self._probe_cache.get(key)
+        if cached is not None:
+            self.probe_ready.emit(request_id, cached, '')
+            return
+
+        def complete(identity, heights, error):
+            if identity != self._probe_id or self._closing:
+                return
+            if not error:
+                self._probe_cache.put(key, heights)
+            self.probe_ready.emit(identity, heights, error)
+
+        self.executor.request_probe(request, request_id, complete)
+
+    def clear_probe_cache(self):
+        self._probe_cache.clear()
+        self.executor.cancel_probes()
+        self._probe_id = ''
+
+    def _start(self, identity=None):
+        self.executor.cancel_probes()
+        self.scheduler.start(identity)
+
+    def start_queue(self):
+        return self._command(self._start)
+
+    def _start_if_queued(self, identity):
+        if self.repository.get(identity).state == JobState.QUEUED:
+            self._start(identity)
+
+    def _resume(self, identity):
+        self.scheduler.resume(identity)
+        self._start_if_queued(identity)
+
+    def _retry(self, identity):
+        self.scheduler.retry(identity)
+        self._start_if_queued(identity)
+
+    def _choose_items(self, identity):
+        if identity in self._selections:
+            self.selection_requested.emit(identity, self._selections[identity])
+        else:
+            self.scheduler.refresh_selection(identity)
+            self._start_if_queued(identity)
+
+    def toggle_job(self, identity):
+        """Row activation: the job's state decides what the one obvious action is."""
+        actions = {
+            JobState.QUEUED: self._start,
+            JobState.PAUSED: self._resume,
+            JobState.FAILED: self._retry,
+            JobState.CANCELLED: self._retry,
+            JobState.COMPLETED: self.open_result,
+        }
+
+        def action():
+            job = self.repository.get(identity)
+            if job.source_required:
+                self.source_requested.emit(identity)
+            elif job.pause_reason == 'selection_required':
+                self._choose_items(identity)
+            else:
+                actions.get(job.state, self.scheduler.pause)(identity)
+
+        self._command(action)
+
+    def cancel_job(self, identity):
+        return self._command(lambda: self.scheduler.cancel(identity))
+
+    def select_items(self, identity, ids):
+        return self._command(lambda: self.scheduler.select_items(identity, tuple(ids)))
+
+    def provide_source(self, identity, text):
+        def action():
+            self.scheduler.provide_source(identity, parse_url(text))
+            self._resume(identity)
+
+        return self._command(action)
+
+    def open_result(self, identity):
+        def action():
+            job = self.repository.get(identity)
+            if result_status(job) == 'files_missing':
+                raise HistoryError('files_missing')
+            directory = (
+                job.result_files[0].parent if job.result_files else job.request.options.folder
+            )
+            if not directory.is_dir():
+                self.error_raised.emit('folder_missing')
+                return
+            if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
+                self.error_raised.emit('folder_missing')
+
+        return self._command(action)
+
+    def _reload_jobs(self):
+        self.model.set_jobs(self.repository.list())
+        self.jobs_changed.emit()
+
+    def repeat_job(self, identity):
+        def action():
+            job = self.repository.get(identity)
+            if job.source_required:
+                self.source_requested.emit(identity)
+                return
+            if job.state in {JobState.FAILED, JobState.CANCELLED}:
+                self.scheduler.retry(identity)
+            else:
+                self.submission.repeat(identity)
+            self._reload_jobs()
+            if self.settings.auto_start:
+                self._start()
+
+        return self._command(action)
+
+    def _group_ids(self, group_id):
+        return (group_id, *(j.id for j in self.model.members(group_id)))
+
+    def pause_group(self, group_id):
+        return self._command(lambda: self.scheduler.pause_many(self._group_ids(group_id)))
+
+    def resume_group(self, group_id):
+        return self._command(
+            lambda: self._start_first(self.scheduler.resume_many(self._group_ids(group_id)))
+        )
+
+    def retry_group_failures(self, group_id):
+        """Failed or cancelled members, and the parent itself when its list failed."""
+        return self._command(
+            lambda: self._start_first(self.scheduler.retry_many(self._group_ids(group_id)))
+        )
+
+    def _start_first(self, identities):
+        # Like ▷ on a row: what was just queued starts even when auto-start is off.
+        if identities:
+            self._start_if_queued(identities[0])
+
+    def open_group_folder(self, group_id):
+        """The folder the group's files share, else its download folder."""
+
+        def action():
+            parent = self.repository.get(group_id)
+            root = parent.request.options.folder
+            files = [path for job in self.model.members(group_id) for path in job.result_files]
+            directory = root
+            if files:
+                common = Path(os.path.commonpath([str(path.parent) for path in files]))
+                if common.is_relative_to(root):
+                    directory = common
+            if not directory.is_dir() or not QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(directory))
+            ):
+                self.error_raised.emit('folder_missing')
+
+        return self._command(action)
+
+    def _m3u_plan(self, group_id):
+        """Where a YouTube playlist's list goes and what it holds, or None."""
+        parent = self.repository.get(group_id)
+        link = parent.request.link
+        if link.service != Service.YOUTUBE or link.kind != ContentKind.PLAYLIST:
+            return None
+        members = self.model.members(group_id)
+        recorded = [m for m in members if m.state == JobState.COMPLETED and m.result_files]
+        # Where the list lives follows what was saved; what it lists, only files still there.
+        location = m3u_location(
+            self.model.title(parent),
+            [m.result_files[0] for m in recorded],
+            parent.request.options.folder,
+        )
+        done = [m for m in recorded if m.result_files[0].is_file()]
+        entries = [
+            M3uEntry(
+                m.result_files[0],
+                self.model.title(m),
+                m.details.duration if m.details else None,
+                m.request.playlist.index if m.request.playlist else 0,
+            )
+            for m in done
+        ]
+        return location, entries, members
+
+    def _write_m3u(self, group_id):
+        plan = self._m3u_plan(group_id)
+        if plan is None:
+            return
+        location, entries, members = plan
+        # Written once nothing is left to download; a later retry rewrites it fuller.
+        if location is None or any(m.state not in TERMINAL_STATES for m in members):
+            return
+        with contextlib.suppress(OSError):  # a list for players is a convenience, not a failure
+            if entries:
+                write_m3u(location, m3u_text(entries, location.parent))
+            else:
+                location.unlink(missing_ok=True)  # nothing left to play
+
+    def remove_group(self, group_id):
+        return self._command(lambda: self._clearing.remove_group(self._group_ids(group_id)))
+
+    def delete_group_files(self, group_id, confirmed=False):
+        if confirmed is not True:
+            return None
+
+        def action():
+            plan = self._m3u_plan(group_id)
+            # Goes with the files (before them, so empty folders go too), never without them.
+            extra = (plan[0],) if plan is not None and plan[0] is not None else ()
+            self._clearing.delete_files(self._group_ids(group_id), also=extra)
+
+        return self._command(action)
+
+    def remove_jobs(self, identities):
+        return self._command(lambda: self._refreshing_m3u(identities, self._clearing.remove_jobs))
+
+    def _refreshing_m3u(self, identities, action):
+        """A playlist's list follows its tracks: a removed or deleted one leaves it."""
+        groups = {self.model.group_of(identity) for identity in identities} - {None}
+        action(identities)
+        if self.settings.playlist_m3u:
+            present = {job.id for job in self.model.jobs}
+            for group_id in groups & present:
+                self._write_m3u(group_id)
+
+    def clear_history(self):
+        return self._command(self._clearing.clear_history)
+
+    def clear_queue(self):
+        return self._command(self._clearing.clear_queue)
+
+    def cancel_queue(self):
+        # Scheduler cancels every service and stops pumping before worker ACK.
+        result = self._command(self.scheduler.clear_queue)
+        self._run = [0, 0]  # the user ended the run: «загрузки завершены» would be news to no one
+        return result
+
+    def clear_all(self, *, delete_files=False):
+        result = self._command(lambda: self._clearing.clear_all(delete_files))
+        self._run = [0, 0]  # cleared by the user, like «Остановить всё»: nothing to announce
+        return result
+
+    def _flush_clear(self):
+        self._clearing.flush()
+
+    def delete_files(self, job_ids, confirmed=False):
+        if confirmed is not True:
+            return None
+        return self._command(lambda: self._refreshing_m3u(job_ids, self._clearing.delete_files))
+
+    def update_folder(self, service, path):
+        def action():
+            presets = dict(self.settings.presets)
+            folder = Path(path).expanduser().resolve()
+            presets[service] = replace(presets[service], folder=folder)
+            return self._save_settings(
+                replace(
+                    self.settings,
+                    presets=presets,
+                    recent_folders=(folder, *self.settings.recent_folders),
+                )
+            )
+
+        return self._command(action)
+
+    def set_smart_mode(self, enabled):
+        return self._command(
+            lambda: self._save_settings(replace(self.settings, smart_mode=enabled))
+        )
+
+    def smart_submit(self, text):
+        """Smart mode: queue every link in the pasted text and start at once."""
+
+        def action():
+            settings = self.settings
+            preview = self.submission.preview(
+                text, settings.presets, 'batch', settings.profile_limit
+            )
+            lines = text.splitlines()
+            invalid = tuple(lines[error.line - 1].strip() for error in preview.invalid)
+            added = existing = 0
+            if preview.requests:
+                result = self._add_preview(preview, start=False)
+                added, existing = len(result.added), len(result.existing)
+                if result.added:
+                    self._start()
+            return SmartResult(added, existing, invalid)
+
+        return self._command(action)
+
+    def set_auto_start(self, enabled):
+        return self._command(
+            lambda: self._save_settings(replace(self.settings, auto_start=enabled))
+        )
+
+    def update_preferences(self, **values):
+        def action():
+            enabling = values.get('playlist_m3u') and not self.settings.playlist_m3u
+            saved = self._save_settings(replace(self.settings, **values))
+            if enabling:  # playlists finished before the setting get their lists now
+                for job in self.model.jobs:
+                    if job.parent_id is None:
+                        self._write_m3u(job.id)
+            return saved
+
+        return self._command(action)
+
+    @property
+    def auth_gateway(self):
+        return self._accounts.gateway
+
+    @auth_gateway.setter
+    def auth_gateway(self, gateway):
+        self._accounts.gateway = gateway
+
+    def set_auth_gateway(self, gateway):
+        self._accounts.attach(gateway)
+
+    def _poll_auth(self):
+        if self._closing or self.auth_gateway is None:
+            return
+        self._command(self._accounts.poll)
+
+    def sign_in_account(self, service):
+        if self.auth_gateway is not None:
+            return self._command(lambda: self._accounts.sign_in(service))
+        return None
+
+    def logout_account(self, service):
+        return self._command(lambda: self._accounts.logout(service))
+
+    def configure_getcourse(self, url, method, **values):
+        return self._command(lambda: self._accounts.configure_getcourse(url, method, **values))
+
+    def import_getcourse(self, url):
+        return self._command(lambda: self._accounts.import_getcourse(url))
+
+    def _save_settings(self, settings):
+        if self.settings_store:
+            self.settings_store.save(settings)
+        self.settings = settings
+        self._apply_runtime_settings()
+        self.settings_changed.emit()
+        return True
+
+    def _apply_runtime_settings(self):
+        """Settings the worker side reads: download preferences and the duplicate rule."""
+        settings = self.settings
+        self.executor.preferences = DownloadPreferences(settings.rate_limit, settings.subtitles)
+        self.scheduler.skip_downloaded = settings.skip_downloaded
+        self.scheduler.set_youtube_parallel(settings.youtube_parallel)
+
+    def _on_event(self, event):
+        job = self.repository.get(event.job_id)
+        self.model.update_job(job, event.payload)
+        # A playlist's or profile's listing finishes without files: it is not a download.
+        if (
+            isinstance(event.payload, WorkFinished)
+            and job.state == JobState.COMPLETED
+            and job.result_files
+        ):
+            self._run[0] += 1
+        elif isinstance(event.payload, WorkFailed) and job.state == JobState.FAILED:
+            self._run[1] += 1
+        group_id = self.model.group_of(job.id)
+        # Only an ended track changes the list: progress must not rebuild it. A cancelled
+        # track ends with its stage alone.
+        payload = event.payload
+        ended = isinstance(payload, (WorkFinished, WorkFailed, WorkStopped)) or (
+            isinstance(payload, StageChanged) and payload.state in TERMINAL_STATES
+        )
+        if ended and group_id is not None and self.settings.playlist_m3u:
+            self._write_m3u(group_id)
+        if isinstance(event.payload, DetailsFound) and self.thumbnails is not None:
+            # The event still carries the cover address the queue does not keep.
+            cover = event.payload.details.thumbnail
+            if cover:
+                self.thumbnails.queue_cover(job.id, cover)
+        if isinstance(event.payload, RequestsDiscovered):
+            self.model.set_jobs(self.repository.list())
+        if isinstance(event.payload, SelectionRequired):
+            self._selections[job.id] = event.payload
+            self.selection_requested.emit(job.id, event.payload)
+        self.jobs_changed.emit()
+
+    @Slot()
+    def _tick(self):
+        if not self._closing:
+            self._command(self._flush_clear)
+            self._command(self.scheduler.tick)
+            self._titles.schedule()
+        self._guard_sleep()
+        self._check_finished()
+
+    def _check_finished(self):
+        """The run is over when nothing is left to do now; a rate-limit wait is not the end."""
+        if not any(self._run) or self._closing or not self.executor.is_idle:
+            return
+        waiting = (
+            job
+            for job in self.model.jobs
+            if job.state not in TERMINAL_STATES
+            and not (job.state == JobState.PAUSED and not job.automatic_retry)
+        )
+        if next(waiting, None) is None:
+            done, failed = self._run
+            self._run = [0, 0]
+            self.queue_finished.emit(done, failed)
+
+    def _guard_sleep(self):
+        """Hold the computer awake while a download or processing runs, if asked to."""
+        if self._keep_awake is None:
+            return
+        working = not self._closing and not self.executor.is_idle
+        if working and self.settings.keep_awake:
+            self._keep_awake.hold()
+        else:
+            self._keep_awake.release()
+
+    @Slot(str)
+    def _executor_error(self, code):
+        self.error_raised.emit(code)
+        if code == 'queue_update_failed':
+            self.shutdown()
+
+    def shutdown(self):
+        if self._closing:
+            return
+        self._closing = True
+        self._timer.stop()
+        self._guard_sleep()
+        self._accounts.stop()
+        self._titles.stop()
+        if self.auth_gateway is not None:
+            self.auth_gateway.close()
+        try:
+            self.scheduler.shutdown()
+        except Exception:  # noqa: BLE001  # закрытие: сбой записи очереди — код ошибки, выход продолжается
+            self.error_raised.emit('queue_update_failed')
+        self.executor.shutdown()
+
+    @Slot()
+    def _finish_shutdown(self):
+        if self.is_closed:
+            return
+        if self.auth_gateway is not None and not self.auth_gateway.is_closed:
+            self._close_timer.start()
+            return
+        self._close_timer.stop()
+        self._unsubscribe()
+        close = getattr(self.repository, 'close', None)
+        if close:
+            close()
+        self.is_closed = True
+        self.shutdown_finished.emit()

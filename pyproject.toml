@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clipflow-app"
+description = "Cross-platform ClipFlow desktop downloader"
+requires-python = ">=3.12"
+dynamic = ["dependencies", "version"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "pytest-qt==4.5.0", "pytest-cov==7.1.0", "ruff==0.17.3"]
+
+[tool.setuptools.dynamic]
+version = {attr = "clipflow.version.APP_VERSION"}
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit", "tests/integration", "tests/ui", "tests/platform"]
+addopts = "-ra"
+qt_api = "pyside6"
+markers = ["native_gui: requires an explicitly enabled real Windows/Cocoa GUI session"]
+
+[tool.coverage.run]
+branch = true
+source = ["clipflow"]
+# Tests start the app, the sign-in window and the package self-test as child processes.
+parallel = true
+patch = ["subprocess"]
+
+[tool.coverage.report]
+show_missing = true
+# Code for the other desktop OS (DPAPI on macOS, Keychain on Windows) cannot run here.
+exclude_also = ["# pragma: only ${CLIPFLOW_FOREIGN_OS-none}\\b"]
+skip_empty = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-include = ["packaging/*/*.spec"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C90", "BLE", "PT", "RUF005", "RUF012", "RUF059", "RUF100"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# PyInstaller injects SPECPATH, Analysis, PYZ, EXE, COLLECT, BUNDLE; imports follow sys.path setup.
+"packaging/*/*.spec" = ["F821", "E402"]
+# One message per line keeps the RU/EN catalogue greppable; QSS keeps one rule per line.
+"src/clipflow/ui/i18n.py" = ["E501"]
+"src/clipflow/ui/themes.py" = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Qt models take parent=QModelIndex() by convention; the default is never mutated.
+extend-immutable-calls = ["PySide6.QtCore.QModelIndex"]

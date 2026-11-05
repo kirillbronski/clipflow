@@ -4,7 +4,7 @@ Dependencies retain their own licenses. Check the exact versions used for each d
 
 | Component | License / upstream |
 |---|---|
-| CustomTkinter | MIT; vendored license in `source/_internal/customtkinter-6.0.0.dist-info/licenses/LICENSE`; upstream https://github.com/TomSchimansky/CustomTkinter |
+| CustomTkinter | MIT; historical license retained at `assets/licenses/CustomTkinter-LICENSE.txt`; retired from the 2.0 runtime; upstream https://github.com/TomSchimansky/CustomTkinter |
 | yt-dlp | Unlicense, with separately licensed bundled code/dependencies; https://github.com/yt-dlp/yt-dlp |
 | PySide6 / Qt | LGPLv3/GPLv3 or commercial options depending on modules; https://doc.qt.io/qtforpython-6/licenses.html |
 | FFmpeg | LGPL/GPL depending on build configuration; https://ffmpeg.org/legal.html |
