@@ -21,7 +21,7 @@ ClipFlow собирается из одного исходника под Window
 ## Решения владельца
 
 - Публичная раздача: установщик должен работать на чужих системах, в GNOME и KDE, на Wayland и X11.
-- Поддержка: Ubuntu 22.04+ и Fedora 40+, архитектуры x86-64 и ARM64.
+- Поддержка: Ubuntu 22.04+ x86-64, Ubuntu 24.04+ ARM64 и Fedora 40+ (обе архитектуры).
 - Если Secret Service недоступен, вход работает, но данные входа не сохраняются, и пользователь видит предупреждение.
 - Формат: PyInstaller + Qt Installer Framework → `.run`, плюс portable `tar.gz`.
 - Ручная проверка позже: x86-64 проверяет владелец на ПК с Fedora 44, ARM64 — на Ubuntu в Parallels на Mac. CI не заменяет ручную проверку.
@@ -74,7 +74,7 @@ ClipFlow собирается из одного исходника под Window
 - `scripts/build.py` принимает `linux`. Архитектура определяется по `platform.machine()`: `x86_64` или `aarch64` (`arm64` нормализуется в `aarch64`); другие архитектуры отклоняются.
 - PyInstaller собирает папку `ClipFlow/` по `packaging/linux/ClipFlow.spec`. Общие входы берутся из `spec_inputs(root, 'linux')`, для Linux добавляется `keyring.backends.SecretService`.
 - В пакет кладутся ffmpeg/ffprobe (статические сборки той же лицензии, что Windows-сборка; лицензия в `licenses/`) и официальный Node под архитектуру с лицензией, как сейчас.
-- Проверка glibc: сборка падает, если какой-либо ELF-файл пакета требует символов `GLIBC_` новее 2.35. Проверяется по версиям символов (`objdump -T` или `readelf`), а не по имени ОС сборки.
+- Проверка glibc: сборка падает, если какой-либо ELF-файл пакета требует символов `GLIBC_` новее 2.35 на x86-64 / 2.39 на ARM64 (уточнение владельца 5 ноября). Проверяется по версиям символов (`objdump -T` или `readelf`), а не по имени ОС сборки.
 
 ### Установщик QtIFW
 
@@ -103,7 +103,7 @@ ClipFlow собирается из одного исходника под Window
 ### QtIFW
 
 - x86-64: официальная сборка QtIFW с download.qt.io, версия закреплена, SHA256 проверяется.
-- ARM64: официальной сборки нет. CI собирает QtIFW закреплённой версии из исходников на `ubuntu-22.04-arm` и кеширует результат по версии. `build.py` берёт компилятор из `QTIFW_BINARYCREATOR` или `PATH` и выдаёт понятную ошибку, если его нет (флаг `--portable-only` пропускает установщик, как на Windows).
+- ARM64: официальной сборки нет. CI собирает QtIFW закреплённой версии из исходников на `ubuntu-24.04-arm` и кеширует результат по версии. `build.py` берёт компилятор из `QTIFW_BINARYCREATOR` или `PATH` и выдаёт понятную ошибку, если его нет (флаг `--portable-only` пропускает установщик, как на Windows).
 
 ## CI
 
@@ -115,9 +115,9 @@ ClipFlow собирается из одного исходника под Window
 
 ### `build.yml`
 
-- В выбор `target` добавляется `linux`. Для `all` матрица включает `ubuntu-22.04` и `ubuntu-22.04-arm`.
+- В выбор `target` добавляется `linux`. Для `all` матрица включает `ubuntu-22.04` и `ubuntu-24.04-arm`.
 - В артефакты добавляются `.run`, `tar.gz` и отчёты.
-- Если `ubuntu-22.04-arm` недоступен для репозитория, ARM-сборка отмечается как недоступная, а не успешная, и это сообщается владельцу.
+- Если `ubuntu-24.04-arm` недоступен для репозитория, ARM-сборка отмечается как недоступная, а не успешная, и это сообщается владельцу.
 
 ## Тесты
 
@@ -156,10 +156,19 @@ ClipFlow собирается из одного исходника под Window
 ## Открытые вопросы
 
 - Нужна ли обёртка `.tar` вокруг `.run`, чтобы двойной клик работал без «Разрешить запуск». Решается по пункту 2 ручной проверки.
-- Доступность `ubuntu-22.04-arm` для этого репозитория. Выясняется при первом запуске `build.yml`.
+- Доступность `ubuntu-24.04-arm` для этого репозитория. Выясняется при первом запуске `build.yml`.
 
 ## Вне рамок
 
 - Ручная проверка (выполняет владелец позже), слияние в `main`, публичный релиз.
 - Flatpak, AppImage, `.deb`/`.rpm`, автообновление, подпись пакетов, профиль AppArmor.
 - Архитектуры, кроме x86-64 и ARM64.
+
+
+## Owner-approved implementation refinements — 5 November 2026
+
+ARM64 minimum is Ubuntu24.04/glibc2.39; x86-64 remains Ubuntu22.04/glibc2.35.
+Official PySide6 6.10.3 ARM64 wheels require glibc2.39. Official QtIFW4.8.1 binaries
+exist for both architectures, so use pinned vendor binaries instead of building QtIFW.
+Temporary authentication must not replace durable profiles: use a private RAM-backed
+/dev/shm directory, shared with the auth child via stdin along with its ephemeral key.

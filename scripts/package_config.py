@@ -29,7 +29,7 @@ def resolve_tool(name):
         if not path.is_file():
             raise RuntimeError('Explicit tool is missing: ' + name)
         return path.resolve()
-    executable = name + ('.exe' if os.name == 'nt' else '')
+    executable = name + ('.exe' if sys.platform == 'win32' else '')
     for folder in (
         Path(os.environ.get('CLIPFLOW_BIN_DIR', 'nonexistent')),
         ROOT / '.runtime' / runtime_folder() / 'bin',
@@ -139,7 +139,7 @@ def max_glibc(text):
     return max(versions, default=None)
 
 
-def glibc_violations(root, run=subprocess.run):
+def glibc_violations(root, run=subprocess.run, *, limit=GLIBC_LIMIT):
     violations = []
     for path in sorted(Path(root).rglob('*')):
         if not path.is_file():
@@ -150,7 +150,7 @@ def glibc_violations(root, run=subprocess.run):
             continue
         result = run(['objdump', '-T', path], capture_output=True, text=True, check=True)
         version = max_glibc(result.stdout)
-        if version and version > GLIBC_LIMIT:
+        if version and version > limit:
             violations.append(str(path.relative_to(root)))
     return violations
 
@@ -167,3 +167,7 @@ def desktop_entry(exec_path, icon='clipflow'):
         f'Exec="{quoted}"\nIcon={icon}\nTerminal=false\n'
         'Categories=AudioVideo;Network;\nStartupWMClass=ClipFlow\n'
     )
+
+
+def linux_glibc_limit(arch):
+    return {'x86_64': (2, 35), 'aarch64': (2, 39)}[linux_arch(arch)]

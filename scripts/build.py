@@ -18,6 +18,7 @@ from linux_build import check_glibc
 from package_config import (
     APP_VERSION,
     linux_arch,
+    linux_glibc_limit,
     resolve_tool,
     runtime_folder,
     windows_build_environment,
@@ -147,7 +148,10 @@ def main(argv=None):
         ]
     )
     if system == 'linux':
-        check_glibc(app)
+        arch = linux_arch(platform.machine())
+        check_glibc(app, arch)
+        info['architecture'] = arch
+        info['minimum_glibc'] = '.'.join(map(str, linux_glibc_limit(arch)))
     if system == 'macos':
         run('codesign', '--verify', '--deep', '--strict', app)
     if not args.skip_smoke:

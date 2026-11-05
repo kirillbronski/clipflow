@@ -243,7 +243,7 @@ python scripts/check.py
 
 ## Linux: кандидат третьей платформы
 
-Ubuntu 22.04+ / Fedora 40+, x86-64 и ARM64. Установщик `.run` ставит программу
+Ubuntu 22.04+ x86-64, Ubuntu 24.04+ ARM64 / Fedora 40+ (обе архитектуры). Установщик `.run` ставит программу
 без root в `~/.local/opt/ClipFlow`; portable `tar.gz` распаковывается целиком.
 Для `.run` может потребоваться «Разрешить запуск как программу» в свойствах файла.
 Данные: `$XDG_DATA_HOME/ClipFlow` при абсолютном пути, иначе `~/.local/share/ClipFlow`.

@@ -11,7 +11,7 @@ macOS: перетащите ClipFlow.app из DMG в Applications, затем и
 Исходники и инструкции: https://github.com/kirillbronski/clipflow
 
 
-Linux (Ubuntu 22.04+ / Fedora 40+, x86-64 / ARM64)
+Linux (Ubuntu 22.04+ x86-64, Ubuntu 24.04+ ARM64 / Fedora 40+)
 RU: разрешите запуск файла Setup.run как программы в свойствах файла и откройте его.
 Установка без root: ~/.local/opt/ClipFlow. Данные: $XDG_DATA_HOME/ClipFlow или
 ~/.local/share/ClipFlow. Для обновления запустите новый установщик; профиль сохраняется.

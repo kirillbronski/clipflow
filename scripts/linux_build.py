@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from datetime import date
 from pathlib import Path
 
-from package_config import APP_VERSION, glibc_violations, linux_artifact_names
+from package_config import APP_VERSION, glibc_violations, linux_artifact_names, linux_glibc_limit
 
 
 def installer_creator():
@@ -46,10 +46,13 @@ def installer_stage(root, stage, app):
     return directory
 
 
-def check_glibc(app):
-    violations = glibc_violations(app)
+def check_glibc(app, arch):
+    limit = linux_glibc_limit(arch)
+    violations = glibc_violations(app, limit=limit)
     if violations:
-        raise RuntimeError('Package requires glibc newer than 2.35: ' + ', '.join(violations))
+        raise RuntimeError(
+            f'Package requires glibc newer than {limit[0]}.{limit[1]}: ' + ', '.join(violations)
+        )
 
 
 def build_artifacts(root, output, stage, app, arch, *, portable_only=False, skip_smoke=False):

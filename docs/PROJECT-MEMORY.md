@@ -10,7 +10,12 @@
 Реализованы XDG-пути, Secret Service/Fernet с временным ключом и предупреждением,
 передача ключа auth child через stdin и off-the-record browser при fallback,
 systemd-inhibit, список браузеров Linux, отдельный Ubuntu sandbox workaround,
-PyInstaller/QtIFW .run и portable tar.gz, glibc<=2.35 gate, CI для Ubuntu обеих архитектур.
+PyInstaller/QtIFW .run и portable tar.gz, architecture-specific glibc gate, CI для Ubuntu обеих архитектур.
+Уточнение владельца: ARM64 Ubuntu24.04+/glibc2.39; x86-64 Ubuntu22.04+/glibc2.35.
+Готовый PySide6 6.10.3 ARM64 требует glibc2.39 (PyPI), Ubuntu22 ARM64 исключена по согласованию.
+После review временные credentials направляются в приватный /dev/shm каталог; прежние durable файлы
+не перезаписываются. Каталог и ключ передаются auth child через stdin. Импорт legacy Safari/Opera GX
+нормализуется в поддерживаемый браузер.
 Обнаружена и исправлена высота свёрнутой карточки с Linux system font (Qt heightForWidth).
 
 Локально: Python3.12/Linux x86-64, настоящая проверка Secret Service в отдельной
