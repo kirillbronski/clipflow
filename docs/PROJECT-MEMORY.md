@@ -1,38 +1,33 @@
 # ClipFlow — текущая память проекта
 
-Обновлено 1 ноября 2026 года (2.1.0). Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
+Обновлено 6 ноября 2026 года (2.1.0). Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
 
-## Linux — продолжение 5 ноября 2026
+## Linux — завершение реализации 6 ноября 2026
 
-Владелец слил PR #3 в main (`c61eceb`), затем поручил выполнить Linux-план в dev.
-Базовый dev: `1e48475`. Спецификация: `docs/superpowers/specs/2026-11-02-linux-platform-design.md`;
-план: `docs/superpowers/plans/2026-11-02-linux-platform.md`; ручная QA: `docs/LINUX-QA.md`.
-Реализованы XDG-пути, Secret Service/Fernet с временным ключом и предупреждением,
-передача ключа auth child через stdin и off-the-record browser при fallback,
-systemd-inhibit, список браузеров Linux, отдельный Ubuntu sandbox workaround,
-PyInstaller/QtIFW .run и portable tar.gz, architecture-specific glibc gate, CI для Ubuntu обеих архитектур.
-Уточнение владельца: ARM64 Ubuntu24.04+/glibc2.39; x86-64 Ubuntu22.04+/glibc2.35.
-Готовый PySide6 6.10.3 ARM64 требует glibc2.39 (PyPI), Ubuntu22 ARM64 исключена по согласованию.
-После review временные credentials направляются в приватный /dev/shm каталог; прежние durable файлы
-не перезаписываются. Каталог и ключ передаются auth child через stdin. Импорт legacy Safari/Opera GX
-нормализуется в поддерживаемый браузер.
-Обнаружена и исправлена высота свёрнутой карточки с Linux system font (Qt heightForWidth).
+Владелец слил прежний dev через PR #3 в main (`c61eceb`), затем поручил Linux в dev.
+Проверенный код и установщик: `8ae0838cf0615b40402b387318437a43ab1bee9c`, версия 2.1.0.
+Локально Python3.12: 1158 PASS, 11 явных skips; core98.40%/95.88%, runtime96.20%.
+Checks42187681304: Windows/macOS/Linux SUCCESS; Build42187681309: Ubuntu22 x64
+и Ubuntu24 ARM64 SUCCESS, включая frozen UI/auth и установку/обновление/удаление.
+На Fedora44 x86-64 проверен именно Ubuntu22-кандидат: native Wayland UI/local transfer,
+FFmpeg/FFprobe/Node, оба WebEngine auth self-tests, desktop app_id и RAM-only auth PASS.
+Установлен без root в ~/.local/opt/ClipFlow; ярлык/иконка/удаление созданы, обычный запуск PASS.
+Установщик и SHA256 сохранены в Documents/ClipFlow. Полный отчёт:
+`docs/releases/2.1.0-linux-candidate-2026-11-06.md`.
 
-Локально: Python3.12/Linux x86-64, настоящая проверка Secret Service в отдельной
-D-Bus/keyring-сессии 2 PASS; QtIFW4.8.1 с тестовым executable: установка → обновление
-→ удаление в пути с пробелом/кириллицей PASS, профиль сохранён. Это не frozen
-проверка готового приложения. Полный suite, exact-SHA CI и пакеты записываются
-ниже после завершения; сейчас не считаются подтверждёнными.
-
-QtIFW4.8.1 x64 — официальный закреплённый binary. ARM64 binary потребовал
-устаревшую libtiff.so.5 на Ubuntu24; для ARM64 возвращена сборка из исходников
-QtIFW4.11.0 + static Qt6.7.2 с SHA256 и кешем. Упаковщик и installerbase проверяются
-после сборки и восстановления кеша. CLI обновление требует явного ClipFlowUpgradeTarget,
-потому что QtIFW проверяет --root до installationStarted. GUI обновляет только
-после нажатия Install. RemoveTargetDir=false сохраняет чужие файлы; пустой каталог
-установки может остаться. Маркер продукта — обычный clipflow-install.txt:
-QtIFW не включил скрытый .clipflow-install в фактический тестовый пакет.
-Ручная Fedora44/Ubuntu ARM64 QA, личные/live gates и публичный релиз остаются открытыми.
+Реализованы XDG, Secret Service/Fernet, приватный /dev/shm fallback без перезаписи
+прежних durable credentials, передача auth key/path через stdin, systemd-inhibit,
+Linux browsers/import normalization, отдельный auth sandbox workaround, PyInstaller/QtIFW.
+Wayland app_id clipflow задаётся только на Linux; fresh RAM self-test создаёт родителя отчёта.
+Высота свёрнутой карточки учитывает heightForWidth системного шрифта.
+По решению владельца: Ubuntu22.04+ x86-64/glibc2.35; Ubuntu24.04+ ARM64/glibc2.39;
+Fedora40+ обеих архитектур. ARM64 PySide6 требует glibc2.39.
+QtIFW x64 — официальный4.8.1; ARM64 — SHA-pinned source4.11.0 + static Qt6.7.2
+и static zlib/bzip2/lzma; старый vendor ARM binary требовал libtiff.so.5.
+QtIFW CLI upgrade требует ClipFlowUpgradeTarget=PATH и --root PATH; marker clipflow-install.txt.
+RemoveTargetDir=false сохраняет чужие файлы; пустая папка может остаться после удаления.
+Личные/live входы, KDE/X11, реальный suspend, Ubuntu ARM64 VM и полная ручная
+приёмка остаются открытыми в docs/LINUX-QA.md. Новый merge main/публичный релиз не выполнялся.
 
 ## 2.1.0 собрана и установлена — 1 ноября
 

@@ -38,3 +38,11 @@
 `python scripts/linux_tools.py --arch x86_64 --dest .runtime/linux` получает
 закреплённые инструменты; для ARM64 используйте `aarch64`. Сборка отказывает,
 если какой-либо ELF требует GLIBC новее 2.35 для x86-64 или 2.39 для ARM64.
+
+## Автоматизированная проверка на реальной Fedora — 6 ноября 2026
+
+Кандидат8ae0838 установлен на Fedora44 x86-64 без root; SHA/архитектура/provenance
+подтверждены. Native Wayland frozen UI/local transfer, оба synthetic WebEngine auth
+с RAM-only профилем, app_id clipflow, embedded tools PASS. Ярлык/иконка/удаление
+созданы, обычный запуск PASS. Это не закрывает ручные строки выше.
+Точный отчёт: [Linux candidate](releases/2.1.0-linux-candidate-2026-11-06.md).
