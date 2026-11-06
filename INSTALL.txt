@@ -1,4 +1,4 @@
-ClipFlow — Windows x64 / macOS Apple Silicon
+ClipFlow — Windows x64 / macOS Apple Silicon / Linux x86-64 и ARM64
 
 Готовое приложение не требует отдельной установки Python, FFmpeg или Node.js.
 Windows: запустите установщик EXE либо распакуйте portable ZIP целиком.
@@ -15,6 +15,7 @@ Linux (Ubuntu 22.04+ x86-64, Ubuntu 24.04+ ARM64 / Fedora 40+)
 RU: разрешите запуск файла Setup.run как программы в свойствах файла и откройте его.
 Установка без root: ~/.local/opt/ClipFlow. Данные: $XDG_DATA_HOME/ClipFlow или
 ~/.local/share/ClipFlow. Для обновления запустите новый установщик; профиль сохраняется.
+Ярлыки: ClipFlow — цветная иконка; «Удалить ClipFlow» — чёрно-белая корзина.
 Удаление: ярлык «Удалить ClipFlow» в меню; данные пользователя остаются.
 Portable: распакуйте tar.gz целиком и запустите ClipFlow/ClipFlow.
 Для сохранения входа нужно разблокированное GNOME Keyring / KWallet (Secret Service).
