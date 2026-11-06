@@ -79,6 +79,8 @@ def _qt(module, source, build, prefix):
         args = [prefix / 'bin/qt-configure-module', source]
         if module == 'qtdeclarative':
             args += ['-no-qml-debug']
+        if module == 'qttools':
+            args += ['--', '-DCMAKE_DISABLE_FIND_PACKAGE_Clang=ON']
     _run(args, build)
     _run(['cmake', '--build', '.', '--parallel', str(min(4, os.cpu_count() or 1))], build)
     _run(['cmake', '--install', '.'], build)
