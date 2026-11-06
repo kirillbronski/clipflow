@@ -1,9 +1,11 @@
 """Build the ARM64 QtIFW against static Qt, without obsolete image-format libraries."""
 
+import hashlib
 import json
 import os
 import shutil
 import subprocess
+import sysconfig
 import tarfile
 from pathlib import Path
 
@@ -86,6 +88,28 @@ def _qt(module, source, build, prefix):
     _run(['cmake', '--install', '.'], build)
 
 
+def compression_flags(folders=None):
+    if folders is None:
+        folders = (
+            Path('/usr/lib') / (sysconfig.get_config_var('MULTIARCH') or ''),
+            Path('/usr/lib64'),
+            Path('/usr/lib'),
+        )
+    flags = []
+    for variable, filename in (
+        ('IFW_ZLIB_LIBRARY', 'libz.a'),
+        ('IFW_BZIP2_LIBRARY', 'libbz2.a'),
+        ('IFW_LZMA_LIBRARY', 'liblzma.a'),
+    ):
+        archive = next(
+            (folder / filename for folder in folders if (folder / filename).is_file()), None
+        )
+        if archive is None:
+            raise RuntimeError('Install static compression development libraries: zlib, bzip2, xz')
+        flags.append(f'{variable}={archive}')
+    return flags
+
+
 def _probe(directory):
     env = dict(os.environ, QT_QPA_PLATFORM='minimal')
     for name in ('binarycreator', 'installerbase'):
@@ -96,9 +120,14 @@ def build_qtifw(destination):
     destination = Path(destination).resolve()
     target = destination / 'qtifw'
     marker = target / 'source-build.json'
-    if marker.is_file() and json.loads(marker.read_text()) == SOURCE_SHA256:
+    configuration = {
+        'source_sha256': SOURCE_SHA256,
+        'recipe_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    }
+    if marker.is_file() and json.loads(marker.read_text()) == configuration:
         _probe(target)
         return target / 'bin/binarycreator'
+    compression = compression_flags()
     build = destination / 'qtifw-source-build'
     shutil.rmtree(build, ignore_errors=True)
     build.mkdir(parents=True)
@@ -107,10 +136,10 @@ def build_qtifw(destination):
         source = _source(module, build)
         _qt(module, source, build / (module + '-build'), prefix)
     source = _source('qtifw', build)
-    _run([prefix / 'bin/qmake', 'CONFIG+=release', 'CONFIG+=lzmasdk'], source)
+    _run([prefix / 'bin/qmake', 'CONFIG+=release', *compression], source)
     _run(['make', '-j' + str(min(4, os.cpu_count() or 1))], source)
     shutil.rmtree(target, ignore_errors=True)
     shutil.copytree(source / 'bin', target / 'bin')
     _probe(target)
-    marker.write_text(json.dumps(SOURCE_SHA256, sort_keys=True) + '\n')
+    marker.write_text(json.dumps(configuration, sort_keys=True) + '\n')
     return target / 'bin/binarycreator'

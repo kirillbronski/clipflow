@@ -241,7 +241,8 @@ def main(argv=None):
 
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv[:1])
-    app.setDesktopFileName('clipflow')
+    if sys.platform.startswith('linux'):
+        app.setDesktopFileName('clipflow')  # pragma: only linux
     app.setApplicationName(
         'ClipFlow ' + ('YouTube' if service == Service.YOUTUBE else 'Instagram') + ' Sign-in'
     )

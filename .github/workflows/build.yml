@@ -71,7 +71,7 @@ jobs:
           python -c "from PySide6 import QtWidgets, QtWebEngineCore; print('Qt loader ready')"
           arch=$(uname -m)
           if [ "$arch" = aarch64 ]; then
-            sudo apt-get install -y build-essential cmake ninja-build libssl-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-util-dev libxcb-cursor-dev libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-render-util0-dev libxcb-shape0-dev libxcb-shm0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-xinerama0-dev libxcb-xkb-dev libxkbcommon-dev libxkbcommon-x11-dev libfontconfig1-dev libfreetype-dev
+            sudo apt-get install -y build-essential cmake ninja-build zlib1g-dev liblzma-dev libbz2-dev libssl-dev libx11-dev libx11-xcb-dev libxcb1-dev libxcb-util-dev libxcb-cursor-dev libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-render-util0-dev libxcb-shape0-dev libxcb-shm0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-xinerama0-dev libxcb-xkb-dev libxkbcommon-dev libxkbcommon-x11-dev libfontconfig1-dev libfreetype-dev
           fi
           mkdir -p work
           python scripts/linux_tools.py --arch "$arch" --dest .runtime/linux 2>&1 | tee work/linux-tools.log

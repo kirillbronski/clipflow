@@ -172,9 +172,19 @@ def test_binary_searches_linux_runtime_folder(monkeypatch, tmp_path):
     assert bootstrap._binary('ffmpeg') == str(tool)
 
 
-def test_window_uses_the_installed_desktop_entry_identity(tmp_path, qtbot):
-    app, window = bootstrap.create_application(['clipflow-test'], data_dir=tmp_path)
+@pytest.mark.parametrize('system', ['linux', 'win32', 'darwin'])
+def test_desktop_identity_matches_linux_entry_and_preserves_other_platforms(
+    tmp_path, qtbot, monkeypatch, system
+):
+    from types import SimpleNamespace
+
+    app = QApplication.instance()
+    original = app.desktopFileName()
+    app.setDesktopFileName('native-identity')
+    monkeypatch.setattr(bootstrap, 'sys', SimpleNamespace(platform=system))
+    _, window = bootstrap.create_application(['clipflow-test'], data_dir=tmp_path)
     try:
-        assert app.desktopFileName() == 'clipflow'
+        assert app.desktopFileName() == ('clipflow' if system == 'linux' else 'native-identity')
     finally:
         close(window, qtbot)
+        app.setDesktopFileName(original)

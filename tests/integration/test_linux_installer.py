@@ -166,3 +166,23 @@ def test_qtifw_source_uses_the_actual_vendor_archive_root(monkeypatch, tmp_path)
     source = builder._source('qtifw', tmp_path)
     assert source == tmp_path / root
     assert (source / 'installerfw.pro').read_bytes() == payload
+
+
+def test_arm_installer_requires_static_compression_dependencies(tmp_path):
+    builder = script('linux_qtifw')
+    for name in ('libz.so', 'libbz2.so', 'liblzma.so'):
+        (tmp_path / name).touch()
+    with pytest.raises(RuntimeError, match='static compression'):
+        builder.compression_flags((tmp_path,))
+
+
+def test_arm_installer_links_static_compression_archives(tmp_path):
+    builder = script('linux_qtifw')
+    for name in ('libz.a', 'libbz2.a', 'liblzma.a'):
+        (tmp_path / name).touch()
+    flags = builder.compression_flags((tmp_path,))
+    assert flags == [
+        f'IFW_ZLIB_LIBRARY={tmp_path / "libz.a"}',
+        f'IFW_BZIP2_LIBRARY={tmp_path / "libbz2.a"}',
+        f'IFW_LZMA_LIBRARY={tmp_path / "liblzma.a"}',
+    ]

@@ -27,7 +27,9 @@ Fedora40+ поддерживается обеими архитектурами. 
 FFmpeg/Node/QtIFW с SHA256; для ARM64 используйте `aarch64`. На ARM64 QtIFW4.11.0
 собирается со static Qt6.7.2 из закреплённых исходников (официальный ARM binary
 требует устаревшую libtiff.so.5). Пакеты компилятора, CMake/Ninja и XCB/Fontconfig
-указаны в `.github/workflows/build.yml`; CI кеширует проверенный `.runtime/linux/qtifw`.
+указаны в `.github/workflows/build.yml`; libarchive в QtIFW4.11 требует zlib1g-dev,
+liblzma-dev и libbz2-dev. Архивы сжатия .a связываются статически (имена
+динамических bzip2-библиотек различаются у Ubuntu/Fedora); CI кеширует проверенный `.runtime/linux/qtifw`.
 Добавьте `.runtime/linux/bin` в PATH и задайте
 `QTIFW_BINARYCREATOR` на `.runtime/linux/qtifw/bin/binarycreator`, затем выполните
 `python scripts/check.py` и `python scripts/build.py`.
