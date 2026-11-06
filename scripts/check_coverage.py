@@ -55,7 +55,8 @@ def evaluate(report):
 
 def foreign_system(system=sys.platform):
     """The desktop OS whose code (marked `# pragma: only <os>`) cannot run on this one."""
-    return 'macos' if system == 'win32' else 'windows'
+    own = {'win32': 'windows', 'darwin': 'macos'}.get(system, 'linux')
+    return '(' + '|'.join(name for name in ('windows', 'macos', 'linux') if name != own) + ')'
 
 
 def combine_data(root):

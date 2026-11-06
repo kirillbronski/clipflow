@@ -49,7 +49,9 @@ def action(window, menu, key):
 
 
 def reveal_key():
-    return 'row_menu.reveal' if sys.platform == 'darwin' else 'row_menu.reveal_windows'
+    return {'darwin': 'row_menu.reveal', 'win32': 'row_menu.reveal_windows'}.get(
+        sys.platform, 'row_menu.reveal_linux'
+    )
 
 
 @pytest.mark.parametrize(
@@ -173,4 +175,13 @@ def test_reveal_label_follows_platform(make_window, tmp_path, monkeypatch, platf
     monkeypatch.setattr(sys, 'platform', platform)
     menu = window.dialogs.row_menu('abc')
     assert menu.actions()[0].text() == text
+    menu.close()
+
+
+def test_reveal_label_on_linux(make_window, tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    window = seeded(make_window, tmp_path, job('abc'))
+    window.language_actions['en'].trigger()
+    menu = window.dialogs.row_menu('abc')
+    assert menu.actions()[0].text() == 'Show in folder'
     menu.close()

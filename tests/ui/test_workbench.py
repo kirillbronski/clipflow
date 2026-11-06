@@ -51,6 +51,7 @@ def test_worker_events_update_correct_attempt(make_window, qtbot):
     model = window.presenter.model
     index = model.index(0)
     assert model.data(index, model.TitleRole) == 'Настоящее название'
+    qtbot.waitUntil(lambda: model.data(index, model.ProgressRole) is not None)
     window.presenter.scheduler.handle(JobEvent(identity, 'stale-attempt', TitleChanged('WRONG')))
     window.presenter.scheduler.handle(JobEvent(identity, 'stale-attempt', ProgressChanged(99, 100)))
     assert model.data(index, model.TitleRole) == 'Настоящее название'

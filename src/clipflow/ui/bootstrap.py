@@ -14,7 +14,7 @@ from clipflow.domain.models import ContentKind, Service
 from clipflow.infrastructure.auth import NativeAuthGateway
 from clipflow.infrastructure.executor import ThreadExecutor
 from clipflow.infrastructure.keep_awake import KeepAwake
-from clipflow.infrastructure.platform import data_directory
+from clipflow.infrastructure.platform import data_directory, platform_name
 from clipflow.infrastructure.rate_limit_store import RateLimitStore
 from clipflow.infrastructure.repository import RepositoryError, SqliteJobRepository
 from clipflow.infrastructure.settings import AppSettings, SettingsError, SettingsStore
@@ -36,7 +36,7 @@ def _binary(name):
     root = Path(__file__).resolve().parents[3]
     for folder in (
         Path(getattr(sys, '_MEIPASS', root)) / 'bin',
-        root / '.runtime' / ('windows' if sys.platform == 'win32' else 'macos') / 'bin',
+        root / '.runtime' / platform_name() / 'bin',
     ):
         if (folder / executable).is_file():
             return str(folder / executable)
@@ -60,6 +60,8 @@ def installer_language(directory):
 def create_application(argv: list[str], data_dir: Path | None = None):
     app = QApplication.instance() or QApplication(argv)
     app.setApplicationName('ClipFlow')
+    if sys.platform.startswith('linux'):
+        app.setDesktopFileName('clipflow')  # pragma: only linux
     app.setWindowIcon(application_icon())
     directory = Path(data_dir) if data_dir is not None else data_directory()
     language = installer_language(directory)

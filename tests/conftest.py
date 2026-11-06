@@ -225,3 +225,16 @@ def clipboard(qapp):
         clipboard.setMimeData(original)
     else:
         clipboard.clear()  # Restore an empty clipboard, not an owned empty MIME object.
+
+
+@pytest.fixture(autouse=True)
+def offline_linux_secret_store(monkeypatch):
+    import os
+    import sys
+
+    if sys.platform.startswith('linux') and not os.environ.get('CLIPFLOW_SECRET_SERVICE_NATIVE'):
+        from clipflow.infrastructure import linux_secrets
+        from tests.support.secrets import SecretBackend
+
+        backend = SecretBackend()
+        monkeypatch.setattr(linux_secrets, '_backend', lambda: backend)

@@ -32,6 +32,19 @@ from clipflow.infrastructure.auth_process.sessions import (
 )
 from clipflow.ui.themes import application_icon
 
+
+def browser_profile(parent, directory, *, persistent):
+    if not persistent:
+        return QWebEngineProfile(parent)
+    profile = QWebEngineProfile('clipflow-auth-prototype', parent)
+    profile.setPersistentStoragePath(str(directory / 'web-profile'))
+    profile.setCachePath(str(directory / 'cache'))
+    profile.setPersistentCookiesPolicy(
+        QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies
+    )
+    return profile
+
+
 USER_AGENTS = {
     'Обычный Qt WebEngine': None,
     'Chrome на iPad · 51': (
@@ -131,12 +144,8 @@ class AuthWindow(QMainWindow):
         self.status = self.tr.widget(QLabel, 'not_signed_in')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        # Preserve the existing Chromium profile name and paths, independently per service.
-        self.profile = QWebEngineProfile('clipflow-auth-prototype', self)
-        self.profile.setPersistentStoragePath(str(self.directory / 'web-profile'))
-        self.profile.setCachePath(str(self.directory / 'cache'))
-        self.profile.setPersistentCookiesPolicy(
-            QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies
+        self.profile = browser_profile(
+            self, self.directory, persistent=platform.secrets_persistent()
         )
         self.native_agent = self.profile.httpUserAgent()
         self.apply_mode()

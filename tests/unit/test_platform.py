@@ -96,7 +96,7 @@ def test_windows_seals_sessions_with_dpapi(monkeypatch, services):
 
 
 def test_other_systems_refuse_to_store_sessions(monkeypatch, services):
-    monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    monkeypatch.setattr(platform, 'SYSTEM', 'sunos5')
     with pytest.raises(OSError, match='auth_protection_failed'):
         services.protect(b'cookies')
 
@@ -149,3 +149,122 @@ def test_choose_folder_returns_the_choice_or_nothing(monkeypatch, services, tmp_
     assert services.choose_folder(None, tmp_path) == tmp_path.resolve()
     assert services.choose_folder(None, tmp_path) is None
     assert seen == [str(tmp_path), str(tmp_path)]
+
+
+@pytest.mark.parametrize(
+    ('system', 'expected'),
+    [('win32', 'windows'), ('darwin', 'macos'), ('linux', 'linux'), ('linux2', 'linux')],
+)
+def test_platform_name_maps_each_desktop_os(system, expected):
+    assert platform.platform_name(system) == expected
+
+
+def test_platform_name_refuses_unsupported_os():
+    with pytest.raises(ValueError, match='Unsupported platform'):
+        platform.platform_name('sunos5')
+
+
+@pytest.mark.parametrize(
+    ('xdg', 'suffix'),
+    [
+        ('absolute', 'xdg/ClipFlow'),
+        ('rel/x', '.local/share/ClipFlow'),
+        (None, '.local/share/ClipFlow'),
+    ],
+)
+def test_linux_data_directory_obeys_xdg(monkeypatch, tmp_path, xdg, suffix):
+    monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    monkeypatch.delenv('CLIPFLOW_DATA_DIR', raising=False)
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    if xdg is None:
+        monkeypatch.delenv('XDG_DATA_HOME', raising=False)
+    else:
+        monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path / 'xdg') if xdg == 'absolute' else xdg)
+    assert platform.data_directory() == tmp_path / suffix
+
+
+def test_linux_data_dir_accepts_cyrillic_and_space_home(monkeypatch, tmp_path):
+    monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    monkeypatch.delenv('CLIPFLOW_DATA_DIR', raising=False)
+    monkeypatch.delenv('XDG_DATA_HOME', raising=False)
+    home = tmp_path / 'кирилл a'
+    monkeypatch.setattr(Path, 'home', lambda: home)
+    assert platform.data_directory() == home / '.local/share/ClipFlow'
+
+
+def test_explicit_data_dir_wins_on_linux(monkeypatch, tmp_path):
+    monkeypatch.setattr(platform, 'SYSTEM', 'linux')
+    monkeypatch.setenv('CLIPFLOW_DATA_DIR', str(tmp_path / 'explicit'))
+    monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path / 'xdg'))
+    assert platform.data_directory() == tmp_path / 'explicit'
+
+
+@pytest.mark.parametrize(
+    ('system', 'excluded'), [('linux', ('opera_gx', 'safari')), ('darwin', ()), ('win32', ())]
+)
+def test_browser_list_matches_platform(system, excluded):
+    from clipflow.domain.models import BROWSERS, browsers_for
+
+    assert browsers_for(system) == tuple(b for b in BROWSERS if b not in excluded)
+
+
+def test_linux_yandex_cookie_folder(monkeypatch):
+    from clipflow.infrastructure.auth import NativeAuthGateway
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    assert NativeAuthGateway.browser_source('yandex') == (
+        'chrome',
+        str(Path.home() / '.config/yandex-browser'),
+    )
+
+
+@pytest.mark.parametrize('browser', ['opera_gx', 'safari'])
+def test_configure_rejects_unavailable_browser_on_linux(monkeypatch, tmp_path, browser):
+    from clipflow.infrastructure.auth import NativeAuthGateway
+    from clipflow.providers.base import MediaFailure
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    with pytest.raises(MediaFailure, match='auth_invalid_settings'):
+        NativeAuthGateway(tmp_path).configure_getcourse(
+            'https://school.getcourse.ru/pl/teach/control/lesson/view?id=1',
+            'browser',
+            browser=browser,
+        )
+
+
+@pytest.mark.parametrize('browser', ['opera_gx', 'safari'])
+def test_saved_unavailable_browser_resets_on_linux(monkeypatch, tmp_path, browser):
+    from http.cookiejar import CookieJar
+
+    import yt_dlp.cookies
+
+    from clipflow.infrastructure.auth import NativeAuthGateway
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    seen = []
+
+    def load(file, source, ydl):
+        seen.append(source)
+        return CookieJar()
+
+    monkeypatch.setattr(yt_dlp.cookies, 'load_cookies', load)
+    gateway = NativeAuthGateway(tmp_path)
+    gateway._getcourse_jar({'method': 'browser', 'browser': browser})
+    assert seen == [('chrome',)]
+
+
+@pytest.mark.parametrize('method', ['Opera GX', 'Safari'])
+def test_legacy_browser_import_uses_available_browser_on_linux(monkeypatch, tmp_path, method):
+    from clipflow.infrastructure.auth import NativeAuthGateway
+    from clipflow.infrastructure.auth_process.sessions import atomic_protected, load_protected
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    gateway = NativeAuthGateway(tmp_path)
+    atomic_protected(
+        tmp_path / 'getcourse-profile.dat', {'method': method}, gateway.platform.protect
+    )
+    profile = gateway.import_legacy_getcourse(
+        'https://school.getcourse.ru/pl/teach/control/lesson/view?id=1'
+    )
+    payload = load_protected(gateway._gc_path(profile), gateway.platform.protect)
+    assert payload['browser'] == 'chrome'

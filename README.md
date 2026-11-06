@@ -5,12 +5,13 @@
 <h1 align="center">ClipFlow</h1>
 
 <p align="center"><strong>Видео, музыка и фотографии — в вашей коллекции.</strong><br />
-Одно приложение для YouTube, Instagram и GetCourse. Windows и macOS. Файлы остаются у вас.</p>
+Одно приложение для YouTube, Instagram и GetCourse. Windows, macOS и Linux (кандидат, ручная приёмка открыта). Файлы остаются у вас.</p>
 
 <p align="center">
   <a href="https://github.com/kirillbronski/clipflow/actions/workflows/check.yml"><img alt="Проверки dev" src="https://github.com/kirillbronski/clipflow/actions/workflows/check.yml/badge.svg?branch=dev" /></a>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-2563eb" />
   <img alt="macOS 27 Apple Silicon" src="https://img.shields.io/badge/macOS-27%2B%20%C2%B7%20Apple%20Silicon-6253da" />
+  <img alt="Linux x86-64 / ARM64" src="https://img.shields.io/badge/Linux-x86--64%20%C2%B7%20ARM64-f5c542" />
   <img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-3776ab" />
   <img alt="PySide6 Qt Widgets" src="https://img.shields.io/badge/UI-PySide6%20%2F%20Qt%20Widgets-41cd52" />
 </p>
@@ -125,17 +126,56 @@
 
 **Текущая версия 2.1.0 — кандидат на этапе приёмки.** Установщики передаются
 отдельно; публичный бинарный релиз в GitHub пока не опубликован. Актуальный
-код и документация находятся в ветке **`dev`**.
+стабильный код находится в **`main`**, текущая разработка — в **`dev`**.
 
 | Платформа | Поставка | Что требуется |
 | --- | --- | --- |
 | Windows x64 | EXE-установщик или portable ZIP | Запускать установщик либо полностью распаковать ZIP |
 | macOS 27+, Apple Silicon | DMG или APP ZIP | Перенести ClipFlow в «Программы» |
+| Linux x86-64 | Setup.run или portable tar.gz | Ubuntu 22.04+ / Fedora 40+ |
+| Linux ARM64 | Setup.run или portable tar.gz | Ubuntu 24.04+ / Fedora 40+ |
 
 В готовые сборки входят Python runtime, FFmpeg, FFprobe, Node.js и необходимые
 компоненты Qt WebEngine. Ставить их отдельно для установщика не нужно.
 Mac-кандидат имеет локальную ad-hoc подпись; notarization пока не выполнена.
 [Отчёт о сборках и проверках](docs/releases/2.1.0-candidate-2026-11-01.md).
+
+### Установка в Linux
+
+1. Получите проверенный `ClipFlow-2.1.0-Linux-x86_64-Setup.run` для обычного ПК
+   либо `ClipFlow-2.1.0-Linux-aarch64-Setup.run` для ARM64. Кандидаты с отчётами
+   доступны в артефактах успешного запуска [Build native Qt candidates](https://github.com/kirillbronski/clipflow/actions/workflows/build.yml).
+   Выбирайте архив своей архитектуры и распакуйте его: `aarch64` означает ARM64.
+2. Сверьте SHA256 с приложенной контрольной суммой. В свойствах `.run` разрешите
+   запуск как программы, затем откройте файл двойным щелчком. Либо в терминале:
+
+   ```sh
+   chmod +x ClipFlow-2.1.0-Linux-x86_64-Setup.run
+   ./ClipFlow-2.1.0-Linux-x86_64-Setup.run
+   ```
+
+3. Пройдите мастер установки. `sudo` не нужен; каталог по умолчанию —
+   `~/.local/opt/ClipFlow`. В меню приложений появятся **ClipFlow** с цветной иконкой
+   и **Удалить ClipFlow** с чёрно-белой корзиной.
+4. Запустите **ClipFlow** из меню. Python, FFmpeg, FFprobe и Node.js уже входят в пакет.
+
+Для обновления закройте ClipFlow и запустите новый установщик, выбрав прежний
+каталог установки. Настройки, очередь и данные входа сохраняются отдельно:
+`$XDG_DATA_HOME/ClipFlow` при абсолютном XDG-пути, иначе `~/.local/share/ClipFlow`.
+Для удаления откройте **Удалить ClipFlow**; пользовательские данные останутся.
+
+Для portable-версии распакуйте **весь** `portable.tar.gz` и запустите
+`ClipFlow/ClipFlow`. Ярлыки portable-версия не устанавливает.
+
+Сохранение входа между запусками требует разблокированного Secret Service
+(GNOME Keyring или KWallet). Если хранилище отсутствует или заблокировано,
+приложение предупредит: новый вход действует до закрытия, прежние сохранённые
+профили не перезаписываются.
+
+Linux-пакеты проверяются на Ubuntu обеих архитектур; готовый x86-64 пакет также
+проверен на Fedora 44 / Wayland. Личные входы, KDE/X11 и полная ручная приёмка
+отмечаются отдельно в [Linux QA](docs/LINUX-QA.md).
+[Отчёт о Linux-кандидате](docs/releases/2.1.0-linux-candidate-2026-11-06.md).
 
 ### Запуск из исходников
 
@@ -222,7 +262,7 @@ python scripts/check.py
 пакеты проверяются отдельно ([TESTING.md](docs/TESTING.md)): offscreen-тесты
 не заменяют запуск настоящего приложения.
 
-Работа идёт в `dev`. `main` обновляется после проверок обеих ОС для точного
+Работа идёт в `dev`. `main` обновляется после проверок Windows, macOS и Linux для точного
 коммита и соответствующей нативной приёмки. `.git`, `.venv` и личные сессии
 между компьютерами через Google Drive не копируются.
 

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package>
+  <DisplayName>ClipFlow</DisplayName><Description>Desktop media downloader / Загрузка видео</Description>
+  <Version>2.1.0</Version><ReleaseDate>2026-11-05</ReleaseDate>
+  <Default>true</Default><ForcedInstallation>true</ForcedInstallation><Script>installscript.qs</Script>
+</Package>

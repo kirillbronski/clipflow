@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clipflow.domain.models import BROWSERS, Service
+from clipflow.domain.models import Service, browsers_for
 from clipflow.ui.composer import NAMES
 
 
@@ -32,6 +32,11 @@ class AccountsPage(QWidget):
         note = self.tr.widget(QLabel, 'accounts_note')
         note.setWordWrap(True)
         layout.addWidget(note)
+        self.secret_warning = self.tr.widget(QLabel, 'accounts.secret_store_unavailable')
+        self.secret_warning.setTextFormat(Qt.TextFormat.PlainText)
+        self.secret_warning.setWordWrap(True)
+        self.secret_warning.hide()
+        layout.addWidget(self.secret_warning)
         for service in Service:
             row = QHBoxLayout()
             column = QVBoxLayout()
@@ -69,6 +74,8 @@ class AccountsPage(QWidget):
 
     def refresh(self):
         gateway = self.presenter.auth_gateway
+        persistent = getattr(gateway, 'secrets_persistent', lambda: True)
+        self.secret_warning.setVisible(gateway is not None and not persistent())
         for service in Service:
             status = gateway.status(service) if gateway else None
             saved = bool(status and status.connected)
@@ -112,7 +119,7 @@ class GetCourseDialog(QDialog):
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
         self.file = QLineEdit()
         self.browser = QComboBox()
-        for browser in BROWSERS:
+        for browser in browsers_for():
             self.browser.addItem(
                 {
                     'chrome': 'Google Chrome',

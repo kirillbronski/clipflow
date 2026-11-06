@@ -28,6 +28,7 @@ def _parser():
     parser.add_argument('--data-dir')
     parser.add_argument('--instance-id')
     parser.add_argument('--report')
+    parser.add_argument('--session-key-stdin', action='store_true')
     return parser
 
 
@@ -94,7 +95,9 @@ def _theme_mode(root):
 
 
 def _write_report(path, data):
-    Path(path).write_text(json.dumps(data), encoding='utf-8')
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding='utf-8')
 
 
 def _self_test_checks(window, service, platform, agent, original_icon):
@@ -203,18 +206,43 @@ def _start_self_test(app, window, launch, platform, theme, report):
     QTimer.singleShot(25000, lambda: app.exit(2))
 
 
+def _platform_services(args, root):
+    key = sys.stdin.buffer.readline(128).strip() if args.session_key_stdin else None
+    directory = sys.stdin.buffer.readline(4096).strip().decode('utf-8') if key else None
+    return PlatformServices(root, session_key=key, session_directory=directory)
+
+
+def sandbox_environment(environ, system=None, flag=None):
+    system = sys.platform if system is None else system
+    result = dict(environ)
+    if system.startswith('linux'):
+        flag = flag or Path('/proc/sys/kernel/apparmor_restrict_unprivileged_userns')
+        try:
+            restricted = flag.read_text().strip() == '1'
+        except OSError:
+            restricted = False
+        if restricted:
+            result['QTWEBENGINE_DISABLE_SANDBOX'] = '1'
+    return result
+
+
 def main(argv=None):
     args = _parser().parse_args(sys.argv[1:] if argv is None else argv)
     launch = _launch(args)
     if isinstance(launch, int):
         return launch
-    service, directory = launch.service, launch.directory
+    os.environ.update(sandbox_environment(os.environ))
+    platform = _platform_services(args, launch.root)
+    service = launch.service
+    directory = platform.protected_path(launch.directory)
     directory.mkdir(parents=True, exist_ok=True)
     from PySide6.QtCore import QCoreApplication, QLockFile, Qt
     from PySide6.QtWidgets import QApplication
 
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv[:1])
+    if sys.platform.startswith('linux'):
+        app.setDesktopFileName('clipflow')  # pragma: only linux
     app.setApplicationName(
         'ClipFlow ' + ('YouTube' if service == Service.YOUTUBE else 'Instagram') + ' Sign-in'
     )
@@ -235,7 +263,6 @@ def main(argv=None):
     translator.install_qt()
     from clipflow.infrastructure.auth_process.window import AuthWindow
 
-    platform = PlatformServices(launch.root)
     window = AuthWindow(
         directory,
         service,

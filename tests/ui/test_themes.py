@@ -179,3 +179,13 @@ def test_closed_window_detaches_application_theme_hook(make_window, qapp):
     qapp.styleHints().colorSchemeChanged.emit(Qt.ColorScheme.Light)
     qapp.styleHints().colorSchemeChanged.emit(Qt.ColorScheme.Dark)
     assert calls == [], 'A closed workbench must not keep changing the application palette'
+
+
+def test_linux_stylesheet_sets_no_font_family(monkeypatch):
+    import sys
+
+    from clipflow.ui.themes import styles
+
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    stylesheet = styles(PALETTES['dark'])
+    assert 'font-family' not in stylesheet

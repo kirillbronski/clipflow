@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-15]
+        os: [windows-latest, macos-15, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -27,6 +27,14 @@ jobs:
       - name: Install FFmpeg on macOS
         if: runner.os == 'macOS'
         run: brew install ffmpeg
+      - name: Install Linux runtime and test tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libfontconfig1 libdbus-1-3 libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libasound2 libminizip1 libopus0 libwebp7 libwebpmux3 libwebpdemux2 libsnappy1v5 liblcms2-2 libxkbfile1 libgbm1 libxcb-dri3-0 ffmpeg gnome-keyring dbus-x11
+      - name: Validate Linux Qt loader
+        if: runner.os == 'Linux'
+        run: python -c "from PySide6 import QtWidgets, QtWebEngineCore; print('Qt loader ready')"
       - name: Offline checks and coverage
         shell: python
         run: |
@@ -50,13 +58,13 @@ jobs:
           PYTEST_ADDOPTS: --junitxml=work/offline-tests.xml
       - name: Native Qt clipboard DPI history and shutdown on Windows
         if: runner.os == 'Windows'
-        run: python -m pytest tests/ui/test_themes.py tests/ui/test_design_parity.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
+        run: python -m pytest tests/ui/test_themes.py tests/ui/test_design_parity.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q --junitxml=work/native-gui.xml
         env:
           QT_QPA_PLATFORM: windows
           CLIPFLOW_NATIVE_QA: '1'
       - name: Native Qt clipboard DPI history and shutdown on macOS
         if: runner.os == 'macOS'
-        run: python -m pytest tests/ui/test_themes.py tests/ui/test_design_parity.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q
+        run: python -m pytest tests/ui/test_themes.py tests/ui/test_design_parity.py tests/platform/test_qt_clipboard.py tests/ui/test_history_actions.py tests/integration/test_shutdown_recovery.py -q --junitxml=work/native-gui.xml
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_NATIVE_QA: '1'
@@ -72,6 +80,17 @@ jobs:
         env:
           QT_QPA_PLATFORM: cocoa
           CLIPFLOW_AUTH_NATIVE: '1'
+      - name: Native Linux Secret Service
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          export XDG_RUNTIME_DIR=$(mktemp -d /tmp/clipflow-secrets.XXXXXX)
+          export XDG_DATA_HOME="$PWD/work/native-secrets/data"
+          export XDG_CONFIG_HOME="$PWD/work/native-secrets/config"
+          export XDG_CACHE_HOME="$PWD/work/native-secrets/cache"
+          dbus-run-session -- sh -c 'printf test | gnome-keyring-daemon --unlock --components=secrets; python -m pytest tests/platform/test_secret_service.py -q'
+        env:
+          CLIPFLOW_SECRET_SERVICE_NATIVE: '1'
       - name: Test failure diagnostics
         if: always()
         shell: python
@@ -80,7 +99,7 @@ jobs:
           import xml.etree.ElementTree as ET
           import sys
           sys.stdout.reconfigure(encoding='utf-8', errors='backslashreplace')
-          for report in (Path('work/offline-tests.xml'), Path('work/native-auth.xml')):
+          for report in (Path('work/offline-tests.xml'), Path('work/native-auth.xml'), Path('work/native-gui.xml')):
             if report.is_file():
               for case in ET.parse(report).getroot().iter('testcase'):
                   for failure in list(case.findall('failure')) + list(case.findall('error')):
@@ -95,6 +114,7 @@ jobs:
           path: |
             work/verification/*.json
             work/native-auth.xml
+            work/native-gui.xml
             work/offline-tests.xml
             work/offline-check.log
           retention-days: 14

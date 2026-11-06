@@ -163,7 +163,7 @@ class ThemeManager(QObject):
 
 
 def styles(t):
-    return """
+    stylesheet = """
 QWidget {{ color: {text}; font-family: "{font_family}"; font-size: 13px; font-weight: 400; }}
 QMainWindow,QWidget#root {{ background: {background}; }}
 QFrame#sidebar {{ background: {sidebar}; border-right: 1px solid {border}; }}
@@ -203,3 +203,7 @@ QMenu::item:selected,QMenuBar::item:selected {{ background: {selection}; color: 
 QMenu::item:disabled {{ color: {disabled}; }}
 QToolTip {{ background: {menu}; color: {text}; border: 1px solid {border}; }}
 """.format(**t, font_family='Helvetica Neue' if sys.platform == 'darwin' else 'Segoe UI')
+
+    if sys.platform.startswith('linux'):
+        stylesheet = stylesheet.replace('font-family: "Segoe UI"; ', '')
+    return stylesheet

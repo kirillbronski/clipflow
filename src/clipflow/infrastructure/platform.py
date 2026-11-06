@@ -3,24 +3,48 @@
 import hashlib
 import os
 import sys
+import tempfile
 import threading
 from pathlib import Path
 
 SYSTEM = sys.platform
+RAM_ROOT = Path('/dev/shm')
 _key_lock = threading.Lock()
+
+
+def platform_name(system=None):
+    system = sys.platform if system is None else system
+    if system.startswith('linux'):
+        return 'linux'
+    try:
+        return {'win32': 'windows', 'darwin': 'macos'}[system]
+    except KeyError:
+        raise ValueError('Unsupported platform: ' + system) from None
 
 
 def data_directory():
     if os.environ.get('CLIPFLOW_DATA_DIR'):
         return Path(os.environ['CLIPFLOW_DATA_DIR']).expanduser().resolve()
+    if SYSTEM.startswith('linux'):
+        xdg = Path(os.environ.get('XDG_DATA_HOME', ''))
+        base = xdg if xdg.is_absolute() else Path.home() / '.local/share'
+        return base / 'ClipFlow'
     if SYSTEM == 'darwin':
         return Path.home() / 'Library/Application Support/ClipFlow'
     return Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'ClipFlow'
 
 
 class PlatformServices:
-    def __init__(self, data_dir=None):
+    def __init__(self, data_dir=None, session_key: bytes | None = None, session_directory=None):
         self.data_dir = Path(data_dir or data_directory()).expanduser().resolve()
+        self.session_key = session_key
+        self._persistent = None
+        self._temporary = None
+        self._session_directory = Path(session_directory).resolve() if session_directory else None
+        if self._session_directory is not None and not self._session_directory.is_relative_to(
+            RAM_ROOT.resolve()
+        ):
+            raise ValueError('Invalid temporary authentication directory')
 
     def key_namespace(self):
         if os.environ.get('CLIPFLOW_DATA_DIR'):
@@ -33,6 +57,8 @@ class PlatformServices:
         try:
             if SYSTEM == 'win32':
                 return _protect_windows(data, decrypt)
+            if SYSTEM.startswith('linux'):
+                return self._protect_linux(data, decrypt)
             if SYSTEM != 'darwin':
                 raise OSError
             from cryptography.fernet import Fernet
@@ -51,6 +77,57 @@ class PlatformServices:
                 return cipher.decrypt(data) if decrypt else cipher.encrypt(data)
         except Exception:  # noqa: BLE001  # keyring и cryptography: наружу только безопасный код, без ключей
             raise OSError('auth_protection_failed') from None
+
+    def _linux_key(self, create):
+        from cryptography.fernet import Fernet
+
+        from clipflow.infrastructure.linux_secrets import SecretStoreUnavailable, fernet_key
+
+        if self.session_key is None:
+            try:
+                return fernet_key(*self.key_namespace(), create=create)
+            except SecretStoreUnavailable:
+                self.session_key = Fernet.generate_key()
+                self._persistent = False
+        return self.session_key
+
+    def _protect_linux(self, data, decrypt):
+        from cryptography.fernet import Fernet
+
+        with _key_lock:
+            key = self._linux_key(create=not decrypt)
+            if key is None:
+                raise ValueError
+            cipher = Fernet(key)
+            return cipher.decrypt(data) if decrypt else cipher.encrypt(data)
+
+    def secrets_persistent(self, *, refresh=False):
+        if not SYSTEM.startswith('linux'):
+            return True
+        with _key_lock:
+            if self.session_key is not None:
+                return False
+            if refresh:
+                self._persistent = None
+            if self._persistent is None:
+                self._linux_key(create=False)
+                self._persistent = self.session_key is None
+            return self._persistent
+
+    def protected_path(self, path):
+        path = Path(path).resolve()
+        if not SYSTEM.startswith('linux') or self.secrets_persistent():
+            return path
+        with _key_lock:
+            if self._session_directory is None:
+                self._temporary = tempfile.TemporaryDirectory(prefix='clipflow-auth-', dir=RAM_ROOT)
+                self._session_directory = Path(self._temporary.name)
+            root = self._session_directory
+        if path.is_relative_to(root):
+            return path
+        if path.is_relative_to(self.data_dir):
+            return root / path.relative_to(self.data_dir)
+        return root / hashlib.sha256(str(path).encode()).hexdigest() / path.name
 
     def reveal(self, path: Path):
         from PySide6.QtCore import QUrl

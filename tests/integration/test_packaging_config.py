@@ -274,3 +274,109 @@ def test_check_keeps_an_explicit_qt_platform(monkeypatch):
     main, _, _ = offline_check(monkeypatch, [0, 0])
     assert main() == 0
     assert os.environ['QT_QPA_PLATFORM'] == 'cocoa'
+
+
+def test_resolve_tool_uses_linux_runtime_folder(monkeypatch, tmp_path):
+    cfg = configuration()
+    monkeypatch.setattr(cfg, 'ROOT', tmp_path)
+    monkeypatch.setattr(sys, 'platform', 'linux')
+    monkeypatch.delenv('CLIPFLOW_FFMPEG_PATH', raising=False)
+    monkeypatch.delenv('CLIPFLOW_BIN_DIR', raising=False)
+    tool = tmp_path / '.runtime/linux/bin/ffmpeg'
+    tool.parent.mkdir(parents=True)
+    tool.write_bytes(b'test')
+    assert cfg.runtime_folder('linux') == 'linux'
+    assert cfg.resolve_tool('ffmpeg') == tool
+
+
+@pytest.mark.parametrize('system', ['win32', 'darwin', 'linux'])
+@pytest.mark.parametrize('marked', ['windows', 'macos', 'linux'])
+def test_coverage_measures_only_current_platform(tmp_path, monkeypatch, system, marked):
+    from coverage import Coverage
+
+    gate = module('check_coverage', ROOT / 'scripts/check_coverage.py')
+    monkeypatch.setenv('CLIPFLOW_FOREIGN_OS', gate.foreign_system(system))
+    source = tmp_path / 'native.py'
+    source.write_text(f'def seal():  # pragma: only {marked}\n    return 1\n', encoding='utf-8')
+    coverage = Coverage(config_file=str(ROOT / 'pyproject.toml'), data_file=str(tmp_path / 'data'))
+    own = {'win32': 'windows', 'darwin': 'macos', 'linux': 'linux'}[system]
+    assert bool(coverage.analysis2(str(source))[1]) is (marked == own)
+
+
+@pytest.mark.parametrize(
+    ('machine', 'expected'),
+    [('x86_64', 'x86_64'), ('amd64', 'x86_64'), ('arm64', 'aarch64'), ('aarch64', 'aarch64')],
+)
+def test_linux_arch_normalizes(machine, expected):
+    assert configuration().linux_arch(machine) == expected
+
+
+def test_linux_arch_refuses_unknown():
+    with pytest.raises(ValueError, match='Unsupported Linux architecture'):
+        configuration().linux_arch('riscv64')
+
+
+def test_linux_artifact_names():
+    assert configuration().linux_artifact_names('2.1.0', 'aarch64') == {
+        'setup': 'ClipFlow-2.1.0-Linux-aarch64-Setup.run',
+        'portable': 'ClipFlow-2.1.0-Linux-aarch64-portable.tar.gz',
+    }
+
+
+def test_max_glibc_reads_highest_version():
+    cfg = configuration()
+    assert cfg.max_glibc('GLIBC_2.17 GLIBC_2.34 GLIBC_2.2.5 GLIBC_PRIVATE') == (2, 34)
+    assert cfg.max_glibc('no symbol versions') is None
+
+
+def test_glibc_violations_lists_only_newer_elf(tmp_path):
+    import types
+
+    cfg = configuration()
+    for name, content in [('new', b'\x7fELFnew'), ('old', b'\x7fELFold'), ('text', b'hello')]:
+        (tmp_path / name).write_bytes(content)
+    seen = []
+
+    def run(args, **kwargs):
+        seen.append(Path(args[-1]).name)
+        return types.SimpleNamespace(
+            stdout='GLIBC_2.38' if args[-1].name == 'new' else 'GLIBC_2.35'
+        )
+
+    assert cfg.glibc_violations(tmp_path, run=run) == ['new']
+    assert set(seen) == {'new', 'old'}
+
+
+def test_desktop_entry_quotes_space_and_cyrillic_path():
+    entry = configuration().desktop_entry('/home/кирилл a/ClipFlow')
+    assert 'Exec="/home/кирилл a/ClipFlow"\n' in entry
+    assert 'Type=Application\n' in entry
+    assert 'StartupWMClass=ClipFlow\n' in entry
+    with pytest.raises(ValueError, match='Invalid desktop entry'):
+        configuration().desktop_entry('/tmp/file\nInjected=true')
+
+
+def test_linux_spec_inputs_include_secret_service(monkeypatch, tmp_path):
+    pytest.importorskip('secretstorage')
+    cfg = configuration()
+    monkeypatch.setattr(cfg, 'resolve_tool', lambda name: tmp_path / name)
+    assert 'keyring.backends.SecretService' in cfg.spec_inputs(ROOT, 'linux')['hiddenimports']
+
+
+def test_linux_glibc_gate_has_architecture_specific_floor(tmp_path):
+    import types
+
+    cfg = configuration()
+    for name in ('v39', 'v40'):
+        (tmp_path / name).write_bytes(b'\x7fELF')
+
+    def run(args, **kwargs):
+        return types.SimpleNamespace(stdout='GLIBC_2.' + args[-1].name[1:])
+
+    assert cfg.glibc_violations(tmp_path, run=run, limit=cfg.linux_glibc_limit('x86_64')) == [
+        'v39',
+        'v40',
+    ]
+    assert cfg.glibc_violations(tmp_path, run=run, limit=cfg.linux_glibc_limit('aarch64')) == [
+        'v40'
+    ]

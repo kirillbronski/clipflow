@@ -2,6 +2,7 @@
 
 import math
 import re
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -220,6 +221,13 @@ BROWSERS = (
     'yandex',
     'whale',
 )
+
+
+def browsers_for(system=None):
+    system = sys.platform if system is None else system
+    if system.startswith('linux'):
+        return tuple(browser for browser in BROWSERS if browser not in {'opera_gx', 'safari'})
+    return BROWSERS
 
 
 @dataclass(frozen=True)

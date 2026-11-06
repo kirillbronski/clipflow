@@ -1,6 +1,33 @@
 # ClipFlow — текущая память проекта
 
-Обновлено 1 ноября 2026 года (2.1.0). Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
+Обновлено 6 ноября 2026 года (2.1.0). Это указатель на состояние работы, не замена актуальному Git, AGENTS и результатам проверок.
+
+## Linux — завершение реализации 6 ноября 2026
+
+Владелец слил прежний dev через PR #3 в main (`c61eceb`), затем поручил Linux в dev.
+Проверенный код и установщик: `8ae0838cf0615b40402b387318437a43ab1bee9c`, версия 2.1.0.
+Локально Python3.12: 1158 PASS, 11 явных skips; core98.40%/95.88%, runtime96.20%.
+Checks42187681304: Windows/macOS/Linux SUCCESS; Build42187681309: Ubuntu22 x64
+и Ubuntu24 ARM64 SUCCESS, включая frozen UI/auth и установку/обновление/удаление.
+На Fedora44 x86-64 проверен именно Ubuntu22-кандидат: native Wayland UI/local transfer,
+FFmpeg/FFprobe/Node, оба WebEngine auth self-tests, desktop app_id и RAM-only auth PASS.
+Установлен без root в ~/.local/opt/ClipFlow; ярлык/иконка/удаление созданы, обычный запуск PASS.
+Установщик и SHA256 сохранены в Documents/ClipFlow. Полный отчёт:
+`docs/releases/2.1.0-linux-candidate-2026-11-06.md`.
+
+Реализованы XDG, Secret Service/Fernet, приватный /dev/shm fallback без перезаписи
+прежних durable credentials, передача auth key/path через stdin, systemd-inhibit,
+Linux browsers/import normalization, отдельный auth sandbox workaround, PyInstaller/QtIFW.
+Wayland app_id clipflow задаётся только на Linux; fresh RAM self-test создаёт родителя отчёта.
+Высота свёрнутой карточки учитывает heightForWidth системного шрифта.
+По решению владельца: Ubuntu22.04+ x86-64/glibc2.35; Ubuntu24.04+ ARM64/glibc2.39;
+Fedora40+ обеих архитектур. ARM64 PySide6 требует glibc2.39.
+QtIFW x64 — официальный4.8.1; ARM64 — SHA-pinned source4.11.0 + static Qt6.7.2
+и static zlib/bzip2/lzma; старый vendor ARM binary требовал libtiff.so.5.
+QtIFW CLI upgrade требует ClipFlowUpgradeTarget=PATH и --root PATH; marker clipflow-install.txt.
+RemoveTargetDir=false сохраняет чужие файлы; пустая папка может остаться после удаления.
+Личные/live входы, KDE/X11, реальный suspend, Ubuntu ARM64 VM и полная ручная
+приёмка остаются открытыми в docs/LINUX-QA.md. Новый merge main/публичный релиз не выполнялся.
 
 ## 2.1.0 собрана и установлена — 1 ноября
 

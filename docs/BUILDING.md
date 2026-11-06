@@ -17,3 +17,23 @@ Smoke выполняет реальный frozen Qt UI/local media и оба pro
 Windows11 ARM64/x64 emulation, Program Files + Desktop shortcut. После final
 review исправлены имена generic outputs/повтор коллекций: для выдачи всегда
 сверять новый source SHA в verification report, не только номер2.0.0.
+
+
+## Linux
+
+x86-64: Ubuntu22.04+/glibc2.35; ARM64: Ubuntu24.04+/glibc2.39.
+Fedora40+ поддерживается обеими архитектурами. Собирайте на соответствующей ОС/архитектуре.
+`python scripts/linux_tools.py --arch x86_64 --dest .runtime/linux` получает закреплённые
+FFmpeg/Node/QtIFW с SHA256; для ARM64 используйте `aarch64`. На ARM64 QtIFW4.11.0
+собирается со static Qt6.7.2 из закреплённых исходников (официальный ARM binary
+требует устаревшую libtiff.so.5). Пакеты компилятора, CMake/Ninja и XCB/Fontconfig
+указаны в `.github/workflows/build.yml`; libarchive в QtIFW4.11 требует zlib1g-dev,
+liblzma-dev и libbz2-dev. Архивы сжатия .a связываются статически (имена
+динамических bzip2-библиотек различаются у Ubuntu/Fedora); CI кеширует проверенный `.runtime/linux/qtifw`.
+Добавьте `.runtime/linux/bin` в PATH и задайте
+`QTIFW_BINARYCREATOR` на `.runtime/linux/qtifw/bin/binarycreator`, затем выполните
+`python scripts/check.py` и `python scripts/build.py`.
+Результат: .run, portable.tar.gz, build/package/installer reports и SHA256SUMS.
+Проверка ELF отклоняет требования glibc выше порога архитектуры; отчёт содержит минимум.
+Installer smoke устанавливает, обновляет и удаляет приложение в изолированной папке
+с кириллицей и пробелом, сохраняя тестовый профиль. Ручная QA — docs/LINUX-QA.md.

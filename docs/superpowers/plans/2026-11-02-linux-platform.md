@@ -2,20 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** ClipFlow runs on Linux (Ubuntu 22.04+, Fedora 40+, x86-64 and ARM64) with the same features as Windows/macOS, shipped as a Qt Installer Framework `.run` plus a portable `tar.gz`.
+**Goal:** ClipFlow runs on Linux (Ubuntu 22.04+ x86-64 / Ubuntu 24.04+ ARM64, Fedora 40+, x86-64 and ARM64) with the same features as Windows/macOS, shipped as a Qt Installer Framework `.run` plus a portable `tar.gz`.
 
 **Architecture:** Linux branches go next to the existing Windows/macOS ones in `src/clipflow/infrastructure` (platform, keep-awake, auth) and in a few `ui` spots. They are selected by `sys.platform == 'linux'` and are testable on any OS by patching the system value. Packaging adds `packaging/linux/` (PyInstaller spec and QtIFW installer) and a `linux` branch in `scripts/build.py`. CI gains Ubuntu jobs.
 
-**Tech Stack:** Python 3.12, PySide6 6.10.3 / QtWebEngine, keyring 25.7 (SecretService backend via its own `SecretStorage` dependency on Linux), cryptography Fernet, PyInstaller 6, Qt Installer Framework 4.x, GitHub Actions `ubuntu-22.04` / `ubuntu-22.04-arm`.
+**Tech Stack:** Python 3.12, PySide6 6.10.3 / QtWebEngine, keyring 25.7 (SecretService backend via its own `SecretStorage` dependency on Linux), cryptography Fernet, PyInstaller 6, Qt Installer Framework 4.x, GitHub Actions `ubuntu-22.04` / `ubuntu-24.04-arm`.
 
 **Spec:** `docs/superpowers/specs/2026-11-02-linux-platform-design.md`
 
 ## Global Constraints
 
-- Supported: Ubuntu 22.04+ and Fedora 40+; architectures `x86_64` and `aarch64` (`arm64` normalizes to `aarch64`); any other architecture is refused.
+- Supported: Ubuntu 22.04+ x86-64 / Ubuntu 24.04+ ARM64 and Fedora 40+; architectures `x86_64` and `aarch64` (`arm64` normalizes to `aarch64`); any other architecture is refused.
 - Linux data directory: `$XDG_DATA_HOME/ClipFlow` when `XDG_DATA_HOME` is absolute, else `~/.local/share/ClipFlow`; `CLIPFLOW_DATA_DIR` keeps priority.
 - Install directory: `~/.local/opt/ClipFlow`, without root. Uninstall never touches the data directory.
-- Package ELF files must not require `GLIBC_` symbols newer than 2.35.
+- Package ELF files must not require `GLIBC_` symbols newer than 2.35 on x86-64, or 2.39 on ARM64 (owner-approved 5 November).
 - Artifacts: `ClipFlow-<version>-Linux-<arch>-Setup.run`, `ClipFlow-<version>-Linux-<arch>-portable.tar.gz`, `build-report.json`, `package-report.json`, `SHA256SUMS.txt`, `INSTALL.txt` (ru/en).
 - Error code for an unavailable secret store: `auth_secret_store_unavailable`; other protection failures stay `auth_protection_failed`. No key or secret appears in any message.
 - User-visible text goes through `ui/i18n.py` with both ru and en.
@@ -256,13 +256,13 @@
 - Produces `scripts/linux_tools.py --arch {x86_64,aarch64} --dest DIR`: a `PINS` dict per arch with `url` and `sha256` for (a) a BtbN FFmpeg static GPL build of a fixed `autobuild-YYYY-MM-DD` tag (`linux64` / `linuxarm64`) and (b) Node LTS `v22.x` `linux-x64` / `linux-arm64` `.tar.xz`. Values are copied from upstream `checksums.sha256` / `SHASUMS256.txt` at implementation time and the tag/version recorded in `THIRD-PARTY-NOTICES.md`. It extracts `ffmpeg`, `ffprobe` and `node` to `DIR/bin`, stores their licenses in `work/package-licenses/`, and on a SHA mismatch raises `RuntimeError` and deletes the download. For `x86_64` it also fetches the pinned official QtIFW 4.x Linux x64 installer, runs it headless into `DIR/qtifw`, and prints `binarycreator`'s path.
 - `check.yml`: matrix adds `ubuntu-22.04`. A Linux step runs `sudo apt-get install -y` Qt runtime libs (`libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libfontconfig1 libdbus-1-3 libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libasound2`), plus `ffmpeg gnome-keyring dbus-x11`. Offline checks are as today. New Linux-only step: `dbus-run-session -- sh -c 'echo -n test | gnome-keyring-daemon --unlock --components=secrets && python -m pytest tests/platform/test_secret_service.py -q'` with `CLIPFLOW_SECRET_SERVICE_NATIVE=1`.
 - `tests/platform/test_secret_service.py`: skips unless Linux and `CLIPFLOW_SECRET_SERVICE_NATIVE=1`. `test_real_store_round_trip_and_cleanup` (`fernet_key('ClipFlow Tests', <unique>, create=True)` twice gives the same key; deleting via the backend removes it; a `finally` always deletes). `test_no_bus_is_unavailable` (with `DBUS_SESSION_BUS_ADDRESS` set to an invalid path in a subprocess → `SecretStoreUnavailable`).
-- `build.yml`: `target` options add `linux`. The matrix for `all` adds `ubuntu-22.04` and `ubuntu-22.04-arm`; `linux` alone selects both. Linux steps: the apt libs above plus `binutils`, then `python scripts/linux_tools.py --arch <arch> --dest .runtime/linux`, setting `CLIPFLOW_BIN_DIR` and `QTIFW_BINARYCREATOR`. ARM64 only: restore cache `qtifw-<version>-aarch64`; on a miss, build QtIFW `<version>` from source against a static Qt per the QtIFW README, then save the cache. Build with `QT_QPA_PLATFORM=offscreen python scripts/build.py`. Artifact paths add `outputs/**/ClipFlow-*-Linux-*-Setup.run`, `outputs/**/ClipFlow-*-Linux-*-portable.tar.gz`, `outputs/**/installer-report.json`, `outputs/**/INSTALL.txt`.
+- `build.yml`: `target` options add `linux`. The matrix for `all` adds `ubuntu-22.04` and `ubuntu-24.04-arm`; `linux` alone selects both. Linux steps: the apt libs above plus `binutils`, then `python scripts/linux_tools.py --arch <arch> --dest .runtime/linux`, setting `CLIPFLOW_BIN_DIR` and `QTIFW_BINARYCREATOR`. ARM64 only: restore cache `qtifw-<version>-aarch64`; on a miss, build QtIFW `<version>` from source against a static Qt per the QtIFW README, then save the cache. Build with `QT_QPA_PLATFORM=offscreen python scripts/build.py`. Artifact paths add `outputs/**/ClipFlow-*-Linux-*-Setup.run`, `outputs/**/ClipFlow-*-Linux-*-portable.tar.gz`, `outputs/**/installer-report.json`, `outputs/**/INSTALL.txt`.
 
 - [ ] **Step 1: Write failing tests:** `test_linux_tool_pins_are_complete` (each arch has ffmpeg and node with a 64-hex `sha256` and an `https://` URL; x86_64 has qtifw), `test_linux_tools_rejects_checksum_mismatch` (fake downloader writing wrong bytes → `RuntimeError`, file removed), and the secret service test file.
 - [ ] **Step 2: Run** `python -m pytest tests/integration/test_packaging_config.py tests/platform/test_secret_service.py -q`. Expected: the pin tests FAIL and the secret service tests SKIP on Windows.
 - [ ] **Step 3: Implement** the script and the workflows.
 - [ ] **Step 4: Run** `python scripts/check.py`. Expected: PASS. Commit `ci: Linux checks, Secret Service test and Linux package builds`, push `dev`.
-- [ ] **Step 5: Verify on GitHub:** `gh run watch` on Checks for the pushed commit. Expected: all three OS jobs green. Then `gh workflow run build.yml -f target=linux --ref dev` and watch. Expected: both Linux jobs upload `.run`, `tar.gz` and reports. If `ubuntu-22.04-arm` is unavailable to the repository, record it as unavailable (not success) and report it to the owner. Fix failures in follow-up commits, never by skipping a check.
+- [ ] **Step 5: Verify on GitHub:** `gh run watch` on Checks for the pushed commit. Expected: all three OS jobs green. Then `gh workflow run build.yml -f target=linux --ref dev` and watch. Expected: both Linux jobs upload `.run`, `tar.gz` and reports. If `ubuntu-24.04-arm` is unavailable to the repository, record it as unavailable (not success) and report it to the owner. Fix failures in follow-up commits, never by skipping a check.
 
 ### Task 10: Docs, project rules and QA checklist
 
@@ -280,3 +280,13 @@
 - [ ] **Step 2: Run** `python scripts/check.py`. Expected: PASS.
 - [ ] **Step 3: Commit** `docs: Linux QA checklist and project rules for three platforms`, push `dev`, and confirm Checks are green on all three OS for the final commit.
 - [ ] **Step 4: Report** to the owner: commits, check results per OS, Linux build artifacts (or ARM unavailability), and what remains manual (Fedora 44 x86-64 by the owner, Ubuntu ARM64 on the Mac). Then pause.
+
+
+## Owner-approved implementation refinements — 5 November 2026
+
+ARM64 minimum is Ubuntu24.04/glibc2.39; x86-64 remains Ubuntu22.04/glibc2.35.
+Official PySide6 6.10.3 ARM64 wheels require glibc2.39. Official QtIFW4.8.1 x64 binaries are pinned. The ARM64 binary requires obsolete
+libtiff.so.5 on Ubuntu24; build QtIFW4.11.0 against static Qt6.7.2 from pinned
+vendor source archives, cache verified tools, and run full native installer smoke.
+Temporary authentication must not replace durable profiles: use a private RAM-backed
+/dev/shm directory, shared with the auth child via stdin along with its ephemeral key.

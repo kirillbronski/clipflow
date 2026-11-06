@@ -13,7 +13,16 @@ from pathlib import Path
 from urllib.request import urlopen
 from uuid import uuid4
 
-from package_config import APP_VERSION, resolve_tool, windows_build_environment
+from linux_build import build_artifacts as linux_artifacts
+from linux_build import check_glibc
+from package_config import (
+    APP_VERSION,
+    linux_arch,
+    linux_glibc_limit,
+    resolve_tool,
+    runtime_folder,
+    windows_build_environment,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -85,16 +94,24 @@ def installer_compiler():
     return result
 
 
+def native_system(parser):
+    try:
+        system = runtime_folder()
+        if system == 'linux':
+            linux_arch(platform.machine())
+    except ValueError as error:
+        parser.error(str(error))
+    if system == 'macos' and platform.machine() != 'arm64':
+        parser.error('macOS release targets Apple Silicon arm64')
+    return system
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--portable-only', action='store_true')
     parser.add_argument('--skip-smoke', action='store_true')
     args = parser.parse_args(argv)
-    system = 'windows' if sys.platform == 'win32' else 'macos' if sys.platform == 'darwin' else None
-    if system is None:
-        parser.error('Build on native Windows or macOS')
-    if system == 'macos' and platform.machine() != 'arm64':
-        parser.error('macOS release targets Apple Silicon arm64')
+    system = native_system(parser)
     info = prepare()
     label = system + '-' + uuid4().hex[:10]
     output = ROOT / 'outputs' / APP_VERSION / label
@@ -123,8 +140,18 @@ def main(argv=None):
         ROOT / f'packaging/{system}/ClipFlow.spec',
         env=env,
     )
-    app = output / ('ClipFlow' if system == 'windows' else 'ClipFlow.app')
-    executable = app / ('ClipFlow.exe' if system == 'windows' else 'Contents/MacOS/ClipFlow')
+    app = output / ('ClipFlow.app' if system == 'macos' else 'ClipFlow')
+    executable = (
+        app
+        / {'windows': 'ClipFlow.exe', 'macos': 'Contents/MacOS/ClipFlow', 'linux': 'ClipFlow'}[
+            system
+        ]
+    )
+    if system == 'linux':
+        arch = linux_arch(platform.machine())
+        check_glibc(app, arch)
+        info['architecture'] = arch
+        info['minimum_glibc'] = '.'.join(map(str, linux_glibc_limit(arch)))
     if system == 'macos':
         run('codesign', '--verify', '--deep', '--strict', app)
     if not args.skip_smoke:
@@ -154,6 +181,16 @@ def main(argv=None):
                 ROOT / 'packaging/windows/setup.iss',
             )
             artifacts.append(output / f'ClipFlow-Setup-{APP_VERSION}.exe')
+    elif system == 'linux':
+        artifacts = linux_artifacts(
+            ROOT,
+            output,
+            stage,
+            app,
+            linux_arch(platform.machine()),
+            portable_only=args.portable_only,
+            skip_smoke=args.skip_smoke,
+        )
     else:
         dmg_stage = stage / 'dmg'
         dmg_stage.mkdir()
@@ -194,7 +231,8 @@ def main(argv=None):
         for path in artifacts
     ]
     info['package_smoke'] = not args.skip_smoke
-    info['launch_services_mac27_verified'] = False
+    if system == 'macos':
+        info['launch_services_mac27_verified'] = False
     (output / 'build-report.json').write_text(json.dumps(info, indent=2) + '\n', encoding='utf-8')
     (output / 'SHA256SUMS.txt').write_text(
         ''.join(a['sha256'] + '  ' + a['name'] + '\n' for a in info['artifacts']), encoding='utf-8'
