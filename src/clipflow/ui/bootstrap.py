@@ -60,6 +60,7 @@ def installer_language(directory):
 def create_application(argv: list[str], data_dir: Path | None = None):
     app = QApplication.instance() or QApplication(argv)
     app.setApplicationName('ClipFlow')
+    app.setDesktopFileName('clipflow')
     app.setWindowIcon(application_icon())
     directory = Path(data_dir) if data_dir is not None else data_directory()
     language = installer_language(directory)

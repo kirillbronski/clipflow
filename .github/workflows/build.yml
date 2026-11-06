@@ -58,7 +58,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .runtime/linux/qtifw
-          key: qtifw-4.8.1-qt6.7.2-ubuntu24-arm64-${{ hashFiles('scripts/linux_qtifw.py') }}
+          key: qtifw-4.11.0-qt6.7.2-ubuntu24-arm64-${{ hashFiles('scripts/linux_qtifw.py') }}
       - name: Install Linux runtime and tools
         if: runner.os == 'Linux'
         shell: bash
@@ -83,7 +83,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .runtime/linux/qtifw
-          key: qtifw-4.8.1-qt6.7.2-ubuntu24-arm64-${{ hashFiles('scripts/linux_qtifw.py') }}
+          key: qtifw-4.11.0-qt6.7.2-ubuntu24-arm64-${{ hashFiles('scripts/linux_qtifw.py') }}
       - name: Qt regression and coverage gates
         run: python scripts/check.py --qt
         env:

@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -99,6 +101,8 @@ def test_auth_process_reads_session_key_from_stdin(monkeypatch, tmp_path):
 def test_temporary_sign_in_uses_off_the_record_browser(tmp_path):
     code = """
 from pathlib import Path
+
+import pytest
 from PySide6.QtWidgets import QApplication
 from clipflow.infrastructure.auth_process.window import browser_profile
 app = QApplication([])
@@ -114,3 +118,30 @@ profile.deleteLater()
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='Linux memory-only authentication fallback')
+def test_auth_self_test_reports_from_a_fresh_memory_only_profile(tmp_path):
+    root = tmp_path / 'new-profile'
+    report = root / 'proof.json'
+    code = """
+import sys
+import clipflow.infrastructure.linux_secrets as secrets
+from clipflow.infrastructure.auth_process.__main__ import main
+
+def unavailable():
+    raise OSError('Synthetic unavailable Secret Service')
+
+secrets._backend = unavailable
+raise SystemExit(main(['--auth-self-test', '--data-dir', sys.argv[1], '--report', sys.argv[2]]))
+"""
+    result = subprocess.run(
+        [sys.executable, '-c', code, str(root), str(report)],
+        env=dict(os.environ, CLIPFLOW_DATA_DIR=str(root), QT_QPA_PLATFORM='offscreen'),
+        capture_output=True,
+        text=True,
+        timeout=35,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(report.read_text())['passed']
+    assert not (root / 'YouTubeAuth').exists()

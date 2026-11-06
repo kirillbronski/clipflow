@@ -145,13 +145,13 @@ def test_arm64_uses_native_source_built_qtifw(monkeypatch, tmp_path):
     assert tools.install_qtifw('aarch64', tmp_path) == creator
 
 
-def test_qtifw_source_accepts_vendor_archive_root_without_patch_version(monkeypatch, tmp_path):
+def test_qtifw_source_uses_the_actual_vendor_archive_root(monkeypatch, tmp_path):
     import io
     import tarfile
     import types
 
     archive = tmp_path / 'vendor.tar.xz'
-    root = 'installer-framework-everywhere-src-4.8'
+    root = 'installer-framework-everywhere-src-dev'
     with tarfile.open(archive, 'w:xz') as stream:
         payload = b'TEMPLATE = subdirs\n'
         item = tarfile.TarInfo(root + '/installerfw.pro')

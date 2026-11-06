@@ -8,13 +8,13 @@ import tarfile
 from pathlib import Path
 
 QT_VERSION = '6.7.2'
-IFW_VERSION = '4.8.1'
+IFW_VERSION = '4.11.0'
 SOURCE_SHA256 = {
     'qtbase': 'c5f22a5e10fb162895ded7de0963328e7307611c688487b5d152c9ee64767599',
     'qtdeclarative': '4c29cba1af8c42d425d8eb6e01bad24cb80f4b983d71eef566a0542dfdb9b999',
     'qttools': '58e855ad1b2533094726c8a425766b63a04a0eede2ed85086860e54593aa4b2a',
     'qt5compat': '8826b5189efc4d9bdb64fdb1aa89d0fdf4e53c60948ed7995621ed046e38c003',
-    'qtifw': '150265e124ebfb6947fecff0e6b727f91576090b775459354b00f92b85321558',
+    'qtifw': '4abdad903a52b1c20bb46c715d7d12c65905791a3e366e574212fdd74cc47629',
 }
 
 

@@ -95,7 +95,9 @@ def _theme_mode(root):
 
 
 def _write_report(path, data):
-    Path(path).write_text(json.dumps(data), encoding='utf-8')
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding='utf-8')
 
 
 def _self_test_checks(window, service, platform, agent, original_icon):
@@ -239,6 +241,7 @@ def main(argv=None):
 
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv[:1])
+    app.setDesktopFileName('clipflow')
     app.setApplicationName(
         'ClipFlow ' + ('YouTube' if service == Service.YOUTUBE else 'Instagram') + ' Sign-in'
     )

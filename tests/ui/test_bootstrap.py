@@ -170,3 +170,11 @@ def test_binary_searches_linux_runtime_folder(monkeypatch, tmp_path):
     tool.parent.mkdir(parents=True)
     tool.write_bytes(b'test')
     assert bootstrap._binary('ffmpeg') == str(tool)
+
+
+def test_window_uses_the_installed_desktop_entry_identity(tmp_path, qtbot):
+    app, window = bootstrap.create_application(['clipflow-test'], data_dir=tmp_path)
+    try:
+        assert app.desktopFileName() == 'clipflow'
+    finally:
+        close(window, qtbot)
