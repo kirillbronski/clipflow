@@ -29,6 +29,7 @@ def installer_stage(root, stage, app):
     shutil.copytree(root / 'packaging/linux/installer', directory)
     data = directory / 'packages/com.clipflow.app/data'
     shutil.copytree(app, data)
+    shutil.copy2(directory / 'packages/com.clipflow.app/meta/clipflow-uninstall.svg', data)
     (data / 'clipflow-install.txt').write_text(APP_VERSION + '\n', encoding='utf-8')
     with Image.open(root / 'assets/icons/clipflow.png') as icon:
         icon.resize((256, 256)).save(data / 'clipflow.png')
