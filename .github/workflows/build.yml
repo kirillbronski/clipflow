@@ -7,6 +7,7 @@ on:
       - 'requirements*.txt'
       - 'pyproject.toml'
       - 'assets/**'
+      - 'INSTALL.txt'
       - 'scripts/build.py'
       - 'scripts/package_config.py'
       - 'scripts/package_smoke.py'
